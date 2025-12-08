@@ -8,22 +8,33 @@ interface MarketAnalysisProps {
   currentModel: ModelProvider;
   settings: UserSettings;
   onOpenSettings?: () => void;
+  // Props for state persistence
+  savedResult: AnalysisResult | null;
+  onResultUpdate: (result: AnalysisResult | null) => void;
+  savedPeriod: 'day' | 'month';
+  onPeriodUpdate: (period: 'day' | 'month') => void;
 }
 
-export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({ currentModel, settings, onOpenSettings }) => {
+export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({ 
+  currentModel, 
+  settings, 
+  onOpenSettings,
+  savedResult,
+  onResultUpdate,
+  savedPeriod,
+  onPeriodUpdate
+}) => {
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [period, setPeriod] = useState<'day' | 'month'>('day');
   const [error, setError] = useState<string | null>(null);
   const [allocationType, setAllocationType] = useState<'aggressive' | 'balanced'>('balanced');
 
   const handleAnalysis = async () => {
     setLoading(true);
-    setResult(null);
+    onResultUpdate(null);
     setError(null);
     try {
-      const data = await analyzeWithLLM(currentModel, "", true, settings, true, period);
-      setResult(data);
+      const data = await analyzeWithLLM(currentModel, "", true, settings, true, savedPeriod);
+      onResultUpdate(data);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -31,7 +42,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({ currentModel, se
     }
   };
 
-  const d = result?.structuredData;
+  const d = savedResult?.structuredData;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -46,17 +57,17 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({ currentModel, se
           <div className="flex items-center gap-3">
             <div className="inline-flex rounded-lg p-1 bg-slate-100 border border-slate-200">
               <button
-                onClick={() => setPeriod('day')}
+                onClick={() => onPeriodUpdate('day')}
                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  period === 'day' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  savedPeriod === 'day' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
                 今日
               </button>
               <button
-                onClick={() => setPeriod('month')}
+                onClick={() => onPeriodUpdate('month')}
                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  period === 'month' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  savedPeriod === 'month' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
                 本月

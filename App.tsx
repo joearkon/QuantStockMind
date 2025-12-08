@@ -1,18 +1,27 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { HashRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { Disclaimer } from './components/Disclaimer';
 import { MarketAnalysis } from './components/MarketAnalysis';
 import { StockAnalysis } from './components/StockAnalysis';
 import { SettingsModal } from './components/SettingsModal';
 import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS } from './constants';
-import { ModelProvider, UserSettings } from './types';
+import { ModelProvider, UserSettings, AnalysisResult } from './types';
 import { Settings, BrainCircuit } from 'lucide-react';
 
 const App: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<ModelProvider>(ModelProvider.GEMINI_INTL);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
+  // -- Global State for Persistence --
+  // Market Analysis State
+  const [marketResult, setMarketResult] = useState<AnalysisResult | null>(null);
+  const [marketPeriod, setMarketPeriod] = useState<'day' | 'month'>('day');
+
+  // Stock Analysis State
+  const [stockResult, setStockResult] = useState<AnalysisResult | null>(null);
+  const [stockQuery, setStockQuery] = useState('');
+
   // Initialize settings with environment variables or local storage
   const [userSettings, setUserSettings] = useState<UserSettings>(() => {
     const saved = localStorage.getItem('quantmind_settings');
@@ -136,6 +145,11 @@ const App: React.FC = () => {
                         currentModel={selectedModel} 
                         settings={userSettings} 
                         onOpenSettings={() => setIsSettingsOpen(true)}
+                        // Pass persisted state
+                        savedResult={marketResult}
+                        onResultUpdate={setMarketResult}
+                        savedPeriod={marketPeriod}
+                        onPeriodUpdate={setMarketPeriod}
                       />
                     } 
                   />
@@ -146,6 +160,11 @@ const App: React.FC = () => {
                         currentModel={selectedModel} 
                         settings={userSettings}
                         onOpenSettings={() => setIsSettingsOpen(true)}
+                        // Pass persisted state
+                        savedResult={stockResult}
+                        onResultUpdate={setStockResult}
+                        savedQuery={stockQuery}
+                        onQueryUpdate={setStockQuery}
                       />
                     } 
                   />

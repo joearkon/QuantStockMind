@@ -1,0 +1,7 @@
+{
+  "name": "quantmind-a-share-assistant",
+  "compatibility_date": "2025-12-08",
+  "assets": {
+    "directory": "./dist"
+  }
+}
