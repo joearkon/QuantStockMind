@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, GenerateContentResponse, Type, Schema } from "@google/genai";
-import { AnalysisResult, ModelProvider, MarketDashboardData } from "../types";
+import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType } from "../types";
 
 const GEMINI_MODEL_FAST = "gemini-2.5-flash"; 
 const GEMINI_MODEL_REASONING = "gemini-2.5-flash"; 
@@ -10,7 +10,7 @@ const marketDashboardSchema: Schema = {
   properties: {
     market_indices: {
       type: Type.ARRAY,
-      description: "Current status of major A-share indices (Shanghai, Shenzhen, ChiNext).",
+      description: "Current status of major indices.",
       items: {
         type: Type.OBJECT,
         properties: {
@@ -140,7 +140,7 @@ export const fetchGeminiAnalysis = async (
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: "你是一个专业的A股量化分析助手。输出Markdown格式。",
+        systemInstruction: "你是一个专业的全球金融市场量化分析助手。请根据用户指定的市场（A股/港股/美股）输出Markdown格式的分析报告。",
       },
     });
 
@@ -169,7 +169,8 @@ export const fetchGeminiAnalysis = async (
  * Perform structured market dashboard analysis using Gemini JSON mode.
  */
 export const fetchMarketDashboard = async (
-  period: 'day' | 'month'
+  period: 'day' | 'month',
+  market: MarketType = MarketType.CN
 ): Promise<AnalysisResult> => {
   if (!process.env.API_KEY) {
     throw new Error("API Key is missing.");
@@ -178,11 +179,22 @@ export const fetchMarketDashboard = async (
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const dateStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   
+  let marketSpecificPrompt = "";
+  if (market === MarketType.CN) {
+    marketSpecificPrompt = "主要指数关注：上证指数、深证成指、创业板指。重点关注中国政策和内资动向。";
+  } else if (market === MarketType.HK) {
+    marketSpecificPrompt = "主要指数关注：恒生指数、恒生科技指数、国企指数。重点关注南向资金和外资流动。";
+  } else if (market === MarketType.US) {
+    marketSpecificPrompt = "主要指数关注：道琼斯、纳斯达克、标普500。重点关注美联储政策和科技巨头表现。";
+  }
+
   try {
     const prompt = `
       今天是 ${dateStr}。
-      请根据当前A股市场情况（需基于最新互联网信息或已知数据），生成一份"${period === 'day' ? '当日' : '本月'}"的市场深度分析报告。
+      请根据当前【${market === 'US' ? '美股' : market === 'HK' ? '港股' : 'A股'}】市场情况（需基于最新互联网信息），生成一份"${period === 'day' ? '当日' : '本月'}"的市场深度分析报告。
       
+      ${marketSpecificPrompt}
+
       重点关注：
       1. 主要指数表现。
       2. 市场情绪评分。
@@ -199,7 +211,7 @@ export const fetchMarketDashboard = async (
       config: {
         responseMimeType: "application/json",
         responseSchema: marketDashboardSchema,
-        systemInstruction: `你是一个资深A股策略分析师。请基于广义的市场认知和逻辑推演生成数据。`
+        systemInstruction: `你是一个资深全球市场策略分析师。请基于真实数据生成分析。`
       },
     });
 
@@ -217,7 +229,8 @@ export const fetchMarketDashboard = async (
       structuredData: parsedData,
       timestamp: Date.now(),
       modelUsed: ModelProvider.GEMINI_INTL,
-      isStructured: true
+      isStructured: true,
+      market: market
     };
 
   } catch (error: any) {

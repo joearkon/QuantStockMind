@@ -1,11 +1,13 @@
 
 import React, { useState } from 'react';
-import { ModelProvider, AnalysisResult, UserSettings } from '../types';
+import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { Search, Loader2, ArrowRightCircle, Target, ShieldAlert, TrendingUp, Settings, FileText, ChevronRight } from 'lucide-react';
+import { MARKET_OPTIONS } from '../constants';
 
 interface StockAnalysisProps {
   currentModel: ModelProvider;
+  currentMarket: MarketType;
   settings: UserSettings;
   onOpenSettings?: () => void;
   // Props for state persistence
@@ -17,6 +19,7 @@ interface StockAnalysisProps {
 
 export const StockAnalysis: React.FC<StockAnalysisProps> = ({ 
   currentModel, 
+  currentMarket,
   settings, 
   onOpenSettings,
   savedResult,
@@ -36,9 +39,11 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
     onResultUpdate(null);
     setError(null);
     
+    const marketLabel = MARKET_OPTIONS.find(m => m.value === currentMarket)?.label || currentMarket;
+
     try {
       const prompt = `
-        请对A股股票 "${savedQuery}" 进行深度量化分析。
+        请对 ${marketLabel} 的股票 "${savedQuery}" 进行深度量化分析。
         请搜索最新的股价数据和基本面信息。
         输出必须包含以下章节（请使用 Markdown H2 标题）：
         ## 1. 基础数据
@@ -48,13 +53,13 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
         ## 5. 核心逻辑
 
         内容要求：
-        - **基础数据**：最新股价、PE(TTM)、PB、近期涨跌幅。
+        - **基础数据**：最新股价、PE(TTM)/Forward PE、PB、近期涨跌幅。
         - **关键价位**：第一止盈价（说明逻辑）、止损价（说明逻辑）、压力位/支撑位。
         - **量化评级**：风险等级(低/中/高)，并列出3个核心风险点。
         - **操作建议**：针对持仓者（止盈/加仓/减仓）和观望者（买入时机）的具体建议。
       `;
       // Pass settings so the adapter can find the API keys
-      const data = await analyzeWithLLM(currentModel, prompt, false, settings, false, 'day', currentPrice);
+      const data = await analyzeWithLLM(currentModel, prompt, false, settings, false, 'day', currentPrice, currentMarket);
       onResultUpdate(data);
     } catch (err: any) {
       setError(err.message || "分析失败，请检查网络或更换模型");
@@ -127,13 +132,15 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
     );
   };
 
+  const marketLabel = MARKET_OPTIONS.find(m => m.value === currentMarket)?.label || currentMarket;
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Search Input */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
         <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
             <Target className="w-6 h-6 text-indigo-600"/>
-            个股量化诊断
+            个股量化诊断 <span className="text-slate-400 text-sm font-normal ml-2">({marketLabel})</span>
         </h2>
         
         <form onSubmit={handleSearch} className="max-w-2xl mx-auto space-y-4">
@@ -142,7 +149,7 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
               type="text"
               value={savedQuery}
               onChange={(e) => onQueryUpdate(e.target.value)}
-              placeholder="输入股票代码 (如 600519) 或 名称 (如 贵州茅台)"
+              placeholder={`输入${marketLabel}代码或名称...`}
               className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-lg shadow-inner font-bold text-slate-800 placeholder:font-normal"
             />
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-6 h-6" />
@@ -171,7 +178,7 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
           </div>
 
           <p className="text-sm text-slate-500 text-center pt-2">
-            支持模糊搜索，自动匹配A股标的。AI将结合最新市场行情进行分析。
+            AI将结合最新互联网信息对 {marketLabel} 标的进行分析。
           </p>
         </form>
       </div>
@@ -211,7 +218,7 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
              <div>
                 <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
                    {savedQuery} 
-                   <span className="px-2 py-0.5 rounded text-xs bg-slate-200 text-slate-600 font-normal">A股</span>
+                   <span className="px-2 py-0.5 rounded text-xs bg-slate-200 text-slate-600 font-normal">{marketLabel}</span>
                 </h3>
                 <p className="text-sm text-slate-500 mt-1 flex items-center gap-2">
                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>

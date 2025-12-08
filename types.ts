@@ -4,6 +4,12 @@ export enum ModelProvider {
   HUNYUAN_CN = '混元大模型 (国内版)',
 }
 
+export enum MarketType {
+  CN = 'CN', // A-Share
+  HK = 'HK', // Hong Kong
+  US = 'US', // US Stocks
+}
+
 export enum AnalysisType {
   MARKET_MACRO = 'MARKET_MACRO',
   STOCK_INDIVIDUAL = 'STOCK_INDIVIDUAL',
@@ -21,6 +27,7 @@ export interface AnalysisResult {
   modelUsed: ModelProvider;
   isStructured?: boolean;
   structuredData?: MarketDashboardData;
+  market?: MarketType;
 }
 
 export interface MarketIndex {

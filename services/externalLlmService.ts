@@ -1,5 +1,5 @@
 
-import { AnalysisResult, ModelProvider, MarketDashboardData } from "../types";
+import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType } from "../types";
 
 // Configuration for external providers
 const PROVIDER_CONFIG = {
@@ -33,7 +33,8 @@ export const fetchExternalAI = async (
   apiKey: string,
   prompt: string,
   isDashboard: boolean,
-  period?: 'day' | 'month'
+  period?: 'day' | 'month',
+  market: MarketType = MarketType.CN
 ): Promise<AnalysisResult> => {
   
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
@@ -44,6 +45,15 @@ export const fetchExternalAI = async (
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN');
 
+  let indicesExample = "";
+  if (market === MarketType.CN) {
+    indicesExample = `{ "name": "上证指数", "value": "...", "change": "...", "direction": "up" }, { "name": "创业板指", ... }`;
+  } else if (market === MarketType.HK) {
+    indicesExample = `{ "name": "恒生指数", "value": "...", "change": "...", "direction": "down" }, { "name": "恒生科技", ... }`;
+  } else if (market === MarketType.US) {
+    indicesExample = `{ "name": "纳斯达克", "value": "...", "change": "...", "direction": "up" }, { "name": "标普500", ... }`;
+  }
+
   // JSON Schema Instruction for Dashboard
   const jsonInstruction = `
     You must return a valid JSON object strictly matching the structure below.
@@ -52,9 +62,7 @@ export const fetchExternalAI = async (
     JSON Structure required:
     {
       "market_indices": [
-        { "name": "上证指数", "value": "3xxx.xx", "change": "+x.x%", "direction": "up" },
-        { "name": "深证成指", "value": "1xxxx.xx", "change": "-x.x%", "direction": "down" },
-        { "name": "创业板指", "value": "2xxx.xx", "change": "+x.x%", "direction": "up" }
+        ${indicesExample}
       ],
       "market_sentiment": {
         "score": 0-100,
@@ -99,7 +107,7 @@ export const fetchExternalAI = async (
     }
   `;
 
-  let systemContent = `You are a professional A-share quantitative analyst. Today is ${dateStr}.`;
+  let systemContent = `You are a professional global financial market analyst. Today is ${dateStr}. Focus on the ${market} market.`;
   let userContent = prompt;
 
   if (isDashboard) {
@@ -176,7 +184,8 @@ export const fetchExternalAI = async (
           structuredData: parsedData,
           timestamp: Date.now(),
           modelUsed: provider,
-          isStructured: true
+          isStructured: true,
+          market: market
         };
       } catch (e) {
         console.error("Failed to parse external JSON", e, "Content:", content);
@@ -188,7 +197,8 @@ export const fetchExternalAI = async (
       content: content,
       timestamp: Date.now(),
       modelUsed: provider,
-      isStructured: false
+      isStructured: false,
+      market: market
     };
 
   } catch (error: any) {

@@ -1,11 +1,13 @@
 
 import React, { useState } from 'react';
-import { ModelProvider, AnalysisResult, UserSettings } from '../types';
+import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { Loader2, BarChart2, TrendingUp, Zap, Wind, Layers, Settings, ShieldCheck, Rocket, PieChart } from 'lucide-react';
+import { MARKET_OPTIONS } from '../constants';
 
 interface MarketAnalysisProps {
   currentModel: ModelProvider;
+  currentMarket: MarketType;
   settings: UserSettings;
   onOpenSettings?: () => void;
   // Props for state persistence
@@ -17,6 +19,7 @@ interface MarketAnalysisProps {
 
 export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({ 
   currentModel, 
+  currentMarket,
   settings, 
   onOpenSettings,
   savedResult,
@@ -33,7 +36,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
     onResultUpdate(null);
     setError(null);
     try {
-      const data = await analyzeWithLLM(currentModel, "", true, settings, true, savedPeriod);
+      const data = await analyzeWithLLM(currentModel, "", true, settings, true, savedPeriod, undefined, currentMarket);
       onResultUpdate(data);
     } catch (err: any) {
       setError(err.message);
@@ -43,6 +46,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
   };
 
   const d = savedResult?.structuredData;
+  const marketLabel = MARKET_OPTIONS.find(m => m.value === currentMarket)?.label || currentMarket;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -51,7 +55,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
             <BarChart2 className="w-6 h-6 text-blue-600" />
-            深度市场推演 (Deep Dive)
+            {marketLabel} 深度推演 (Deep Dive)
           </h2>
           
           <div className="flex items-center gap-3">
@@ -241,7 +245,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
               <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
                  <div className="bg-slate-900 rounded-xl p-6 text-white border border-slate-700 relative overflow-hidden">
                     <h3 className="text-blue-400 text-xs font-bold uppercase tracking-wider mb-1">Main Board / Defensive</h3>
-                    <h4 className="text-xl font-bold mb-4">主板价值/红利机会</h4>
+                    <h4 className="text-xl font-bold mb-4">防御/价值机会</h4>
                     <div className="mb-4">
                        <span className="text-xs font-bold text-slate-500 uppercase">Logic</span>
                        <p className="text-sm text-slate-300 mt-1 leading-relaxed">{d.opportunity_analysis.defensive_value.logic}</p>
@@ -257,7 +261,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
 
                  <div className="bg-slate-900 rounded-xl p-6 text-white border border-slate-700 relative overflow-hidden">
                     <h3 className="text-pink-400 text-xs font-bold uppercase tracking-wider mb-1">Tech / Growth</h3>
-                    <h4 className="text-xl font-bold mb-4">全域成长 (主板+科创)</h4>
+                    <h4 className="text-xl font-bold mb-4">成长/科技机会</h4>
                     <div className="mb-4">
                        <span className="text-xs font-bold text-slate-500 uppercase">Logic</span>
                        <p className="text-sm text-slate-300 mt-1 leading-relaxed">{d.opportunity_analysis.tech_growth.logic}</p>
@@ -336,17 +340,17 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                    <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
                       <div className="flex justify-between items-center mb-2">
-                         <span className="text-blue-400 text-xs font-bold">底仓/防御 (红利/大金融)</span>
+                         <span className="text-blue-400 text-xs font-bold">底仓/防御</span>
                          <span className="text-white font-bold">{d.allocation_model[allocationType].allocation.equity_value}%</span>
                       </div>
                       <p className="text-xs text-slate-400 mb-3">提供稳定的现金流和较低的波动性，作为市场不确定性下的安全垫。</p>
                    </div>
                    <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
                       <div className="flex justify-between items-center mb-2">
-                         <span className="text-emerald-400 text-xs font-bold">稳健成长 (主板白马)</span>
+                         <span className="text-emerald-400 text-xs font-bold">稳健成长</span>
                          <span className="text-white font-bold">{d.allocation_model[allocationType].allocation.equity_growth}%</span>
                       </div>
-                      <p className="text-xs text-slate-400 mb-3">配置主板中业绩确定性高、估值合理的成长龙头，享受长期增长红利。</p>
+                      <p className="text-xs text-slate-400 mb-3">配置市场中业绩确定性高、估值合理的成长龙头。</p>
                       <div className="flex flex-wrap gap-2">
                         {d.allocation_model[allocationType].suggested_picks.map((pick, i) => (
                           <span key={i} className="px-2 py-0.5 bg-emerald-900/50 border border-emerald-700 text-emerald-300 text-[10px] rounded">

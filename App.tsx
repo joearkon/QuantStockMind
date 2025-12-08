@@ -5,12 +5,13 @@ import { Disclaimer } from './components/Disclaimer';
 import { MarketAnalysis } from './components/MarketAnalysis';
 import { StockAnalysis } from './components/StockAnalysis';
 import { SettingsModal } from './components/SettingsModal';
-import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS } from './constants';
-import { ModelProvider, UserSettings, AnalysisResult } from './types';
-import { Settings, BrainCircuit } from 'lucide-react';
+import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS } from './constants';
+import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
+import { Settings, BrainCircuit, Globe } from 'lucide-react';
 
 const App: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<ModelProvider>(ModelProvider.GEMINI_INTL);
+  const [selectedMarket, setSelectedMarket] = useState<MarketType>(MarketType.CN);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   // -- Global State for Persistence --
@@ -64,21 +65,39 @@ const App: React.FC = () => {
                 <div className="bg-blue-600 p-2 rounded-lg">
                    <BrainCircuit className="w-6 h-6 text-white" />
                 </div>
-                <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-600">
+                <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-600 hidden sm:block">
                   {APP_NAME}
                 </span>
+                <span className="text-xl font-bold text-blue-700 sm:hidden">QM</span>
               </div>
               
-              {/* Model Selector & Settings */}
-              <div className="flex items-center gap-4">
-                <div className="hidden md:flex items-center gap-2 text-sm text-slate-500">
-                    <BrainCircuit className="w-4 h-4" />
-                    <span>模型:</span>
+              {/* Controls */}
+              <div className="flex items-center gap-3">
+                
+                {/* Market Selector */}
+                <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
+                   {MARKET_OPTIONS.map((m) => (
+                      <button
+                        key={m.value}
+                        onClick={() => setSelectedMarket(m.value)}
+                        className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all ${
+                          selectedMarket === m.value 
+                            ? 'bg-white text-blue-600 shadow-sm' 
+                            : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        {m.short}
+                      </button>
+                   ))}
                 </div>
+
+                <div className="h-6 w-px bg-slate-300 mx-1 hidden md:block"></div>
+
+                {/* Model Selector */}
                 <select 
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value as ModelProvider)}
-                  className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none min-w-[160px]"
+                  className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none max-w-[120px] sm:max-w-none"
                 >
                   {MODEL_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -124,10 +143,21 @@ const App: React.FC = () => {
                 ))}
                 
                 <div className="mt-8 p-4 bg-slate-100 rounded-xl text-xs text-slate-500 leading-relaxed">
-                   <p className="font-semibold mb-2">关于模型适配</p>
-                   {selectedModel === ModelProvider.GEMINI_INTL 
-                     ? "当前使用 Google Gemini 2.5。若需使用混元大模型，请在右上角设置中配置 API Key。"
-                     : "当前选择国内模型。请确保已在设置中填入对应的 API Key 以启用分析。"}
+                   <div className="flex items-center gap-2 mb-2 font-semibold text-slate-700">
+                      <Globe className="w-3 h-3" />
+                      当前市场: {MARKET_OPTIONS.find(m => m.value === selectedMarket)?.label}
+                   </div>
+                   <p className="mb-2">
+                     {selectedMarket === MarketType.CN && "聚焦沪深京A股市场，包含科创板与创业板。"}
+                     {selectedMarket === MarketType.HK && "覆盖港股主板、恒生科技指数及南向资金动向。"}
+                     {selectedMarket === MarketType.US && "覆盖美股三大指数(道指/纳指/标普)及中概股。"}
+                   </p>
+                   <div className="h-px bg-slate-200 my-2"></div>
+                   <p>
+                     {selectedModel === ModelProvider.GEMINI_INTL 
+                       ? "Gemini 2.5 具备全球联网能力，适合所有市场分析。"
+                       : "混元模型对国内市场(A/H)理解较深，美股分析可能依赖搜索增强。"}
+                   </p>
                 </div>
               </nav>
             </aside>
@@ -143,9 +173,9 @@ const App: React.FC = () => {
                     element={
                       <MarketAnalysis 
                         currentModel={selectedModel} 
+                        currentMarket={selectedMarket}
                         settings={userSettings} 
                         onOpenSettings={() => setIsSettingsOpen(true)}
-                        // Pass persisted state
                         savedResult={marketResult}
                         onResultUpdate={setMarketResult}
                         savedPeriod={marketPeriod}
@@ -158,9 +188,9 @@ const App: React.FC = () => {
                     element={
                       <StockAnalysis 
                         currentModel={selectedModel} 
+                        currentMarket={selectedMarket}
                         settings={userSettings}
                         onOpenSettings={() => setIsSettingsOpen(true)}
-                        // Pass persisted state
                         savedResult={stockResult}
                         onResultUpdate={setStockResult}
                         savedQuery={stockQuery}
