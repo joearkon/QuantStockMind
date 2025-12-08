@@ -1,16 +1,20 @@
+
 import React, { useState } from 'react';
-import { ModelProvider, AnalysisResult } from '../types';
+import { ModelProvider, AnalysisResult, UserSettings } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
-import { Search, Loader2, ArrowRightCircle, Target, ShieldAlert, TrendingUp } from 'lucide-react';
+import { Search, Loader2, ArrowRightCircle, Target, ShieldAlert, TrendingUp, Settings } from 'lucide-react';
 
 interface StockAnalysisProps {
   currentModel: ModelProvider;
+  settings: UserSettings;
+  onOpenSettings?: () => void;
 }
 
-export const StockAnalysis: React.FC<StockAnalysisProps> = ({ currentModel }) => {
+export const StockAnalysis: React.FC<StockAnalysisProps> = ({ currentModel, settings, onOpenSettings }) => {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,6 +22,8 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({ currentModel }) =>
 
     setLoading(true);
     setResult(null);
+    setError(null);
+    
     try {
       const prompt = `
         请对A股股票 "${query}" 进行深度量化分析。
@@ -33,10 +39,11 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({ currentModel }) =>
            - 持仓者建议（止盈/加仓/减仓）
            - 观望者建议（买入时机/价格区间）
       `;
-      const data = await analyzeWithLLM(currentModel, prompt, false);
+      // Pass settings so the adapter can find the API keys
+      const data = await analyzeWithLLM(currentModel, prompt, false, settings);
       setResult(data);
-    } catch (err) {
-      alert("分析失败，请检查网络或更换模型");
+    } catch (err: any) {
+      setError(err.message || "分析失败，请检查网络或更换模型");
     } finally {
       setLoading(false);
     }
@@ -74,6 +81,25 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({ currentModel }) =>
           </p>
         </form>
       </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-100 rounded-lg flex items-center justify-between text-red-700">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-5 h-5" />
+            <span className="font-semibold">分析中断:</span> {error}
+          </div>
+          {onOpenSettings && (error.includes('Key') || error.includes('配置')) && (
+            <button 
+              onClick={onOpenSettings}
+              className="px-3 py-1 bg-white border border-red-200 text-red-600 text-sm rounded shadow-sm hover:bg-red-50 flex items-center gap-1"
+            >
+              <Settings className="w-3 h-3" />
+              检查配置
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Results */}
       {result && (

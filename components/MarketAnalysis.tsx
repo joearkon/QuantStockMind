@@ -2,27 +2,30 @@
 import React, { useState } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketDashboardData } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
-import { Loader2, BarChart2, TrendingUp, ArrowRight, Zap, Wind, TrendingDown, Layers } from 'lucide-react';
+import { Loader2, BarChart2, TrendingUp, ArrowRight, Zap, Wind, TrendingDown, Layers, Settings } from 'lucide-react';
 
 interface MarketAnalysisProps {
   currentModel: ModelProvider;
   settings: UserSettings;
+  onOpenSettings?: () => void;
 }
 
-export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({ currentModel, settings }) => {
+export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({ currentModel, settings, onOpenSettings }) => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [period, setPeriod] = useState<'day' | 'month'>('day');
+  const [error, setError] = useState<string | null>(null);
 
   const handleAnalysis = async () => {
     setLoading(true);
     setResult(null);
+    setError(null);
     try {
       // Pass isDashboard=true to get structured data
       const data = await analyzeWithLLM(currentModel, "", true, settings, true, period);
       setResult(data);
     } catch (err: any) {
-      alert(`分析失败: ${err.message}`);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -71,7 +74,25 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({ currentModel, se
           </div>
         </div>
 
-        {!d && !loading && (
+        {/* Error State */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-lg flex items-center justify-between text-red-700">
+             <div className="flex items-center gap-2">
+                <span className="font-semibold">分析失败:</span> {error}
+             </div>
+             {onOpenSettings && (
+               <button 
+                 onClick={onOpenSettings}
+                 className="px-3 py-1 bg-white border border-red-200 text-red-600 text-sm rounded shadow-sm hover:bg-red-50 flex items-center gap-1"
+               >
+                 <Settings className="w-3 h-3" />
+                 去配置
+               </button>
+             )}
+          </div>
+        )}
+
+        {!d && !loading && !error && (
           <div className="text-center py-12 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
             <Layers className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p>点击“生成全景报告”获取基于 {currentModel} 的深度市场复盘</p>

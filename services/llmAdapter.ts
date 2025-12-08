@@ -17,12 +17,12 @@ export const analyzeWithLLM = async (
   // 1. Check Custom Keys for Domestic Models
   if (provider === ModelProvider.DEEPSEEK_CN) {
     if (!settings?.deepSeekKey) {
-      throw new Error("请先在设置中配置 DeepSeek API Key");
+      throw new Error("未检测到 DeepSeek API Key。请在设置中配置，或确保环境变量 DEEPSEEK_API_KEY 已生效。");
     }
   }
   if (provider === ModelProvider.HUNYUAN_CN) {
     if (!settings?.hunyuanKey) {
-      throw new Error("请先在设置中配置 混元 API Key");
+      throw new Error("未检测到 混元 API Key。请在设置中配置，或确保环境变量 HUNYUAN_API_KEY 已生效。");
     }
   }
 

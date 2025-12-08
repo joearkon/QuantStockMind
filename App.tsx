@@ -24,9 +24,14 @@ const App: React.FC = () => {
         console.error("Failed to parse settings", e);
       }
     }
+
+    // Support both standard and VITE_ prefixed variables for better compatibility
+    const envDeepSeek = process.env.DEEPSEEK_API_KEY || process.env.VITE_DEEPSEEK_API_KEY;
+    const envHunyuan = process.env.HUNYUAN_API_KEY || process.env.VITE_HUNYUAN_API_KEY;
+
     return {
-      deepSeekKey: parsed.deepSeekKey || process.env.DEEPSEEK_API_KEY,
-      hunyuanKey: parsed.hunyuanKey || process.env.HUNYUAN_API_KEY,
+      deepSeekKey: parsed.deepSeekKey || envDeepSeek,
+      hunyuanKey: parsed.hunyuanKey || envHunyuan,
     };
   });
 
@@ -120,8 +125,26 @@ const App: React.FC = () => {
               <div className="min-h-[500px]">
                 <Routes>
                   <Route path="/" element={<Navigate to="/market" replace />} />
-                  <Route path="/market" element={<MarketAnalysis currentModel={selectedModel} settings={userSettings} />} />
-                  <Route path="/stock" element={<StockAnalysis currentModel={selectedModel} />} />
+                  <Route 
+                    path="/market" 
+                    element={
+                      <MarketAnalysis 
+                        currentModel={selectedModel} 
+                        settings={userSettings} 
+                        onOpenSettings={() => setIsSettingsOpen(true)}
+                      />
+                    } 
+                  />
+                  <Route 
+                    path="/stock" 
+                    element={
+                      <StockAnalysis 
+                        currentModel={selectedModel} 
+                        settings={userSettings}
+                        onOpenSettings={() => setIsSettingsOpen(true)}
+                      />
+                    } 
+                  />
                 </Routes>
               </div>
               

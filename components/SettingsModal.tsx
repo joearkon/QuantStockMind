@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { X, Save, Key } from 'lucide-react';
+import { X, Save, Key, Info } from 'lucide-react';
 import { UserSettings } from '../types';
 
 interface SettingsModalProps {
@@ -44,8 +45,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
         </div>
         
         <div className="p-6 space-y-6">
-          <div className="p-3 bg-blue-50 text-blue-700 text-sm rounded-lg border border-blue-100">
-            配置您的私有 API Key 以启用国内大模型。Key 仅保存在本地浏览器中。
+          <div className="p-3 bg-blue-50 text-blue-700 text-xs leading-relaxed rounded-lg border border-blue-100 flex gap-2">
+            <Info className="w-4 h-4 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold mb-1">环境配置说明</p>
+              若使用环境变量，请确保变量名为 <code>DEEPSEEK_API_KEY</code> 或 <code>VITE_DEEPSEEK_API_KEY</code>。
+              手动输入的 Key 优先级高于环境变量。
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -57,7 +63,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
                 type="password"
                 value={deepSeekKey}
                 onChange={(e) => setDeepSeekKey(e.target.value)}
-                placeholder="sk-..."
+                placeholder={settings.deepSeekKey ? "已从环境加载 (可覆盖)" : "sk-..."}
                 className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm font-mono"
               />
             </div>
@@ -70,7 +76,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
                 type="password"
                 value={hunyuanKey}
                 onChange={(e) => setHunyuanKey(e.target.value)}
-                placeholder="SecretId / Key..."
+                placeholder={settings.hunyuanKey ? "已从环境加载 (可覆盖)" : "SecretId / Key..."}
                 className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm font-mono"
               />
             </div>
