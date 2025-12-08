@@ -7,7 +7,7 @@ import { StockAnalysis } from './components/StockAnalysis';
 import { SettingsModal } from './components/SettingsModal';
 import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
-import { Settings, BrainCircuit, Globe } from 'lucide-react';
+import { Settings, BrainCircuit, Globe, FlaskConical } from 'lucide-react';
 
 const App: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<ModelProvider>(ModelProvider.GEMINI_INTL);
@@ -204,7 +204,12 @@ const App: React.FC = () => {
               <footer className="mt-12 border-t border-slate-200 pt-6 text-center text-slate-400 text-sm pb-8">
                  <p className="mb-2">&copy; {new Date().getFullYear()} QuantMind. Powered by Google Gemini 2.5 & Multi-LLM.</p>
                  <div className="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-4">
-                    <span>陈子卓野 实验室</span>
+                    <div className="flex items-center gap-2 group cursor-default">
+                       <div className="p-1 bg-indigo-50 rounded-full border border-indigo-100 group-hover:bg-indigo-100 transition-colors">
+                         <FlaskConical className="w-3.5 h-3.5 text-indigo-600" />
+                       </div>
+                       <span className="font-medium text-slate-500 group-hover:text-indigo-700 transition-colors">陈子卓野 实验室</span>
+                    </div>
                     <span className="hidden sm:inline text-slate-300">|</span>
                     <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer" className="hover:text-slate-600 transition-colors">
                       沪ICP备2025153381号
