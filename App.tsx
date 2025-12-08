@@ -44,8 +44,21 @@ const App: React.FC = () => {
       process.env.VITE_HUNYUAN_API_KEY || 
       process.env.HUNYUAN_API_KEY;
 
+    // Check Gemini Env Vars
+    const geminiKey = 
+      // @ts-ignore
+      import.meta.env?.VITE_GEMINI_API_KEY ||
+      // @ts-ignore
+      import.meta.env?.VITE_API_KEY || // Common fallback
+      // @ts-ignore
+      import.meta.env?.API_KEY ||
+      process.env.VITE_GEMINI_API_KEY ||
+      process.env.VITE_API_KEY ||
+      process.env.API_KEY;
+
     return {
       hunyuanKey: parsed.hunyuanKey || hunyuanKey,
+      geminiKey: parsed.geminiKey || geminiKey,
     };
   });
 

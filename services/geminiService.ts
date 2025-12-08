@@ -125,13 +125,16 @@ const marketDashboardSchema: Schema = {
  */
 export const fetchGeminiAnalysis = async (
   prompt: string,
-  useReasoning: boolean = false
+  useReasoning: boolean = false,
+  apiKey?: string
 ): Promise<AnalysisResult> => {
-  if (!process.env.API_KEY) {
-    throw new Error("API Key is missing. Please check your environment configuration.");
+  
+  const effectiveKey = apiKey || process.env.API_KEY;
+  if (!effectiveKey) {
+    throw new Error("API Key is missing. Please set GEMINI API KEY in settings or environment.");
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: effectiveKey });
   const modelName = useReasoning ? "gemini-3-pro-preview" : GEMINI_MODEL_FAST;
 
   try {
@@ -170,13 +173,16 @@ export const fetchGeminiAnalysis = async (
  */
 export const fetchMarketDashboard = async (
   period: 'day' | 'month',
-  market: MarketType = MarketType.CN
+  market: MarketType = MarketType.CN,
+  apiKey?: string
 ): Promise<AnalysisResult> => {
-  if (!process.env.API_KEY) {
-    throw new Error("API Key is missing.");
+  
+  const effectiveKey = apiKey || process.env.API_KEY;
+  if (!effectiveKey) {
+    throw new Error("API Key is missing. Please set GEMINI API KEY in settings or environment.");
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: effectiveKey });
   const dateStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   
   let marketSpecificPrompt = "";

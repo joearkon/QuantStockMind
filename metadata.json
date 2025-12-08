@@ -1,5 +1,5 @@
 {
-  "name": "QuantMind A-Share Assistant",
+  "name": "QuantMind A-Share Assistant股票量化助手",
   "description": "A professional A-share quantitative analysis tool leveraging multi-model AI (Gemini, Hunyuan) for market insights and individual stock strategies.",
   "requestFramePermissions": []
 }

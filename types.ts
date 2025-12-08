@@ -92,6 +92,7 @@ export interface StockQuery {
 
 export interface UserSettings {
   hunyuanKey?: string;
+  geminiKey?: string;
 }
 
 export interface MarketParams {

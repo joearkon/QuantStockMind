@@ -27,14 +27,16 @@ export const analyzeWithLLM = async (
 
   // 1. Google Gemini (Default)
   if (provider === ModelProvider.GEMINI_INTL) {
+    const geminiKey = settings?.geminiKey; // Get Key from UI settings
+
     if (isDashboard) {
-      return await fetchMarketDashboard(period, market);
+      return await fetchMarketDashboard(period, market, geminiKey);
     }
     let datedPrompt = `[Context: Analyzing ${marketName} market at ${fullTimeContext}] ${prompt}`;
     if (currentPrice) {
       datedPrompt += `\n[IMPORTANT: The user states the CURRENT PRICE is ${currentPrice}. Use this value for all calculations.]`;
     }
-    return await fetchGeminiAnalysis(datedPrompt, isComplex);
+    return await fetchGeminiAnalysis(datedPrompt, isComplex, geminiKey);
   }
 
   // 2. Domestic Models (Hunyuan only now)
