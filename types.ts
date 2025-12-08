@@ -99,3 +99,14 @@ export interface MarketParams {
   period: 'day' | 'month';
   focus: 'funds' | 'rotation' | 'sentiment';
 }
+
+// Global definition for injected variables from Cloudflare Worker
+declare global {
+  interface Window {
+    __ENV__?: {
+      VITE_GEMINI_API_KEY?: string;
+      VITE_HUNYUAN_API_KEY?: string;
+      [key: string]: string | undefined;
+    };
+  }
+}

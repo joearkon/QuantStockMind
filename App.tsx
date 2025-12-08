@@ -35,8 +35,12 @@ const App: React.FC = () => {
       }
     }
 
-    // Check Hunyuan Env Vars
+    // Cloudflare Worker Injected Variables
+    const injectedEnv = window.__ENV__ || {};
+
+    // Check Hunyuan Env Vars (Priority: Injected -> Vite Env -> Process Env)
     const hunyuanKey = 
+      injectedEnv.VITE_HUNYUAN_API_KEY ||
       // @ts-ignore
       import.meta.env?.VITE_HUNYUAN_API_KEY || 
       // @ts-ignore
@@ -44,8 +48,9 @@ const App: React.FC = () => {
       process.env.VITE_HUNYUAN_API_KEY || 
       process.env.HUNYUAN_API_KEY;
 
-    // Check Gemini Env Vars
+    // Check Gemini Env Vars (Priority: Injected -> Vite Env -> Process Env)
     const geminiKey = 
+      injectedEnv.VITE_GEMINI_API_KEY ||
       // @ts-ignore
       import.meta.env?.VITE_GEMINI_API_KEY ||
       // @ts-ignore
