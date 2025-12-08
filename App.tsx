@@ -25,13 +25,17 @@ const App: React.FC = () => {
       }
     }
 
-    // Support both standard and VITE_ prefixed variables for better compatibility
-    const envDeepSeek = process.env.DEEPSEEK_API_KEY || process.env.VITE_DEEPSEEK_API_KEY;
-    const envHunyuan = process.env.HUNYUAN_API_KEY || process.env.VITE_HUNYUAN_API_KEY;
+    // Check Hunyuan Env Vars
+    const hunyuanKey = 
+      // @ts-ignore
+      import.meta.env?.VITE_HUNYUAN_API_KEY || 
+      // @ts-ignore
+      import.meta.env?.HUNYUAN_API_KEY ||
+      process.env.VITE_HUNYUAN_API_KEY || 
+      process.env.HUNYUAN_API_KEY;
 
     return {
-      deepSeekKey: parsed.deepSeekKey || envDeepSeek,
-      hunyuanKey: parsed.hunyuanKey || envHunyuan,
+      hunyuanKey: parsed.hunyuanKey || hunyuanKey,
     };
   });
 
@@ -113,7 +117,7 @@ const App: React.FC = () => {
                 <div className="mt-8 p-4 bg-slate-100 rounded-xl text-xs text-slate-500 leading-relaxed">
                    <p className="font-semibold mb-2">关于模型适配</p>
                    {selectedModel === ModelProvider.GEMINI_INTL 
-                     ? "当前使用 Google Gemini 2.5。若需使用 DeepSeek 或 混元，请在右上角设置中配置 API Key。"
+                     ? "当前使用 Google Gemini 2.5。若需使用混元大模型，请在右上角设置中配置 API Key。"
                      : "当前选择国内模型。请确保已在设置中填入对应的 API Key 以启用分析。"}
                 </div>
               </nav>

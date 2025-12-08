@@ -1,3 +1,4 @@
+
 import { ModelProvider } from './types';
 import { LayoutDashboard, TrendingUp, BarChart3, Settings } from 'lucide-react';
 
@@ -6,7 +7,6 @@ export const APP_NAME = "QuantMind A股助手";
 export const MODEL_OPTIONS = [
   { value: ModelProvider.GEMINI_INTL, label: 'Gemini 3 (海外版)', recommended: true, region: 'Global' },
   { value: ModelProvider.HUNYUAN_CN, label: '腾讯混元 (国内版)', recommended: false, region: 'CN' },
-  { value: ModelProvider.DEEPSEEK_CN, label: 'DeepSeek (国内版)', recommended: false, region: 'CN' },
 ];
 
 export const NAV_ITEMS = [

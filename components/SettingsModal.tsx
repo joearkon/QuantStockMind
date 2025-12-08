@@ -11,12 +11,10 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSave }) => {
-  const [deepSeekKey, setDeepSeekKey] = useState(settings.deepSeekKey || '');
   const [hunyuanKey, setHunyuanKey] = useState(settings.hunyuanKey || '');
 
   useEffect(() => {
     if (isOpen) {
-      setDeepSeekKey(settings.deepSeekKey || '');
       setHunyuanKey(settings.hunyuanKey || '');
     }
   }, [isOpen, settings]);
@@ -25,7 +23,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
 
   const handleSave = () => {
     onSave({
-      deepSeekKey: deepSeekKey.trim() || undefined,
       hunyuanKey: hunyuanKey.trim() || undefined,
     });
     onClose();
@@ -48,26 +45,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
           <div className="p-3 bg-blue-50 text-blue-700 text-xs leading-relaxed rounded-lg border border-blue-100 flex gap-2">
             <Info className="w-4 h-4 shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold mb-1">环境配置说明</p>
-              若使用环境变量，请确保变量名为 <code>DEEPSEEK_API_KEY</code> 或 <code>VITE_DEEPSEEK_API_KEY</code>。
-              手动输入的 Key 优先级高于环境变量。
+              <p className="font-semibold mb-1">环境变量配置说明</p>
+              <p>为了安全起见，前端应用通常只读取以 <code>VITE_</code> 开头的环境变量。</p>
+              <p className="mt-1">请在 EdgeOne 或服务器中配置:</p>
+              <ul className="list-disc ml-4 mt-1 space-y-0.5">
+                <li><code>VITE_HUNYUAN_API_KEY</code></li>
+              </ul>
             </div>
           </div>
 
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                DeepSeek API Key
-              </label>
-              <input
-                type="password"
-                value={deepSeekKey}
-                onChange={(e) => setDeepSeekKey(e.target.value)}
-                placeholder={settings.deepSeekKey ? "已从环境加载 (可覆盖)" : "sk-..."}
-                className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm font-mono"
-              />
-            </div>
-
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 腾讯混元 API Key

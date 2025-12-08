@@ -87,12 +87,21 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({ currentModel, sett
         <div className="p-4 bg-red-50 border border-red-100 rounded-lg flex items-center justify-between text-red-700">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-5 h-5" />
-            <span className="font-semibold">分析中断:</span> {error}
+            <div className="text-sm">
+               <span className="font-semibold block">分析中断</span>
+               {error}
+            </div>
           </div>
-          {onOpenSettings && (error.includes('Key') || error.includes('配置')) && (
+          {onOpenSettings && (
+            error.includes('Key') || 
+            error.includes('配置') || 
+            error.includes('余额') ||
+            error.includes('401') ||
+            error.includes('402')
+          ) && (
             <button 
               onClick={onOpenSettings}
-              className="px-3 py-1 bg-white border border-red-200 text-red-600 text-sm rounded shadow-sm hover:bg-red-50 flex items-center gap-1"
+              className="px-3 py-1 bg-white border border-red-200 text-red-600 text-sm rounded shadow-sm hover:bg-red-50 flex items-center gap-1 whitespace-nowrap"
             >
               <Settings className="w-3 h-3" />
               检查配置

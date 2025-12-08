@@ -2,7 +2,6 @@
 export enum ModelProvider {
   GEMINI_INTL = 'Gemini 3 (海外版)',
   HUNYUAN_CN = '混元大模型 (国内版)',
-  DEEPSEEK_CN = 'DeepSeek (国内版)',
 }
 
 export enum AnalysisType {
@@ -10,16 +9,14 @@ export enum AnalysisType {
   STOCK_INDIVIDUAL = 'STOCK_INDIVIDUAL',
 }
 
-export interface GroundingChunk {
-  web?: {
-    uri: string;
-    title: string;
-  };
+export interface GroundingSource {
+  uri: string;
+  title: string;
 }
 
 export interface AnalysisResult {
   content: string; // Markdown formatted text or JSON string
-  groundingSource?: GroundingChunk[];
+  groundingSource?: GroundingSource[];
   timestamp: number;
   modelUsed: ModelProvider;
   isStructured?: boolean;
@@ -31,6 +28,16 @@ export interface MarketIndex {
   value: string;
   change: string;
   direction: 'up' | 'down';
+}
+
+export interface AllocationModel {
+  description: string;
+  allocation: {
+    equity_growth: number; // Percentage
+    equity_value: number; // Percentage
+    bonds_cash: number; // Percentage
+  };
+  suggested_picks: string[];
 }
 
 export interface MarketDashboardData {
@@ -52,6 +59,23 @@ export interface MarketDashboardData {
     market_valuation: string;
   };
   hot_topics: string[];
+  
+  // New Strategy Fields
+  opportunity_analysis: {
+    defensive_value: {
+      logic: string;
+      sectors: string[];
+    };
+    tech_growth: {
+      logic: string;
+      sectors: string[];
+    };
+  };
+  strategist_verdict: string;
+  allocation_model: {
+    aggressive: AllocationModel;
+    balanced: AllocationModel;
+  };
 }
 
 export interface StockQuery {
@@ -60,7 +84,6 @@ export interface StockQuery {
 }
 
 export interface UserSettings {
-  deepSeekKey?: string;
   hunyuanKey?: string;
 }
 
