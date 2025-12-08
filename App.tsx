@@ -5,7 +5,7 @@ import { Disclaimer } from './components/Disclaimer';
 import { MarketAnalysis } from './components/MarketAnalysis';
 import { StockAnalysis } from './components/StockAnalysis';
 import { SettingsModal } from './components/SettingsModal';
-import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS } from './constants';
+import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS, APP_VERSION } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
 import { Settings, BrainCircuit, Globe, FlaskConical } from 'lucide-react';
 
@@ -220,7 +220,11 @@ const App: React.FC = () => {
               </div>
               
               <footer className="mt-12 border-t border-slate-200 pt-6 text-center text-slate-400 text-sm pb-8">
-                 <p className="mb-2">&copy; {new Date().getFullYear()} QuantMind. Powered by Google Gemini 2.5 & Multi-LLM.</p>
+                 <p className="mb-2 flex items-center justify-center gap-2">
+                   <span>&copy; {new Date().getFullYear()} QuantMind</span>
+                   <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-mono">{APP_VERSION}</span>
+                   <span>Powered by Google Gemini 2.5 & Multi-LLM.</span>
+                 </p>
                  <div className="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-4">
                     <div className="flex items-center gap-2 group cursor-default">
                        <div className="p-1 bg-indigo-50 rounded-full border border-indigo-100 group-hover:bg-indigo-100 transition-colors">

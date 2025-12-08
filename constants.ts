@@ -3,6 +3,7 @@ import { ModelProvider, MarketType } from './types';
 import { LayoutDashboard, TrendingUp } from 'lucide-react';
 
 export const APP_NAME = "QuantMind 全球量化";
+export const APP_VERSION = "v1.0.0";
 
 export const MODEL_OPTIONS = [
   { value: ModelProvider.GEMINI_INTL, label: 'Gemini 3 (海外版)', recommended: true, region: 'Global' },
