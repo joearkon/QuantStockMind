@@ -98,8 +98,8 @@ export const fetchExternalAI = async (
           "description": "Short description",
           "action_plan": ["Step 1: Clear weak stocks", "Step 2: Buy Leaders"],
           "portfolio_table": [
-             { "name": "StockName", "code": "Code", "weight": "30%", "logic_tag": "Logic tag" },
-             { "name": "StockName", "code": "Code", "weight": "20%", "logic_tag": "Logic tag" }
+             { "name": "StockName", "code": "Code", "volume": "800股", "weight": "30%", "logic_tag": "Logic tag" },
+             { "name": "Cash", "code": "-", "volume": "2000元", "weight": "10%", "logic_tag": "Liquidity" }
           ],
           "core_advantage": "Summary of advantage"
         },
@@ -108,7 +108,7 @@ export const fetchExternalAI = async (
           "description": "Short description",
           "action_plan": ["Step 1...", "Step 2..."],
           "portfolio_table": [
-             { "name": "StockName", "code": "Code", "weight": "20%", "logic_tag": "Logic tag" }
+             { "name": "StockName", "code": "Code", "volume": "500股", "weight": "20%", "logic_tag": "Logic tag" }
           ],
           "core_advantage": "Summary of advantage"
         }
@@ -120,7 +120,7 @@ export const fetchExternalAI = async (
   let userContent = prompt;
 
   if (isDashboard) {
-    userContent = `${prompt}\n\n${jsonInstruction}\n\nIMPORTANT: For 'allocation_model', you MUST provide specific stock names and codes (e.g., 600xxx for A-Share, AAPL for US) and specific weights/ratios in a table format.`;
+    userContent = `${prompt}\n\n${jsonInstruction}\n\nIMPORTANT: For 'allocation_model', you MUST provide specific stock names and codes (e.g., 600xxx for A-Share, AAPL for US), specific volumes (e.g., '800 shares') and weights (e.g., '30%') in a table format. Include a 'Cash' row.`;
     systemContent += " You are a helpful assistant that outputs strictly structured JSON data.";
   } else {
     systemContent += " If the user provides a 'Current Price' in the prompt, accept it as the absolute truth for your calculations. Please output the analysis in professional Markdown format.";

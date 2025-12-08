@@ -1,9 +1,10 @@
-
 import { GoogleGenAI, GenerateContentResponse, Type, Schema } from "@google/genai";
-import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType } from "../types";
+import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot } from "../types";
 
 const GEMINI_MODEL_FAST = "gemini-2.5-flash"; 
 const GEMINI_MODEL_REASONING = "gemini-2.5-flash"; 
+
+// --- Schemas ---
 
 const marketDashboardSchema: Schema = {
   type: Type.OBJECT,
@@ -85,7 +86,7 @@ const marketDashboardSchema: Schema = {
         aggressive: {
           type: Type.OBJECT,
           properties: {
-            strategy_name: { type: Type.STRING, description: "e.g., Aggressive Growth Strategy" },
+            strategy_name: { type: Type.STRING, description: "e.g., 激进型成长策略 (仓位≈80%)" },
             description: { type: Type.STRING, description: "Short description" },
             action_plan: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Step by step actions, e.g. 1. Clear weak stocks..." },
             portfolio_table: {
@@ -96,7 +97,8 @@ const marketDashboardSchema: Schema = {
                 properties: {
                   name: { type: Type.STRING },
                   code: { type: Type.STRING },
-                  weight: { type: Type.STRING, description: "Percentage or share count description" },
+                  volume: { type: Type.STRING, description: "Specific share count or amount, e.g. '800股' or '约2000元'" },
+                  weight: { type: Type.STRING, description: "Percentage, e.g. '34%'" },
                   logic_tag: { type: Type.STRING, description: "Short logic tag, e.g. AI Leader" }
                 }
               }
@@ -107,7 +109,7 @@ const marketDashboardSchema: Schema = {
         balanced: {
           type: Type.OBJECT,
           properties: {
-            strategy_name: { type: Type.STRING, description: "e.g., Balanced/Defensive Strategy" },
+            strategy_name: { type: Type.STRING, description: "e.g., 稳健防御策略 (仓位≈50%)" },
             description: { type: Type.STRING },
             action_plan: { type: Type.ARRAY, items: { type: Type.STRING } },
             portfolio_table: {
@@ -117,6 +119,7 @@ const marketDashboardSchema: Schema = {
                 properties: {
                   name: { type: Type.STRING },
                   code: { type: Type.STRING },
+                  volume: { type: Type.STRING },
                   weight: { type: Type.STRING },
                   logic_tag: { type: Type.STRING }
                 }
@@ -131,6 +134,33 @@ const marketDashboardSchema: Schema = {
   },
   required: ["market_sentiment", "capital_rotation", "deep_logic", "hot_topics", "opportunity_analysis", "strategist_verdict", "allocation_model"]
 };
+
+const holdingsParsingSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    totalAssets: { type: Type.NUMBER, description: "Total assets amount from screenshot" },
+    date: { type: Type.STRING, description: "Date string YYYY-MM-DD" },
+    holdings: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          code: { type: Type.STRING },
+          volume: { type: Type.NUMBER },
+          costPrice: { type: Type.NUMBER },
+          currentPrice: { type: Type.NUMBER },
+          profit: { type: Type.NUMBER },
+          profitRate: { type: Type.STRING },
+          marketValue: { type: Type.NUMBER }
+        }
+      }
+    }
+  },
+  required: ["totalAssets", "holdings"]
+};
+
+// --- API Functions ---
 
 /**
  * Perform analysis using Gemini with Google Search Grounding (Text Mode).
@@ -181,6 +211,49 @@ export const fetchGeminiAnalysis = async (
 };
 
 /**
+ * Parse brokerage app screenshot using Gemini Vision
+ */
+export const parseBrokerageScreenshot = async (
+  base64Image: string,
+  apiKey?: string
+): Promise<HoldingsSnapshot> => {
+  const effectiveKey = apiKey || process.env.API_KEY;
+  if (!effectiveKey) throw new Error("API Key Required for Image Analysis");
+
+  const ai = new GoogleGenAI({ apiKey: effectiveKey });
+
+  try {
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL_FAST,
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: base64Image
+            }
+          },
+          {
+            text: "Identify the Total Assets (总资产) and list all stocks in this screenshot. For each stock, extract Name, Code (infer 6-digit code if only name exists), Volume (持仓), Cost Price (成本), Current Price (现价), Profit/Loss amount (盈亏), Profit Rate (盈亏率%), and Market Value (市值). Return JSON."
+          }
+        ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: holdingsParsingSchema,
+      }
+    });
+
+    const jsonText = response.text || "{}";
+    return JSON.parse(jsonText);
+
+  } catch (error: any) {
+    console.error("Image Parsing Error:", error);
+    throw new Error("Screenshot parsing failed. Please try a clearer image or manual input.");
+  }
+}
+
+/**
  * Perform structured market dashboard analysis using Gemini JSON mode.
  */
 export const fetchMarketDashboard = async (
@@ -217,12 +290,14 @@ export const fetchMarketDashboard = async (
       1. 分析主要指数、市场情绪、资金流向。
       2. 提供投资机会分析（防御 vs 成长）。
       3. **生成实战仓位配置表 (Portfolio Table)**：
-         - 假设用户需要在两种策略中二选一：【激进型/成长】或【稳健型/防御】。
-         - 对于每种策略，请像专业的基金经理一样，给出具体的**操作步骤**（如：清仓弱标的、买入核心）。
+         - 假设用户需要在两种策略中二选一：【激进型/成长】（通常高仓位）或【稳健型/防御】（通常中低仓位）。
+         - 对于每种策略，请像专业的基金经理一样，给出具体的**操作步骤**（如：1. 清仓弱标的... 2. 调仓至...）。
          - **必须**提供一个详细的持仓表格，包含：
            - **标的**：具体的股票名称和代码 (A股600/000/300, 港股0XXXX, 美股Symbol)。
-           - **仓位/占比**：建议的持仓比例（例如 "30%" 或 "1000股"）。
-           - **逻辑标签**：一句话概括买入逻辑（如 "国产替代弹性"、"高股息"）。
+           - **持仓数量/Volume**：假设初始资金10万，给出具体的建议股数（如 "800股"）。
+           - **占比/Weight**：建议的持仓比例（如 "34%"）。
+           - **逻辑标签**：一句话概括买入逻辑（如 "新质生产力龙头"）。
+         - **务必在表格最后包含一行 "现金 (Cash)"**，用于应对短期波动。
          - 确保推荐的个股具有代表性和流动性，符合当前的"Deep Logic"分析。
       
       请确保数据具有逻辑性和专业性。
@@ -234,30 +309,40 @@ export const fetchMarketDashboard = async (
       config: {
         responseMimeType: "application/json",
         responseSchema: marketDashboardSchema,
-        systemInstruction: `你是一个资深基金经理。在生成"allocation_model"时，必须提供具体的股票代码和明确的持仓比例。不要使用模糊的建议。`
+        systemInstruction: `你是一个资深基金经理。在生成"allocation_model"时，必须提供具体的股票代码(如 600xxx, 300xxx)和明确的持仓数量与比例。表格最后必须包含"现金"行。不要使用模糊的建议。`
       },
     });
 
     const jsonText = response.text || "{}";
     let parsedData: MarketDashboardData;
     try {
-      parsedData = JSON.parse(jsonText);
+      let cleanJson = jsonText;
+      const firstBrace = cleanJson.indexOf('{');
+      const lastBrace = cleanJson.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
+      } else {
+        // Fallback cleanup if needed
+        cleanJson = cleanJson.replace(/```json/g, '').replace(/```/g, '').trim();
+      }
+      parsedData = JSON.parse(cleanJson);
     } catch (e) {
       console.error("JSON Parse Error", e);
-      throw new Error("解析模型返回数据失败");
+      throw new Error("无法解析模型返回的数据，请重试。");
     }
 
     return {
-      content: "Dashboard Data",
-      structuredData: parsedData,
+      content: jsonText,
+      groundingSource: [],
       timestamp: Date.now(),
       modelUsed: ModelProvider.GEMINI_INTL,
       isStructured: true,
+      structuredData: parsedData,
       market: market
     };
 
   } catch (error: any) {
     console.error("Gemini Dashboard Error:", error);
-    throw new Error(`分析生成失败: ${error.message}`);
+    throw new Error(`仪表盘生成失败: ${error.message || "未知错误"}`);
   }
 };

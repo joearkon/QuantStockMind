@@ -4,6 +4,7 @@ import { HashRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { Disclaimer } from './components/Disclaimer';
 import { MarketAnalysis } from './components/MarketAnalysis';
 import { StockAnalysis } from './components/StockAnalysis';
+import { HoldingsReview } from './components/HoldingsReview';
 import { SettingsModal } from './components/SettingsModal';
 import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS, APP_VERSION } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
@@ -213,6 +214,17 @@ const App: React.FC = () => {
                         onResultUpdate={setStockResult}
                         savedQuery={stockQuery}
                         onQueryUpdate={setStockQuery}
+                      />
+                    } 
+                  />
+                  <Route 
+                    path="/holdings" 
+                    element={
+                      <HoldingsReview 
+                        currentModel={selectedModel} 
+                        currentMarket={selectedMarket}
+                        settings={userSettings}
+                        onOpenSettings={() => setIsSettingsOpen(true)}
                       />
                     } 
                   />

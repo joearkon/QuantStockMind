@@ -40,7 +40,8 @@ export interface MarketIndex {
 export interface PortfolioItem {
   name: string;
   code: string;
-  weight: string; // e.g. "30%" or "1500 shares"
+  volume: string; // e.g. "800股" or "约2000元"
+  weight: string; // e.g. "34%"
   logic_tag: string; // e.g. "New Productive Forces"
 }
 
@@ -90,6 +91,33 @@ export interface MarketDashboardData {
   };
 }
 
+// --- New Types for Holdings Review ---
+
+export interface HoldingItemDetailed {
+  name: string;
+  code: string;
+  volume: number;      // 持仓股数
+  costPrice: number;   // 成本价
+  currentPrice: number;// 现价
+  profit: number;      // 浮动盈亏
+  profitRate: string;  // 盈亏比例 (e.g. "+15%")
+  marketValue: number; // 持仓市值
+}
+
+export interface HoldingsSnapshot {
+  totalAssets: number;
+  date: string;
+  holdings: HoldingItemDetailed[];
+}
+
+export interface JournalEntry {
+  id: string;
+  timestamp: number;
+  snapshot: HoldingsSnapshot;
+  analysis: AnalysisResult | null;
+  note?: string; // User manual notes
+}
+
 export interface StockQuery {
   code: string;
   name: string;
@@ -98,11 +126,6 @@ export interface StockQuery {
 export interface UserSettings {
   hunyuanKey?: string;
   geminiKey?: string;
-}
-
-export interface MarketParams {
-  period: 'day' | 'month';
-  focus: 'funds' | 'rotation' | 'sentiment';
 }
 
 // Global definition for injected variables from Cloudflare Worker

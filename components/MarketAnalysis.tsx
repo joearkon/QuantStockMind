@@ -298,7 +298,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                   <div>
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                       {allocationType === 'aggressive' ? <Rocket className="w-5 h-5 text-rose-600" /> : <ShieldCheck className="w-5 h-5 text-emerald-600" />}
-                      实战配置模型：{d.allocation_model[allocationType].strategy_name}
+                      {d.allocation_model[allocationType].strategy_name}
                     </h3>
                     <p className="text-sm text-slate-500 mt-1">
                       {d.allocation_model[allocationType].description}
@@ -353,7 +353,8 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                          <thead>
                             <tr className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider">
                                <th className="p-3 font-semibold border-b border-slate-200">标的 (Code)</th>
-                               <th className="p-3 font-semibold border-b border-slate-200">建议仓位/占比</th>
+                               <th className="p-3 font-semibold border-b border-slate-200">持仓数量 (Volume)</th>
+                               <th className="p-3 font-semibold border-b border-slate-200">占比 (Weight)</th>
                                <th className="p-3 font-semibold border-b border-slate-200">逻辑标签</th>
                             </tr>
                          </thead>
@@ -363,9 +364,10 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                                   <td className="p-3 font-medium text-slate-900">
                                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                                         <span>{item.name}</span>
-                                        <span className="text-xs font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{item.code}</span>
+                                        {item.code !== '-' && <span className="text-xs font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{item.code}</span>}
                                      </div>
                                   </td>
+                                  <td className="p-3 text-slate-700">{item.volume}</td>
                                   <td className="p-3 text-slate-700 font-bold">{item.weight}</td>
                                   <td className="p-3 text-slate-600">
                                      <span className={`px-2 py-1 rounded text-xs font-medium border ${

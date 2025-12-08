@@ -10,7 +10,7 @@ interface StockAnalysisProps {
   currentMarket: MarketType;
   settings: UserSettings;
   onOpenSettings?: () => void;
-  // Props for state persistence
+  // Props for state persistence (Single Stock)
   savedResult: AnalysisResult | null;
   onResultUpdate: (result: AnalysisResult | null) => void;
   savedQuery: string;
@@ -27,9 +27,12 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
   savedQuery,
   onQueryUpdate
 }) => {
+  // Single Stock State
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPrice, setCurrentPrice] = useState('');
+
+  // --- Handlers ---
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,8 +73,16 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
 
   // Helper to render sections cleanly
   const renderAnalysisContent = (content: string) => {
-    // A simple regex-based parser to group content by headers
     const sections = content.split(/^##\s+/gm).filter(Boolean);
+    
+    // Fallback if no ## headers found
+    if (sections.length <= 1) {
+       return (
+         <div className="prose prose-slate max-w-none prose-p:text-slate-700 prose-headings:text-slate-900" dangerouslySetInnerHTML={{ 
+           __html: content.replace(/\n/g, '<br/>') 
+         }} />
+       );
+    }
     
     return (
       <div className="space-y-6">
@@ -97,10 +108,6 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
                 <h3 className={`font-bold text-lg ${colorClass}`}>{title}</h3>
               </div>
               <div className="p-6 prose prose-slate max-w-none prose-p:text-slate-600 prose-p:leading-relaxed prose-li:text-slate-600 prose-strong:text-slate-900 prose-strong:font-bold">
-                 {/* 
-                    Basic markdown-ish rendering for the body. 
-                    We split by newlines and handle simple markdown markers.
-                 */}
                  {body.split('\n').map((line, i) => {
                     const trimmed = line.trim();
                     if (!trimmed) return <div key={i} className="h-2"></div>;
@@ -136,10 +143,11 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Search Input */}
+      
+      {/* --- SINGLE STOCK VIEW --- */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
         <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <Target className="w-6 h-6 text-indigo-600"/>
+            <Search className="w-6 h-6 text-blue-600"/>
             个股量化诊断 <span className="text-slate-400 text-sm font-normal ml-2">({marketLabel})</span>
         </h2>
         
@@ -176,9 +184,8 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : '开始深度诊断'}
             </button>
           </div>
-
           <p className="text-sm text-slate-500 text-center pt-2">
-            AI将结合最新互联网信息对 {marketLabel} 标的进行分析。
+             AI将结合最新互联网信息对 {marketLabel} 标的进行分析。
           </p>
         </form>
       </div>
@@ -193,17 +200,8 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
                {error}
             </div>
           </div>
-          {onOpenSettings && (
-            error.includes('Key') || 
-            error.includes('配置') || 
-            error.includes('余额') ||
-            error.includes('401') ||
-            error.includes('402')
-          ) && (
-            <button 
-              onClick={onOpenSettings}
-              className="px-3 py-1 bg-white border border-red-200 text-red-600 text-sm rounded shadow-sm hover:bg-red-50 flex items-center gap-1 whitespace-nowrap"
-            >
+          {onOpenSettings && (error.includes('Key') || error.includes('余额')) && (
+            <button onClick={onOpenSettings} className="px-3 py-1 bg-white border border-red-200 text-red-600 text-sm rounded hover:bg-red-50 flex items-center gap-1">
               <Settings className="w-3 h-3" />
               检查配置
             </button>
@@ -211,35 +209,39 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
         </div>
       )}
 
-      {/* Results */}
+      {/* Results Display */}
       {savedResult && (
-        <div className="bg-slate-50 rounded-xl overflow-hidden animate-slide-up">
-          <div className="flex justify-between items-center mb-6">
+        <div className="bg-slate-50 rounded-xl overflow-hidden animate-slide-up border border-slate-200 shadow-sm">
+          {/* Result Header */}
+          <div className="flex justify-between items-center px-6 py-4 bg-white border-b border-slate-200">
              <div>
-                <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                   {savedQuery} 
-                   <span className="px-2 py-0.5 rounded text-xs bg-slate-200 text-slate-600 font-normal">{marketLabel}</span>
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                   {savedQuery}
+                   <span className="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-500 font-normal border border-slate-200">
+                      个股诊断
+                   </span>
                 </h3>
-                <p className="text-sm text-slate-500 mt-1 flex items-center gap-2">
-                   <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                   分析生成于: {new Date(savedResult.timestamp).toLocaleString()} | 模型: {savedResult.modelUsed}
+                <p className="text-xs text-slate-400 mt-1">
+                   生成时间: {new Date(savedResult.timestamp).toLocaleString()}
                 </p>
              </div>
-             <button onClick={() => window.print()} className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 shadow-sm">
-               导出报告
+             <button onClick={() => window.print()} className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded text-xs font-medium hover:bg-slate-100">
+               导出
              </button>
           </div>
 
-          {/* Render the refined card layout */}
-          {renderAnalysisContent(savedResult.content)}
+          {/* Result Body */}
+          <div className="p-6">
+             {renderAnalysisContent(savedResult.content)}
+          </div>
 
           {/* Sources Footer */}
           {savedResult.groundingSource && savedResult.groundingSource.length > 0 && (
-             <div className="mt-8 p-4 bg-white border border-slate-200 rounded-lg text-xs text-slate-500 shadow-sm">
+             <div className="px-6 py-4 bg-slate-100/50 border-t border-slate-200 text-xs text-slate-500">
                 <strong className="block mb-2 text-slate-700">参考数据来源：</strong>
                 <div className="flex flex-wrap gap-2">
                    {savedResult.groundingSource.map((s, i) => (
-                     <a key={i} href={s.uri} target="_blank" rel="noreferrer" className="inline-flex items-center px-2 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-blue-600 transition-colors">
+                     <a key={i} href={s.uri} target="_blank" rel="noreferrer" className="inline-flex items-center px-2 py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded text-blue-600 transition-colors">
                         {s.title || "网页来源"} <ChevronRight className="w-3 h-3 ml-1" />
                      </a>
                    ))}
