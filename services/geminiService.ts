@@ -53,7 +53,6 @@ const marketDashboardSchema: Schema = {
       type: Type.ARRAY, 
       items: { type: Type.STRING }
     },
-    // New Strategy Sections
     opportunity_analysis: {
       type: Type.OBJECT,
       description: "Analysis of opportunities in Defensive/Value sectors vs Tech/Growth sectors",
@@ -81,36 +80,49 @@ const marketDashboardSchema: Schema = {
     },
     allocation_model: {
       type: Type.OBJECT,
-      description: "Portfolio allocation suggestions for two profiles.",
+      description: "Detailed Portfolio construction for two different strategies.",
       properties: {
         aggressive: {
           type: Type.OBJECT,
           properties: {
-            description: { type: Type.STRING, description: "Short description of this strategy" },
-            allocation: {
-              type: Type.OBJECT,
-              properties: {
-                equity_growth: { type: Type.NUMBER, description: "Percentage 0-100" },
-                equity_value: { type: Type.NUMBER, description: "Percentage 0-100" },
-                bonds_cash: { type: Type.NUMBER, description: "Percentage 0-100" }
+            strategy_name: { type: Type.STRING, description: "e.g., Aggressive Growth Strategy" },
+            description: { type: Type.STRING, description: "Short description" },
+            action_plan: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Step by step actions, e.g. 1. Clear weak stocks..." },
+            portfolio_table: {
+              type: Type.ARRAY,
+              description: "List of specific stocks",
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  code: { type: Type.STRING },
+                  weight: { type: Type.STRING, description: "Percentage or share count description" },
+                  logic_tag: { type: Type.STRING, description: "Short logic tag, e.g. AI Leader" }
+                }
               }
             },
-            suggested_picks: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3-4 stock names or codes" }
+            core_advantage: { type: Type.STRING, description: "Summary of why this portfolio fits the current market" }
           }
         },
         balanced: {
           type: Type.OBJECT,
           properties: {
+            strategy_name: { type: Type.STRING, description: "e.g., Balanced/Defensive Strategy" },
             description: { type: Type.STRING },
-            allocation: {
-              type: Type.OBJECT,
-              properties: {
-                equity_growth: { type: Type.NUMBER },
-                equity_value: { type: Type.NUMBER },
-                bonds_cash: { type: Type.NUMBER }
+            action_plan: { type: Type.ARRAY, items: { type: Type.STRING } },
+            portfolio_table: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  code: { type: Type.STRING },
+                  weight: { type: Type.STRING },
+                  logic_tag: { type: Type.STRING }
+                }
               }
             },
-            suggested_picks: { type: Type.ARRAY, items: { type: Type.STRING } }
+            core_advantage: { type: Type.STRING }
           }
         }
       },
@@ -187,7 +199,7 @@ export const fetchMarketDashboard = async (
   
   let marketSpecificPrompt = "";
   if (market === MarketType.CN) {
-    marketSpecificPrompt = "主要指数关注：上证指数、深证成指、创业板指。重点关注中国政策和内资动向。";
+    marketSpecificPrompt = "主要指数关注：上证指数、深证成指、创业板指、科创50。重点关注中国政策、内资动向及高低切换逻辑。";
   } else if (market === MarketType.HK) {
     marketSpecificPrompt = "主要指数关注：恒生指数、恒生科技指数、国企指数。重点关注南向资金和外资流动。";
   } else if (market === MarketType.US) {
@@ -201,12 +213,17 @@ export const fetchMarketDashboard = async (
       
       ${marketSpecificPrompt}
 
-      重点关注：
-      1. 主要指数表现。
-      2. 市场情绪评分。
-      3. 资金流向与深度逻辑。
-      4. 投资机会分析（防御 vs 成长）。
-      5. 策略师最终建议与仓位配置模型（激进型 vs 平衡型）。
+      重点任务：
+      1. 分析主要指数、市场情绪、资金流向。
+      2. 提供投资机会分析（防御 vs 成长）。
+      3. **生成实战仓位配置表 (Portfolio Table)**：
+         - 假设用户需要在两种策略中二选一：【激进型/成长】或【稳健型/防御】。
+         - 对于每种策略，请像专业的基金经理一样，给出具体的**操作步骤**（如：清仓弱标的、买入核心）。
+         - **必须**提供一个详细的持仓表格，包含：
+           - **标的**：具体的股票名称和代码 (A股600/000/300, 港股0XXXX, 美股Symbol)。
+           - **仓位/占比**：建议的持仓比例（例如 "30%" 或 "1000股"）。
+           - **逻辑标签**：一句话概括买入逻辑（如 "国产替代弹性"、"高股息"）。
+         - 确保推荐的个股具有代表性和流动性，符合当前的"Deep Logic"分析。
       
       请确保数据具有逻辑性和专业性。
     `;
@@ -217,7 +234,7 @@ export const fetchMarketDashboard = async (
       config: {
         responseMimeType: "application/json",
         responseSchema: marketDashboardSchema,
-        systemInstruction: `你是一个资深全球市场策略分析师。请基于真实数据生成分析。`
+        systemInstruction: `你是一个资深基金经理。在生成"allocation_model"时，必须提供具体的股票代码和明确的持仓比例。不要使用模糊的建议。`
       },
     });
 

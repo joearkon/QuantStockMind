@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
-import { Loader2, BarChart2, TrendingUp, Zap, Wind, Layers, Settings, ShieldCheck, Rocket, PieChart } from 'lucide-react';
+import { Loader2, BarChart2, TrendingUp, Zap, Wind, Layers, Settings, ShieldCheck, Rocket, ListChecks, Target } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 
 interface MarketAnalysisProps {
@@ -29,7 +29,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [allocationType, setAllocationType] = useState<'aggressive' | 'balanced'>('balanced');
+  const [allocationType, setAllocationType] = useState<'aggressive' | 'balanced'>('aggressive');
 
   const handleAnalysis = async () => {
     setLoading(true);
@@ -240,35 +240,49 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                </div>
             </div>
 
-            {/* --- NEW SECTION: Opportunity Analysis --- */}
+            {/* --- Opportunity Analysis --- */}
             {d.opportunity_analysis && (
               <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="bg-slate-900 rounded-xl p-6 text-white border border-slate-700 relative overflow-hidden">
-                    <h3 className="text-blue-400 text-xs font-bold uppercase tracking-wider mb-1">Main Board / Defensive</h3>
-                    <h4 className="text-xl font-bold mb-4">防御/价值机会</h4>
-                    <div className="mb-4">
-                       <span className="text-xs font-bold text-slate-500 uppercase">Logic</span>
-                       <p className="text-sm text-slate-300 mt-1 leading-relaxed">{d.opportunity_analysis.defensive_value.logic}</p>
+                 <div 
+                    onClick={() => setAllocationType('balanced')}
+                    className={`bg-slate-900 rounded-xl p-6 text-white border transition-all cursor-pointer relative overflow-hidden hover:shadow-xl ${allocationType === 'balanced' ? 'border-emerald-500 ring-2 ring-emerald-500/50' : 'border-slate-700 hover:border-slate-500'}`}
+                 >
+                    <div className="flex justify-between items-start mb-4">
+                       <div>
+                          <h3 className="text-emerald-400 text-xs font-bold uppercase tracking-wider mb-1">Defensive / Value</h3>
+                          <h4 className="text-xl font-bold">防御/价值机会</h4>
+                       </div>
+                       {allocationType === 'balanced' && <div className="bg-emerald-500 p-1 rounded-full"><ShieldCheck className="w-4 h-4 text-white" /></div>}
                     </div>
-                    <div className="flex flex-wrap gap-2 mt-4">
+                    <div className="mb-4">
+                       <p className="text-sm text-slate-300 mt-1 leading-relaxed line-clamp-2">{d.opportunity_analysis.defensive_value.logic}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
                       {d.opportunity_analysis.defensive_value.sectors.map((s, i) => (
-                        <span key={i} className="px-3 py-1 bg-slate-800 border border-slate-600 text-blue-200 text-xs rounded-full">
+                        <span key={i} className="px-3 py-1 bg-slate-800 border border-slate-600 text-emerald-200 text-xs rounded-full">
                           {s}
                         </span>
                       ))}
                     </div>
                  </div>
 
-                 <div className="bg-slate-900 rounded-xl p-6 text-white border border-slate-700 relative overflow-hidden">
-                    <h3 className="text-pink-400 text-xs font-bold uppercase tracking-wider mb-1">Tech / Growth</h3>
-                    <h4 className="text-xl font-bold mb-4">成长/科技机会</h4>
+                 <div 
+                    onClick={() => setAllocationType('aggressive')}
+                    className={`bg-slate-900 rounded-xl p-6 text-white border transition-all cursor-pointer relative overflow-hidden hover:shadow-xl ${allocationType === 'aggressive' ? 'border-rose-500 ring-2 ring-rose-500/50' : 'border-slate-700 hover:border-slate-500'}`}
+                 >
+                    <div className="flex justify-between items-start mb-4">
+                       <div>
+                           <h3 className="text-rose-400 text-xs font-bold uppercase tracking-wider mb-1">Tech / Growth</h3>
+                           <h4 className="text-xl font-bold">成长/科技机会</h4>
+                       </div>
+                       {allocationType === 'aggressive' && <div className="bg-rose-500 p-1 rounded-full"><Rocket className="w-4 h-4 text-white" /></div>}
+                    </div>
                     <div className="mb-4">
-                       <span className="text-xs font-bold text-slate-500 uppercase">Logic</span>
-                       <p className="text-sm text-slate-300 mt-1 leading-relaxed">{d.opportunity_analysis.tech_growth.logic}</p>
+                       <p className="text-sm text-slate-300 mt-1 leading-relaxed line-clamp-2">{d.opportunity_analysis.tech_growth.logic}</p>
                     </div>
-                    <div className="flex flex-wrap gap-2 mt-4">
+                    <div className="flex flex-wrap gap-2 mt-2">
                       {d.opportunity_analysis.tech_growth.sectors.map((s, i) => (
-                        <span key={i} className="px-3 py-1 bg-slate-800 border border-slate-600 text-pink-200 text-xs rounded-full">
+                        <span key={i} className="px-3 py-1 bg-slate-800 border border-slate-600 text-rose-200 text-xs rounded-full">
                           {s}
                         </span>
                       ))}
@@ -277,96 +291,117 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
               </div>
             )}
 
-            {/* --- NEW SECTION: Strategist Verdict --- */}
-            {d.strategist_verdict && (
-              <div className="lg:col-span-3 bg-gradient-to-r from-emerald-900 to-slate-900 rounded-xl p-6 border-l-4 border-emerald-500 shadow-xl">
-                 <h3 className="text-emerald-400 font-bold uppercase text-xs tracking-wider mb-2">Strategist Verdict</h3>
-                 <p className="text-lg text-white font-medium leading-relaxed">
-                   {d.strategist_verdict}
-                 </p>
-              </div>
-            )}
-
-            {/* --- NEW SECTION: Allocation Model --- */}
+            {/* --- Detailed Allocation Model Table --- */}
             {d.allocation_model && (
-              <div className="lg:col-span-3 bg-slate-900 rounded-xl p-8 text-white border border-slate-800">
-                <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-lg font-bold text-slate-100">建议仓位配置模型</h3>
-                  <div className="flex p-1 bg-slate-800 rounded-lg border border-slate-700">
+              <div className="lg:col-span-3 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+                <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                      {allocationType === 'aggressive' ? <Rocket className="w-5 h-5 text-rose-600" /> : <ShieldCheck className="w-5 h-5 text-emerald-600" />}
+                      实战配置模型：{d.allocation_model[allocationType].strategy_name}
+                    </h3>
+                    <p className="text-sm text-slate-500 mt-1">
+                      {d.allocation_model[allocationType].description}
+                    </p>
+                  </div>
+
+                  {/* Toggle Buttons (Redundant but accessible) */}
+                  <div className="flex bg-white rounded-lg p-1 border border-slate-200 shadow-sm">
                     <button
                        onClick={() => setAllocationType('aggressive')}
-                       className={`flex items-center gap-2 px-4 py-1.5 text-xs font-bold uppercase rounded-md transition-all ${
-                         allocationType === 'aggressive' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                       className={`px-4 py-1.5 text-xs font-bold rounded transition-all ${
+                         allocationType === 'aggressive' ? 'bg-rose-50 text-rose-700' : 'text-slate-400 hover:text-slate-600'
                        }`}
                     >
-                      <Rocket className="w-3 h-3" /> 激进型
+                      激进成长
                     </button>
                     <button
                        onClick={() => setAllocationType('balanced')}
-                       className={`flex items-center gap-2 px-4 py-1.5 text-xs font-bold uppercase rounded-md transition-all ${
-                         allocationType === 'balanced' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                       className={`px-4 py-1.5 text-xs font-bold rounded transition-all ${
+                         allocationType === 'balanced' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-400 hover:text-slate-600'
                        }`}
                     >
-                      <ShieldCheck className="w-3 h-3" /> 平衡型
+                      稳健防御
                     </button>
                   </div>
                 </div>
 
-                <div className="mb-6">
-                   <p className="text-slate-300 text-sm italic border-l-2 border-slate-600 pl-3">
-                     "{d.allocation_model[allocationType].description}"
-                   </p>
-                </div>
-
-                {/* Visual Bar */}
-                <div className="w-full h-4 bg-slate-800 rounded-full flex overflow-hidden mb-8">
-                  <div 
-                    className="h-full bg-blue-500" 
-                    style={{width: `${d.allocation_model[allocationType].allocation.equity_value}%`}}
-                    title="底仓/防御"
-                  ></div>
-                  <div 
-                    className="h-full bg-emerald-500" 
-                    style={{width: `${d.allocation_model[allocationType].allocation.equity_growth}%`}}
-                    title="稳健成长"
-                  ></div>
-                  <div 
-                    className="h-full bg-slate-500" 
-                    style={{width: `${d.allocation_model[allocationType].allocation.bonds_cash}%`}}
-                    title="现金/债券"
-                  ></div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                   <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-                      <div className="flex justify-between items-center mb-2">
-                         <span className="text-blue-400 text-xs font-bold">底仓/防御</span>
-                         <span className="text-white font-bold">{d.allocation_model[allocationType].allocation.equity_value}%</span>
-                      </div>
-                      <p className="text-xs text-slate-400 mb-3">提供稳定的现金流和较低的波动性，作为市场不确定性下的安全垫。</p>
-                   </div>
-                   <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-                      <div className="flex justify-between items-center mb-2">
-                         <span className="text-emerald-400 text-xs font-bold">稳健成长</span>
-                         <span className="text-white font-bold">{d.allocation_model[allocationType].allocation.equity_growth}%</span>
-                      </div>
-                      <p className="text-xs text-slate-400 mb-3">配置市场中业绩确定性高、估值合理的成长龙头。</p>
-                      <div className="flex flex-wrap gap-2">
-                        {d.allocation_model[allocationType].suggested_picks.map((pick, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-emerald-900/50 border border-emerald-700 text-emerald-300 text-[10px] rounded">
-                             {pick}
-                          </span>
+                <div className="p-6">
+                   {/* Step 1: Action Plan */}
+                   <div className="mb-8">
+                      <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-3">
+                         <ListChecks className="w-4 h-4 text-slate-500" />
+                         操作步骤 (Action Steps)
+                      </h4>
+                      <div className="space-y-2">
+                        {d.allocation_model[allocationType].action_plan.map((step, idx) => (
+                          <div key={idx} className="flex gap-3 text-sm text-slate-700">
+                             <span className="flex-shrink-0 w-5 h-5 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-xs font-bold border border-slate-200">{idx + 1}</span>
+                             <p className="pt-0.5">{step}</p>
+                          </div>
                         ))}
                       </div>
                    </div>
-                   <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-                      <div className="flex justify-between items-center mb-2">
-                         <span className="text-slate-400 text-xs font-bold">现金/债券</span>
-                         <span className="text-white font-bold">{d.allocation_model[allocationType].allocation.bonds_cash}%</span>
-                      </div>
-                      <p className="text-xs text-slate-400 mb-3">保持资金灵活性，应对市场波动，或作为未来投资的储备。</p>
+
+                   {/* Step 2: Table */}
+                   <div className="mb-8 overflow-x-auto">
+                      <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-3">
+                         <Target className="w-4 h-4 text-slate-500" />
+                         核心标的配置 (Portfolio Targets)
+                      </h4>
+                      <table className="w-full text-left border-collapse rounded-lg overflow-hidden border border-slate-200">
+                         <thead>
+                            <tr className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider">
+                               <th className="p-3 font-semibold border-b border-slate-200">标的 (Code)</th>
+                               <th className="p-3 font-semibold border-b border-slate-200">建议仓位/占比</th>
+                               <th className="p-3 font-semibold border-b border-slate-200">逻辑标签</th>
+                            </tr>
+                         </thead>
+                         <tbody className="text-sm divide-y divide-slate-100">
+                            {d.allocation_model[allocationType].portfolio_table.map((item, idx) => (
+                               <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                  <td className="p-3 font-medium text-slate-900">
+                                     <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                                        <span>{item.name}</span>
+                                        <span className="text-xs font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{item.code}</span>
+                                     </div>
+                                  </td>
+                                  <td className="p-3 text-slate-700 font-bold">{item.weight}</td>
+                                  <td className="p-3 text-slate-600">
+                                     <span className={`px-2 py-1 rounded text-xs font-medium border ${
+                                        allocationType === 'aggressive' 
+                                          ? 'bg-rose-50 text-rose-700 border-rose-100' 
+                                          : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                     }`}>
+                                        {item.logic_tag}
+                                     </span>
+                                  </td>
+                               </tr>
+                            ))}
+                         </tbody>
+                      </table>
+                   </div>
+
+                   {/* Step 3: Core Advantage */}
+                   <div className={`p-4 rounded-lg border-l-4 ${
+                      allocationType === 'aggressive' ? 'bg-rose-50 border-rose-500 text-rose-900' : 'bg-emerald-50 border-emerald-500 text-emerald-900'
+                   }`}>
+                      <h4 className="text-xs font-bold uppercase tracking-wider mb-1 opacity-70">Core Advantage</h4>
+                      <p className="text-sm font-medium leading-relaxed">
+                         {d.allocation_model[allocationType].core_advantage}
+                      </p>
                    </div>
                 </div>
+              </div>
+            )}
+
+            {/* Strategist Verdict */}
+            {d.strategist_verdict && (
+              <div className="lg:col-span-3 bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl p-6 border-l-4 border-blue-500 shadow-xl text-white">
+                 <h3 className="text-blue-400 font-bold uppercase text-xs tracking-wider mb-2">Final Verdict</h3>
+                 <p className="text-lg font-medium leading-relaxed opacity-90">
+                   {d.strategist_verdict}
+                 </p>
               </div>
             )}
 

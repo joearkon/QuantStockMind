@@ -94,14 +94,23 @@ export const fetchExternalAI = async (
       "strategist_verdict": "Final strategic advice summary string",
       "allocation_model": {
         "aggressive": {
-          "description": "Description for aggressive investor",
-          "allocation": { "equity_growth": 60, "equity_value": 20, "bonds_cash": 20 },
-          "suggested_picks": ["Stock A", "Stock B"]
+          "strategy_name": "Aggressive Strategy Name",
+          "description": "Short description",
+          "action_plan": ["Step 1: Clear weak stocks", "Step 2: Buy Leaders"],
+          "portfolio_table": [
+             { "name": "StockName", "code": "Code", "weight": "30%", "logic_tag": "Logic tag" },
+             { "name": "StockName", "code": "Code", "weight": "20%", "logic_tag": "Logic tag" }
+          ],
+          "core_advantage": "Summary of advantage"
         },
         "balanced": {
-          "description": "Description for balanced investor",
-          "allocation": { "equity_growth": 40, "equity_value": 40, "bonds_cash": 20 },
-          "suggested_picks": ["Stock C", "Stock D"]
+          "strategy_name": "Balanced Strategy Name",
+          "description": "Short description",
+          "action_plan": ["Step 1...", "Step 2..."],
+          "portfolio_table": [
+             { "name": "StockName", "code": "Code", "weight": "20%", "logic_tag": "Logic tag" }
+          ],
+          "core_advantage": "Summary of advantage"
         }
       }
     }
@@ -111,7 +120,7 @@ export const fetchExternalAI = async (
   let userContent = prompt;
 
   if (isDashboard) {
-    userContent = `${prompt}\n\n${jsonInstruction}`;
+    userContent = `${prompt}\n\n${jsonInstruction}\n\nIMPORTANT: For 'allocation_model', you MUST provide specific stock names and codes (e.g., 600xxx for A-Share, AAPL for US) and specific weights/ratios in a table format.`;
     systemContent += " You are a helpful assistant that outputs strictly structured JSON data.";
   } else {
     systemContent += " If the user provides a 'Current Price' in the prompt, accept it as the absolute truth for your calculations. Please output the analysis in professional Markdown format.";
@@ -126,7 +135,7 @@ export const fetchExternalAI = async (
     model: config.model,
     messages: messages,
     temperature: 0.7,
-    max_tokens: 2500, // Increased for larger JSON
+    max_tokens: 3000, 
     stream: false,
   };
 

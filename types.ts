@@ -37,14 +37,19 @@ export interface MarketIndex {
   direction: 'up' | 'down';
 }
 
+export interface PortfolioItem {
+  name: string;
+  code: string;
+  weight: string; // e.g. "30%" or "1500 shares"
+  logic_tag: string; // e.g. "New Productive Forces"
+}
+
 export interface AllocationModel {
+  strategy_name: string;
   description: string;
-  allocation: {
-    equity_growth: number; // Percentage
-    equity_value: number; // Percentage
-    bonds_cash: number; // Percentage
-  };
-  suggested_picks: string[];
+  action_plan: string[]; // Step by step instructions
+  portfolio_table: PortfolioItem[];
+  core_advantage: string;
 }
 
 export interface MarketDashboardData {
