@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { parseBrokerageScreenshot } from '../services/geminiService';
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 
@@ -74,8 +74,12 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
         try {
           const parsedData = await parseBrokerageScreenshot(base64String, settings.geminiKey);
           // Merge logic: Don't overwrite if parsed data is empty/partial, but here we assume generic success
+          // Default to 'medium' horizon for new imports
+          const holdingsWithHorizon = parsedData.holdings.map(h => ({ ...h, horizon: 'medium' as const }));
+          
           setSnapshot({
             ...parsedData,
+            holdings: holdingsWithHorizon,
             date: new Date().toISOString().split('T')[0] // Reset date to today
           });
         } catch (err: any) {
@@ -94,7 +98,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   // --- Handlers: Editing ---
   const startEdit = (index: number, item: HoldingItemDetailed) => {
     setEditingIndex(index);
-    setEditForm({ ...item });
+    setEditForm({ ...item, horizon: item.horizon || 'medium' });
   };
 
   const saveEdit = () => {
@@ -128,7 +132,8 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
         currentPrice: 0,
         profit: 0,
         profitRate: "0%",
-        marketValue: 0
+        marketValue: 0,
+        horizon: 'short'
       }]
     }));
     setEditingIndex(snapshot.holdings.length); // Start editing the new one immediately
@@ -140,7 +145,8 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
         currentPrice: 0,
         profit: 0,
         profitRate: "0%",
-        marketValue: 0
+        marketValue: 0,
+        horizon: 'short'
     });
   };
 
@@ -158,51 +164,88 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
     const marketLabel = MARKET_OPTIONS.find(m => m.value === currentMarket)?.label || currentMarket;
     
-    // Construct structured prompt
-    const holdingsText = snapshot.holdings.map((h, i) => 
-      `${i+1}. ${h.name} (${h.code}): 持仓${h.volume}股, 成本${h.costPrice}, 现价${h.currentPrice}, 浮动盈亏 ${h.profit} (${h.profitRate})`
+    // 1. Prepare Current Context with Horizon
+    const getHorizonLabel = (h: string | undefined) => {
+      if (h === 'short') return '短线(1月内)';
+      if (h === 'long') return '长线(3月+)';
+      return '中线(1-3月)';
+    };
+
+    const currentHoldingsText = snapshot.holdings.map((h, i) => 
+      `${i+1}. ${h.name} (${h.code}) [${getHorizonLabel(h.horizon)}]: 持仓${h.volume}股, 成本${h.costPrice}, 现价${h.currentPrice}, 浮动盈亏 ${h.profit} (${h.profitRate})`
     ).join('\n');
 
-    const prompt = `
-      请作为一位【资深交易员】和【技术分析专家】，对我当前的 ${marketLabel} 账户进行深度复盘分析。
+    // 2. Prepare Historical Context
+    const previousEntry = journal.length > 0 ? journal[0] : null;
+    let historyContext = "这是该账户的首次复盘分析。";
 
-      【账户概况】
+    if (previousEntry) {
+      const prevDate = new Date(previousEntry.timestamp).toLocaleDateString();
+      const prevHoldingsText = previousEntry.snapshot.holdings.map(h => 
+        `- ${h.name} (${h.code}): Vol:${h.volume}, PnL:${h.profitRate}`
+      ).join('\n');
+      
+      const prevAdvice = previousEntry.analysis?.content 
+        ? previousEntry.analysis.content.substring(0, 1500) // Limit tokens
+        : "无历史建议";
+
+      historyContext = `
+      【历史复盘上下文 (上一交易日: ${prevDate})】
+      1. 上期总资产: ${previousEntry.snapshot.totalAssets} (当前变动: ${(snapshot.totalAssets - previousEntry.snapshot.totalAssets).toFixed(2)})
+      2. 上期持仓快照:
+      ${prevHoldingsText}
+      3. 上期AI核心建议回顾:
+      """
+      ${prevAdvice}
+      """
+      `;
+    }
+
+    const prompt = `
+      请作为一位【专属私人基金经理】对我当前的 ${marketLabel} 账户进行【连续性】复盘分析。
+      
+      你不只是分析今天，更要结合历史上下文，跟踪策略的执行情况和市场验证情况。
+
+      === 历史档案 ===
+      ${historyContext}
+
+      === 今日账户概况 ===
       - 总资产: ${snapshot.totalAssets} 元
       - 交易日期: ${snapshot.date}
-
-      【详细持仓】
-      ${holdingsText}
+      - 详细持仓 (注意每只股票的【周期标记】):
+      ${currentHoldingsText}
       
-      【核心痛点解决】
-      用户自述：“买入很果断，但不知道什么时候卖出”。请重点针对【止盈止损 (Take Profit / Stop Loss)】进行明确指导。
+      【核心任务】
+      请结合联网搜索（获取最新行情、公告、舆情），输出 Markdown 报告 (严格遵守 H2 标题结构):
 
-      【分析任务】
-      请结合联网搜索（获取最新行情、公告、舆情），对我的每一只持仓进行诊断。
-      请按以下结构输出 Markdown（请严格使用 H2 "##" 作为一级标题）：
+      ## 1. 昨策回顾与执行验证 (Review)
+      - **对比分析**: 对比"上期持仓"与"今日持仓"，判断我是否执行了上期的建议？(例如：上期建议减仓某股，我是否减了？)
+      - **评分**: 对我的操作执行力打分 (0-10分)。
 
-      ## 1. 盈亏诊断与心理按摩
+      ## 2. 盈亏诊断与心理按摩 (Diagnosis)
       - 基于成本价和现价，判断当前是获利回吐、深套、还是刚刚起涨？
-      - 针对当前的盈亏比例，给出心理建议（如：深套20%是否应该割肉换股？）。
+      - 针对当前的盈亏比例，给出心理建议。
       
-      ## 2. K线形态与关键点位
-      - **K线形态分析**: 识别当前形态（如：吊颈线、红三兵、三角形整理）。
-      - **必填项**: 为每一只持仓设定明确的【止盈价 (Target Sell)】和【止损价 (Stop Loss)】。
-      - 简述设定这两个价格的逻辑（如：跌破20日线止损，触及前高止盈）。
+      ## 3. K线形态与关键点位 (Technical)
+      - **K线形态**: 识别今日收盘后的最新形态。
+      - **动态调整**: 必须更新每一只持仓的【止盈价 (Target Sell)】和【止损价 (Stop Loss)】。
 
-      ## 3. 实战操作建议
+      ## 4. 实战操作建议 (Action)
+      - **策略区分**: 请严格根据每只股票的【周期标记】给出建议：
+         - **短线**: 重点关注技术面破位和情绪，止损要窄，不恋战。
+         - **中线**: 关注波段趋势和资金流向。
+         - **长线**: 忽略短期噪音，重点评估基本面逻辑是否改变，止损可适当放宽。
       - 给出明确指令：【加仓 / 减仓 / 做T / 清仓 / 锁仓】。
-      - 结合"成本优势"或"成本劣势"来制定策略。
+      - 如果我上期没听建议导致亏损扩大，请给出补救措施。
 
-      ## 4. 账户总方针
+      ## 5. 账户总方针 (Strategy)
       - 评估整体仓位的风险敞口。
-      - 对接下来的操作给出一个总方针。
+      - 结合昨天的策略，更新今天的总方针。
 
-      请语言简练、犀利，直击要害。
+      请语言简练、犀利，具有连贯性，像一个长期陪伴的导师。
     `;
 
     try {
-      // Analyze with selected model (Supports Hunyuan or Gemini)
-      // We assume isComplex=true to force search if available/supported
       const result = await analyzeWithLLM(currentModel, prompt, true, settings, false, 'day', undefined, currentMarket);
       setAnalysisResult(result);
     } catch (err: any) {
@@ -288,7 +331,12 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           let cardBorder = "border-slate-200";
 
           // Theme based on title keywords
-          if (title.includes("盈亏") || title.includes("心理")) {
+          if (title.includes("回顾") || title.includes("验证")) {
+            Icon = GitCompare;
+            headerColor = "text-indigo-700";
+            iconBg = "bg-indigo-100";
+            cardBorder = "border-indigo-100";
+          } else if (title.includes("盈亏") || title.includes("心理")) {
             Icon = PieChartIcon;
             headerColor = "text-rose-700";
             iconBg = "bg-rose-100";
@@ -324,7 +372,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                   if (!trimmed) return <div key={i} className="h-2"></div>;
 
                   // 1. Highlight Action Keywords
-                  const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有)/g;
+                  const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有|补救|执行力)/g;
                   let processedLine = trimmed.replace(
                     highlightRegex, 
                     '<span class="font-bold text-white bg-indigo-500 px-1 py-0.5 rounded text-xs mx-0.5 shadow-sm">$1</span>'
@@ -373,6 +421,18 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     );
   };
 
+  // Helper to render Horizon Badge
+  const renderHorizonBadge = (horizon: string | undefined) => {
+    switch (horizon) {
+      case 'short':
+        return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-700 font-medium border border-amber-200">短线</span>;
+      case 'long':
+        return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-violet-100 text-violet-700 font-medium border border-violet-200">长线</span>;
+      default:
+        return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-700 font-medium border border-blue-200">中线</span>;
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header Area */}
@@ -413,7 +473,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           </div>
         </div>
 
-        {/* --- History Drawer (Simple implementation) --- */}
+        {/* --- History Drawer --- */}
         {isHistoryOpen && (
           <div className="mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200 animate-slide-down">
             <div className="flex justify-between items-center mb-4">
@@ -512,11 +572,20 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                                 placeholder="名称"
                               />
                               <input 
-                                className="w-24 p-1 border rounded text-xs font-mono" 
+                                className="w-24 p-1 border rounded text-xs font-mono mb-1" 
                                 value={editForm.code} 
                                 onChange={e => setEditForm({...editForm, code: e.target.value})} 
                                 placeholder="代码"
                               />
+                              <select 
+                                value={editForm.horizon} 
+                                onChange={e => setEditForm({...editForm, horizon: e.target.value as any})}
+                                className="w-24 p-1 border rounded text-xs bg-slate-50"
+                              >
+                                <option value="short">短线 (1月)</option>
+                                <option value="medium">中线 (1-3月)</option>
+                                <option value="long">长线 (3月+)</option>
+                              </select>
                             </td>
                             <td className="px-4 py-2"><input type="number" className="w-20 p-1 border rounded" value={editForm.volume} onChange={e => setEditForm({...editForm, volume: parseFloat(e.target.value)})} /></td>
                             <td className="px-4 py-2"><input type="number" className="w-20 p-1 border rounded" value={editForm.costPrice} onChange={e => setEditForm({...editForm, costPrice: parseFloat(e.target.value)})} /></td>
@@ -531,8 +600,11 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                           // View Mode
                           <>
                             <td className="px-4 py-3">
-                               <div className="font-bold text-slate-800">{item.name}</div>
-                               <div className="text-xs font-mono text-slate-400">{item.code}</div>
+                               <div className="flex items-center gap-2">
+                                  <div className="font-bold text-slate-800">{item.name}</div>
+                                  {renderHorizonBadge(item.horizon)}
+                               </div>
+                               <div className="text-xs font-mono text-slate-400 mt-0.5">{item.code}</div>
                             </td>
                             <td className="px-4 py-3 text-slate-600">{item.volume}</td>
                             <td className="px-4 py-3 text-slate-600">{item.costPrice}</td>
@@ -543,7 +615,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                                </div>
                                <div className={`text-xs ${item.profit >= 0 ? 'text-red-400' : 'text-green-400'}`}>
                                   {item.profitRate}
-                               </div>
+                                </div>
                             </td>
                             <td className="px-4 py-3 text-right flex justify-end gap-2">
                                <button onClick={() => startEdit(idx, item)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors">
@@ -569,7 +641,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
            >
              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <TrendingUp className="w-5 h-5" />}
-             {loading ? 'AI 深度复盘中...' : '开始每日复盘'}
+             {loading ? 'AI 连续性复盘 (vs 昨日)' : '开始连续性复盘'}
            </button>
         </div>
       </div>

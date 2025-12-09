@@ -1,4 +1,5 @@
 
+
 export enum ModelProvider {
   GEMINI_INTL = 'Gemini 3 (海外版)',
   HUNYUAN_CN = '混元大模型 (国内版)',
@@ -102,6 +103,7 @@ export interface HoldingItemDetailed {
   profit: number;      // 浮动盈亏
   profitRate: string;  // 盈亏比例 (e.g. "+15%")
   marketValue: number; // 持仓市值
+  horizon?: 'short' | 'medium' | 'long'; // New: Investment Horizon
 }
 
 export interface HoldingsSnapshot {
