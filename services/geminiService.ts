@@ -160,6 +160,77 @@ const holdingsParsingSchema: Schema = {
   required: ["totalAssets", "holdings"]
 };
 
+// --- Helpers ---
+
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const cleanJsonString = (jsonStr: string): string => {
+  let clean = jsonStr;
+  const firstBrace = clean.indexOf('{');
+  const lastBrace = clean.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    clean = clean.substring(firstBrace, lastBrace + 1);
+  } else {
+    clean = clean.replace(/```json/g, '').replace(/```/g, '').trim();
+  }
+  return clean;
+};
+
+/**
+ * Executes a Gemini API call with exponential backoff retry logic.
+ * Handles 503 (Overloaded) and 429 (Rate Limit) errors.
+ */
+async function callGeminiWithRetry(
+  apiCall: () => Promise<GenerateContentResponse>,
+  retries: number = 3,
+  baseDelay: number = 2000
+): Promise<GenerateContentResponse> {
+  let lastError: any;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await apiCall();
+    } catch (error: any) {
+      lastError = error;
+      const msg = (error.message || JSON.stringify(error)).toLowerCase();
+      const isOverloaded = msg.includes('503') || msg.includes('overloaded') || msg.includes('unavailable');
+      const isRateLimit = msg.includes('429') || msg.includes('resource_exhausted');
+      
+      // Retry only on transient errors
+      if ((isOverloaded || isRateLimit) && i < retries - 1) {
+        const delay = baseDelay * Math.pow(2, i);
+        console.warn(`Gemini API Busy (${msg}). Retrying in ${delay}ms... (Attempt ${i + 1}/${retries})`);
+        await wait(delay);
+        continue;
+      }
+      
+      // If it's not retriable or out of attempts, stop
+      break;
+    }
+  }
+  
+  // Format the error for UI display before throwing
+  let friendlyMsg = lastError.message || "未知错误";
+  const rawMsg = friendlyMsg.toLowerCase();
+  
+  if (rawMsg.includes('503') || rawMsg.includes('overloaded')) {
+    friendlyMsg = "模型服务繁忙 (Model Overloaded)，请稍后再试。";
+  } else if (rawMsg.includes('429') || rawMsg.includes('resource_exhausted')) {
+    friendlyMsg = "请求过于频繁 (Rate Limit)，请稍后再试。";
+  } else if (friendlyMsg.includes('{') && friendlyMsg.includes('}')) {
+     // Try to parse JSON error message if possible to extract 'message'
+     try {
+       const jsonError = JSON.parse(friendlyMsg);
+       if (jsonError.error && jsonError.error.message) {
+         friendlyMsg = jsonError.error.message;
+       }
+     } catch (e) {
+       // Ignore parse error, use original
+     }
+  }
+  
+  throw new Error(friendlyMsg);
+}
+
 // --- API Functions ---
 
 /**
@@ -180,14 +251,14 @@ export const fetchGeminiAnalysis = async (
   const modelName = useReasoning ? "gemini-3-pro-preview" : GEMINI_MODEL_FAST;
 
   try {
-    const response: GenerateContentResponse = await ai.models.generateContent({
+    const response = await callGeminiWithRetry(() => ai.models.generateContent({
       model: modelName,
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
         systemInstruction: "你是一个专业的全球金融市场量化分析助手。请根据用户指定的市场（A股/港股/美股）输出Markdown格式的分析报告。",
       },
-    });
+    }));
 
     const text = response.text || "无法生成分析结果。";
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
@@ -205,8 +276,8 @@ export const fetchGeminiAnalysis = async (
     };
 
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    throw new Error(`模型调用失败: ${error.message || "未知错误"}`);
+    console.error("Gemini Analysis Error:", error);
+    throw error; // Already formatted by callGeminiWithRetry
   }
 };
 
@@ -223,7 +294,7 @@ export const parseBrokerageScreenshot = async (
   const ai = new GoogleGenAI({ apiKey: effectiveKey });
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await callGeminiWithRetry(() => ai.models.generateContent({
       model: GEMINI_MODEL_FAST,
       contents: {
         parts: [
@@ -242,14 +313,21 @@ export const parseBrokerageScreenshot = async (
         responseMimeType: "application/json",
         responseSchema: holdingsParsingSchema,
       }
-    });
+    }));
 
     const jsonText = response.text || "{}";
-    return JSON.parse(jsonText);
+    
+    try {
+      const cleanJson = cleanJsonString(jsonText);
+      return JSON.parse(cleanJson);
+    } catch (parseError) {
+      console.error("JSON Parse Error (Image)", parseError, jsonText);
+      throw new Error("图片识别结果格式错误，请尝试重新上传或手动输入。");
+    }
 
   } catch (error: any) {
     console.error("Image Parsing Error:", error);
-    throw new Error("Screenshot parsing failed. Please try a clearer image or manual input.");
+    throw error;
   }
 }
 
@@ -303,7 +381,7 @@ export const fetchMarketDashboard = async (
       请确保数据具有逻辑性和专业性。
     `;
 
-    const response: GenerateContentResponse = await ai.models.generateContent({
+    const response = await callGeminiWithRetry(() => ai.models.generateContent({
       model: GEMINI_MODEL_FAST,
       contents: prompt,
       config: {
@@ -311,20 +389,12 @@ export const fetchMarketDashboard = async (
         responseSchema: marketDashboardSchema,
         systemInstruction: `你是一个资深基金经理。在生成"allocation_model"时，必须提供具体的股票代码(如 600xxx, 300xxx)和明确的持仓数量与比例。表格最后必须包含"现金"行。不要使用模糊的建议。`
       },
-    });
+    }));
 
     const jsonText = response.text || "{}";
     let parsedData: MarketDashboardData;
     try {
-      let cleanJson = jsonText;
-      const firstBrace = cleanJson.indexOf('{');
-      const lastBrace = cleanJson.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
-      } else {
-        // Fallback cleanup if needed
-        cleanJson = cleanJson.replace(/```json/g, '').replace(/```/g, '').trim();
-      }
+      const cleanJson = cleanJsonString(jsonText);
       parsedData = JSON.parse(cleanJson);
     } catch (e) {
       console.error("JSON Parse Error", e);
@@ -343,6 +413,6 @@ export const fetchMarketDashboard = async (
 
   } catch (error: any) {
     console.error("Gemini Dashboard Error:", error);
-    throw new Error(`仪表盘生成失败: ${error.message || "未知错误"}`);
+    throw error;
   }
 };

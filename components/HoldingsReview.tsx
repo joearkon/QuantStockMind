@@ -433,6 +433,25 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     }
   };
 
+  // Safe Error Parsing
+  const getFriendlyErrorMessage = (errMsg: string | null) => {
+    if (!errMsg) return null;
+    if (errMsg.includes('{') && errMsg.includes('}')) {
+      try {
+        const json = JSON.parse(errMsg);
+        // Sometimes error is wrapped like { error: { message: ... } }
+        if (json.error?.message) return json.error.message;
+        // Sometimes it is { message: ... }
+        if (json.message) return json.message;
+      } catch (e) {
+        // failed to parse, use original
+      }
+    }
+    return errMsg;
+  };
+
+  const displayError = getFriendlyErrorMessage(error);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header Area */}
@@ -507,10 +526,10 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
         )}
 
         {/* --- Error --- */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-lg flex items-center text-red-700 gap-2">
+        {displayError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-lg flex items-center text-red-700 gap-2 animate-fade-in">
             <AlertTriangle className="w-5 h-5 shrink-0" />
-            <span className="text-sm">{error}</span>
+            <span className="text-sm font-medium">{displayError}</span>
           </div>
         )}
 
