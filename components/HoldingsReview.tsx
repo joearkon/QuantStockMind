@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
@@ -249,7 +250,9 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       const result = await analyzeWithLLM(currentModel, prompt, true, settings, false, 'day', undefined, currentMarket);
       setAnalysisResult(result);
     } catch (err: any) {
-      setError(err.message);
+      console.error("Analyze Error", err);
+      // Ensure we display something even if the error object is strange
+      setError(err.message || "分析请求未能完成，请检查网络设置或稍后重试。");
     } finally {
       setLoading(false);
     }
@@ -436,6 +439,12 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   // Safe Error Parsing
   const getFriendlyErrorMessage = (errMsg: string | null) => {
     if (!errMsg) return null;
+    
+    // Check if it's the specific "TypeError: Failed to fetch" string
+    if (errMsg.includes("TypeError: Failed to fetch") || errMsg.includes("NetworkError")) {
+       return "网络连接失败。请检查您的网络连接。若使用混元模型，可能存在浏览器跨域限制，请尝试使用 Gemini 模型。";
+    }
+
     if (errMsg.includes('{') && errMsg.includes('}')) {
       try {
         const json = JSON.parse(errMsg);

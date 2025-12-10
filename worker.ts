@@ -2,6 +2,42 @@
 export default {
   async fetch(request: any, env: any, ctx: any) {
     try {
+      const url = new URL(request.url);
+
+      // --- Proxy Logic for Hunyuan API (CORS Bypass) ---
+      if (url.pathname.startsWith('/api/hunyuan')) {
+        if (request.method !== 'POST') {
+           return new Response('Method Not Allowed', { status: 405 });
+        }
+        
+        // Strip the '/api/hunyuan' prefix to get the real path, e.g. /chat/completions
+        const targetPath = url.pathname.replace('/api/hunyuan', '');
+        const targetUrl = `https://api.hunyuan.cloud.tencent.com/v1${targetPath}`;
+        
+        // Copy headers but override Host if necessary (usually fetch handles Host)
+        // We must pass the Authorization header provided by the client
+        const newHeaders = new Headers(request.headers);
+        newHeaders.set('Host', 'api.hunyuan.cloud.tencent.com');
+        
+        const proxyResponse = await fetch(targetUrl, {
+           method: 'POST',
+           headers: newHeaders,
+           body: request.body
+        });
+
+        // Add CORS headers to the response so the browser accepts it
+        const responseHeaders = new Headers(proxyResponse.headers);
+        responseHeaders.set('Access-Control-Allow-Origin', '*');
+        responseHeaders.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+        responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+        return new Response(proxyResponse.body, {
+           status: proxyResponse.status,
+           statusText: proxyResponse.statusText,
+           headers: responseHeaders
+        });
+      }
+
       // 1. Fetch the static asset (HTML, JS, CSS, etc.) from the ASSETS binding
       const response = await env.ASSETS.fetch(request);
 

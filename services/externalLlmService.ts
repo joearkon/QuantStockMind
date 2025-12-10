@@ -25,6 +25,36 @@ interface OpenAICompletionResponse {
   }[];
 }
 
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Generic fetch with exponential backoff retry
+ */
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, baseDelay = 1000): Promise<Response> {
+  let lastError: any;
+  
+  for (let i = 0; i < retries; i++) {
+    try {
+      // Create a new AbortController for each attempt to handle timeouts if needed
+      // (Browser fetch doesn't timeout by default, but we can rely on network layer)
+      const res = await fetch(url, options);
+      return res;
+    } catch (err: any) {
+      lastError = err;
+      const isNetworkError = err.name === 'TypeError' && err.message === 'Failed to fetch';
+      
+      // If it's a network error or 5xx, we retry
+      // We don't have status code here for network errors, so we assume transient
+      console.warn(`Fetch attempt ${i + 1} failed: ${err.message}. Retrying...`);
+      
+      if (i < retries - 1) {
+        await wait(baseDelay * Math.pow(2, i));
+      }
+    }
+  }
+  throw lastError;
+}
+
 /**
  * Generic fetcher for OpenAI-compatible APIs (Hunyuan)
  */
@@ -144,7 +174,7 @@ export const fetchExternalAI = async (
   }
 
   try {
-    const response = await fetch(`${config.baseUrl}/chat/completions`, {
+    const response = await fetchWithRetry(`${config.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -164,6 +194,8 @@ export const fetchExternalAI = async (
         friendlyMessage = `${config.name} 账户余额不足 (Insufficient Balance)。请充值。`;
       } else if (response.status === 401) {
         friendlyMessage = `${config.name} API Key 无效或未授权。`;
+      } else if (response.status === 504 || response.status === 503) {
+        friendlyMessage = `${config.name} 服务超时或繁忙，请稍后重试。`;
       } else if (errJson?.error?.message) {
         friendlyMessage = `${config.name} 错误: ${errJson.error.message}`;
       } else {
@@ -212,6 +244,12 @@ export const fetchExternalAI = async (
 
   } catch (error: any) {
     console.error(`${config.name} API Call Failed:`, error);
+    
+    // Handle Browser Network Errors (e.g. CORS, Offline, DNS)
+    if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+      throw new Error(`无法连接到 ${config.name} API。请检查网络连接。如果问题持续，可能是浏览器跨域限制 (CORS)，建议使用 Gemini 模型或检查 API 代理设置。`);
+    }
+
     if (error.message.includes(config.name)) {
         throw error;
     }
