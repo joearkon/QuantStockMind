@@ -212,22 +212,29 @@ async function callGeminiWithRetry(
   let friendlyMsg = lastError.message || "未知错误";
   const rawMsg = friendlyMsg.toLowerCase();
   
+  // 1. Check for common HTTP codes in message
   if (rawMsg.includes('503') || rawMsg.includes('overloaded')) {
     friendlyMsg = "模型服务繁忙 (Model Overloaded)，请稍后再试。";
   } else if (rawMsg.includes('429') || rawMsg.includes('resource_exhausted')) {
     friendlyMsg = "请求过于频繁 (Rate Limit)，请稍后再试。";
   } else if (friendlyMsg.includes('{') && friendlyMsg.includes('}')) {
-     // Try to parse JSON error message if possible to extract 'message'
+     // 2. Try to parse JSON error message if possible to extract 'message'
      try {
        const jsonError = JSON.parse(friendlyMsg);
-       if (jsonError.error && jsonError.error.message) {
-         friendlyMsg = jsonError.error.message;
+       // Handle nested Google API Error format: { error: { code: 500, message: "", status: "INTERNAL_SERVER_ERROR" } }
+       if (jsonError.error) {
+           friendlyMsg = jsonError.error.message || jsonError.error.status || `Error Code ${jsonError.error.code}`;
+       } else if (jsonError.message) {
+           friendlyMsg = jsonError.message;
        }
      } catch (e) {
        // Ignore parse error, use original
      }
   }
   
+  // Final fallback if parsing resulted in empty string
+  if (!friendlyMsg) friendlyMsg = "服务暂时不可用 (Unknown Error)";
+
   throw new Error(friendlyMsg);
 }
 
@@ -305,7 +312,7 @@ export const parseBrokerageScreenshot = async (
             }
           },
           {
-            text: "Identify the Total Assets (总资产) and list all stocks in this screenshot. For each stock, extract Name, Code (infer 6-digit code if only name exists), Volume (持仓), Cost Price (成本), Current Price (现价), Profit/Loss amount (盈亏), Profit Rate (盈亏率%), and Market Value (市值). Return JSON."
+            text: "Analyze this image. Identify Total Assets (总资产) and Date. List all stocks with Name, Code (infer 6-digit if missing), Volume (持仓), Cost (成本), Current Price (现价), Profit (盈亏), Profit Rate (盈亏率%), Market Value (市值). Return raw JSON only, no markdown."
           }
         ]
       },
@@ -322,7 +329,7 @@ export const parseBrokerageScreenshot = async (
       return JSON.parse(cleanJson);
     } catch (parseError) {
       console.error("JSON Parse Error (Image)", parseError, jsonText);
-      throw new Error("图片识别结果格式错误，请尝试重新上传或手动输入。");
+      throw new Error("图片识别结果格式错误，请确保图片清晰并包含完整持仓信息，或尝试重新上传。");
     }
 
   } catch (error: any) {

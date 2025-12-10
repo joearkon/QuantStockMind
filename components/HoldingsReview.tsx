@@ -440,8 +440,9 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       try {
         const json = JSON.parse(errMsg);
         // Sometimes error is wrapped like { error: { message: ... } }
-        if (json.error?.message) return json.error.message;
-        // Sometimes it is { message: ... }
+        if (json.error) {
+           return json.error.message || json.error.status || `Error Code: ${json.error.code}`;
+        }
         if (json.message) return json.message;
       } catch (e) {
         // failed to parse, use original
