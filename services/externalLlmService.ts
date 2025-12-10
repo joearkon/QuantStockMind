@@ -1,4 +1,3 @@
-
 import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType } from "../types";
 
 // Configuration for external providers
@@ -209,14 +208,14 @@ export const fetchExternalAI = async (
 
     if (isDashboard) {
       try {
-        let cleanJson = content;
+        let cleanJson = content.trim();
+        // Robust cleanup for JSON mode
+        cleanJson = cleanJson.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
         const firstBrace = cleanJson.indexOf('{');
         const lastBrace = cleanJson.lastIndexOf('}');
         
         if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
           cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
-        } else {
-          cleanJson = cleanJson.replace(/```json/g, '').replace(/```/g, '').trim();
         }
 
         const parsedData = JSON.parse(cleanJson) as MarketDashboardData;
@@ -245,9 +244,9 @@ export const fetchExternalAI = async (
   } catch (error: any) {
     console.error(`${config.name} API Call Failed:`, error);
     
-    // Handle Browser Network Errors (e.g. CORS, Offline, DNS)
+    // Handle Browser Network Errors (e.g. CORS, Offline, DNS) specifically
     if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
-      throw new Error(`无法连接到 ${config.name} API。请检查网络连接。如果问题持续，可能是浏览器跨域限制 (CORS)，建议使用 Gemini 模型或检查 API 代理设置。`);
+      throw new Error(`无法连接到 ${config.name} API。若使用国内模型，请检查是否存在跨域(CORS)限制，建议优先使用 Gemini 模型。`);
     }
 
     if (error.message.includes(config.name)) {

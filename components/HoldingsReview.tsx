@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
@@ -445,10 +444,10 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
        return "网络连接失败。请检查您的网络连接。若使用混元模型，可能存在浏览器跨域限制，请尝试使用 Gemini 模型。";
     }
 
-    if (errMsg.includes('{') && errMsg.includes('}')) {
+    if (errMsg.trim().startsWith('{')) {
       try {
         const json = JSON.parse(errMsg);
-        // Sometimes error is wrapped like { error: { message: ... } }
+        // Handle various JSON error shapes
         if (json.error) {
            return json.error.message || json.error.status || `Error Code: ${json.error.code}`;
         }
