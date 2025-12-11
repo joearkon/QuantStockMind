@@ -28,7 +28,13 @@ interface OpenAICompletionResponse {
     message: {
       content: string;
     };
+    finish_reason?: string;
   }[];
+  error?: {
+    message: string;
+    type: string;
+    code: string;
+  }
 }
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -153,33 +159,33 @@ export const fetchExternalAI = async (
   `;
 
   // Enhanced System Prompt for Quality
-  // Added "Chain of Thought" and "Strict Data Mode"
+  // REMOVED explicit tool instructions. Aliyun's 'enable_search' works best when we just ask it to search naturally.
   let systemContent = `You are a Senior Quantitative Financial Analyst (资深量化分析师). Today is ${dateStr}. Focus on the ${market} market. 
   
   Your personality:
   1. Professional, sharp, and data-driven. 
   2. Use "Chain of Thought" (Deep Reasoning) before answering.
-  3. You MUST USE YOUR 'web_search' TOOL to find today's REAL-TIME data. 
-  4. STRICT_DATA_MODE: Enabled. You must not invent data. If specific real-time data is not found via search, return "0.00" or "Unavail".
-  5. When analyzing "Main Force" (主力/机构), you must find specific net inflow/outflow numbers.
+  3. INTERNET SEARCH IS ENABLED: You have real-time access to the internet. You MUST search for the specific data points requested.
+  4. STRICT_DATA_MODE: Enabled. If you cannot find real-time data after searching, return "0.00" or "Unavail". Do NOT invent numbers.
   `;
   
   let userContent = prompt;
 
   if (isDashboard) {
     // Inject Specific Search Queries to force the model to look up these values
-    // This is crucial for Aliyun/Hunyuan to actually perform the search
     const searchQueries = `
-    [Mandatory Search Task]
-    Search for the following real-time data now:
-    1. ${market === 'CN' ? '上证指数 今日收盘' : market === 'HK' ? '恒生指数 今日收盘' : 'Nasdaq today'} (price and change).
-    2. ${market === 'CN' ? '北向资金 今日净流入 亿元' : 'Southbound Capital Net Inflow today'}.
-    3. ${market === 'CN' ? 'A股主力资金流向 行业板块' : 'Market Institutional Money Flow sectors'}.
-    4. Top performing sectors today ${dateStr}.
+    [MANDATORY SEARCH TASKS]
+    Please perform an internet search for the following REAL-TIME data for today (${dateStr}):
+    1. ${market === 'CN' ? '上证指数 今日收盘点位 涨跌幅' : market === 'HK' ? '恒生指数 今日收盘' : 'Nasdaq today price'}.
+    2. ${market === 'CN' ? '北向资金 今日净流入' : 'Southbound Capital Net Inflow today'}.
+    3. ${market === 'CN' ? '今日A股主力资金流向 行业板块' : 'Institutional Money Flow sectors'}.
+    4. ${market === 'CN' ? '今日 涨停家数 跌停家数' : 'Market breadth'}.
+    
+    After searching, analyze the results and fill the JSON.
     `;
 
-    userContent = `${prompt}\n\n${searchQueries}\n\n${jsonInstruction}\n\nCRITICAL REQUIREMENTS: \n1. SEARCH for today's 'Northbound Capital' (北向资金) and 'Main Force Fund Flow' (主力资金流向). \n2. Provide specific numbers if found. If not, use "0.00". \n3. Do not be lazy. Fill the portfolio table with REAL stock codes and names.`;
-    systemContent += " You are a helpful assistant that outputs strictly structured JSON data. You have access to real-time tools.";
+    userContent = `${prompt}\n\n${searchQueries}\n\n${jsonInstruction}`;
+    systemContent += " You are a helpful assistant that outputs strictly structured JSON data.";
   } else {
     // For Stock/Holdings analysis
     systemContent += " Provide a comprehensive analysis report. Do not be brief. Use Markdown. Cite specific financial metrics (PE, PB, RSI, MACD).";
@@ -194,7 +200,7 @@ export const fetchExternalAI = async (
   const requestBody: any = {
     model: config.model,
     messages: messages,
-    temperature: 0.8, // Slightly higher temperature for more creative/detailed analysis
+    temperature: 0.8, 
     max_tokens: 4000, 
     stream: false,
   };
@@ -204,29 +210,12 @@ export const fetchExternalAI = async (
   }
   
   // Aliyun (DashScope) Search Enhancement
-  // Explicitly enable search AND define the tool to trigger the agent behavior
   if (provider === ModelProvider.ALIYUN_CN) {
+    // IMPORTANT: For Aliyun OpenAI compatible endpoint, 'enable_search: true' triggers the server-side search plugin.
+    // Do NOT define 'tools' explicitly here, otherwise the model will return tool_calls (asking client to execute) 
+    // instead of executing it server-side.
     requestBody.enable_search = true;
     requestBody.result_format = 'message';
-    
-    // Explicitly define web_search tool to signal the model to use it
-    requestBody.tools = [{
-        type: 'function',
-        function: {
-            name: 'web_search',
-            description: 'Search for real-time information on the internet. Use this to get current stock prices, index values, and latest news.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    search_query: {
-                        type: 'string',
-                        description: 'The keywords to search for.'
-                    }
-                },
-                required: ['search_query']
-            }
-        }
-    }];
   }
 
   try {
@@ -244,6 +233,7 @@ export const fetchExternalAI = async (
       let errorMsg = `API Error (${response.status})`;
       try {
         const errJson = JSON.parse(errorText);
+        // Handle Aliyun/OpenAI specific error structures
         errorMsg = errJson.error?.message || errJson.message || errorText;
       } catch (e) {
         errorMsg = errorText;
@@ -252,7 +242,22 @@ export const fetchExternalAI = async (
     }
 
     const data = await response.json() as OpenAICompletionResponse;
-    const content = data.choices?.[0]?.message?.content || "";
+    
+    // Safety check for empty content
+    if (!data.choices || data.choices.length === 0) {
+        throw new Error("API returned no choices.");
+    }
+
+    const choice = data.choices[0];
+    const content = choice.message?.content;
+
+    if (!content) {
+        // This often happens if 'tools' were defined but not handled, causing model to wait for tool output
+        if (choice.finish_reason === 'tool_calls') {
+            throw new Error("Configuration Error: Model attempted to call a client-side tool. Please report this bug.");
+        }
+        throw new Error("API returned empty content. The model might have refused the request.");
+    }
 
     // Parse JSON if dashboard
     let structuredData: MarketDashboardData | undefined;
@@ -269,7 +274,7 @@ export const fetchExternalAI = async (
         structuredData = JSON.parse(cleanContent);
       } catch (e) {
         console.warn("Failed to parse external LLM JSON", e);
-        // Do not throw, return content as text fallback
+        // Do not throw, return content as text fallback so user sees *something*
       }
     }
 
