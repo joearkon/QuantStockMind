@@ -3,7 +3,6 @@
 export enum ModelProvider {
   GEMINI_INTL = 'Gemini 3 (海外版)',
   HUNYUAN_CN = '混元大模型 (国内版)',
-  ALIYUN_CN = '通义千问 (国内版)',
 }
 
 export enum MarketType {
@@ -129,7 +128,6 @@ export interface StockQuery {
 export interface UserSettings {
   hunyuanKey?: string;
   geminiKey?: string;
-  aliyunKey?: string;
 }
 
 // Global definition for injected variables from Cloudflare Worker
@@ -138,7 +136,6 @@ declare global {
     __ENV__?: {
       VITE_GEMINI_API_KEY?: string;
       VITE_HUNYUAN_API_KEY?: string;
-      VITE_ALIYUN_API_KEY?: string;
       [key: string]: string | undefined;
     };
   }

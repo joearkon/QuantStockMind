@@ -8,13 +8,6 @@ const PROVIDER_CONFIG = {
     // Upgrade to hunyuan-pro for better search handling and reasoning
     model: "hunyuan-pro", 
     name: "Tencent Hunyuan"
-  },
-  [ModelProvider.ALIYUN_CN]: {
-    // Aliyun DashScope OpenAI-compatible endpoint
-    // We use a relative path here to trigger the proxy in worker.ts, avoiding CORS issues
-    baseUrl: "/api/aliyun", 
-    model: "qwen-max", 
-    name: "Aliyun Qwen"
   }
 };
 
@@ -67,7 +60,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, ba
 }
 
 /**
- * Generic fetcher for OpenAI-compatible APIs (Hunyuan, Aliyun)
+ * Generic fetcher for OpenAI-compatible APIs (Hunyuan)
  */
 export const fetchExternalAI = async (
   provider: ModelProvider,
@@ -159,7 +152,6 @@ export const fetchExternalAI = async (
   `;
 
   // Enhanced System Prompt for Quality
-  // REMOVED explicit tool instructions. Aliyun's 'enable_search' works best when we just ask it to search naturally.
   let systemContent = `You are a Senior Quantitative Financial Analyst (资深量化分析师). Today is ${dateStr}. Focus on the ${market} market. 
   
   Your personality:
@@ -209,15 +201,6 @@ export const fetchExternalAI = async (
     requestBody.enable_enhancement = true; 
   }
   
-  // Aliyun (DashScope) Search Enhancement
-  if (provider === ModelProvider.ALIYUN_CN) {
-    // IMPORTANT: For Aliyun OpenAI compatible endpoint, 'enable_search: true' triggers the server-side search plugin.
-    // Do NOT define 'tools' explicitly here, otherwise the model will return tool_calls (asking client to execute) 
-    // instead of executing it server-side.
-    requestBody.enable_search = true;
-    requestBody.result_format = 'message';
-  }
-
   try {
     const response = await fetchWithRetry(`${config.baseUrl}/chat/completions`, {
       method: 'POST',
@@ -233,7 +216,6 @@ export const fetchExternalAI = async (
       let errorMsg = `API Error (${response.status})`;
       try {
         const errJson = JSON.parse(errorText);
-        // Handle Aliyun/OpenAI specific error structures
         errorMsg = errJson.error?.message || errJson.message || errorText;
       } catch (e) {
         errorMsg = errorText;
@@ -252,10 +234,6 @@ export const fetchExternalAI = async (
     const content = choice.message?.content;
 
     if (!content) {
-        // This often happens if 'tools' were defined but not handled, causing model to wait for tool output
-        if (choice.finish_reason === 'tool_calls') {
-            throw new Error("Configuration Error: Model attempted to call a client-side tool. Please report this bug.");
-        }
         throw new Error("API returned empty content. The model might have refused the request.");
     }
 

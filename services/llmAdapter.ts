@@ -42,20 +42,13 @@ export const analyzeWithLLM = async (
     return await fetchGeminiAnalysis(datedPrompt, isComplex, geminiKey);
   }
 
-  // 2. Domestic Models (Hunyuan & Aliyun)
+  // 2. Domestic Models (Hunyuan)
   let apiKey = '';
 
   if (provider === ModelProvider.HUNYUAN_CN) {
     apiKey = settings?.hunyuanKey || '';
     if (!apiKey) {
       throw new Error(`未检测到 混元 API Key。请在设置中配置，或在环境变量中添加 "VITE_HUNYUAN_API_KEY"。`);
-    }
-  }
-
-  if (provider === ModelProvider.ALIYUN_CN) {
-    apiKey = settings?.aliyunKey || '';
-    if (!apiKey) {
-      throw new Error(`未检测到 阿里云 API Key。请在设置中配置，或在环境变量中添加 "VITE_ALIYUN_API_KEY"。`);
     }
   }
 

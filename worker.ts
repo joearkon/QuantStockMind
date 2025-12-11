@@ -39,38 +39,6 @@ export default {
         });
       }
 
-      // --- Proxy Logic for Aliyun API (CORS Bypass) ---
-      if (url.pathname.startsWith('/api/aliyun')) {
-        if (request.method !== 'POST') {
-           return new Response('Method Not Allowed', { status: 405 });
-        }
-        
-        // Strip the '/api/aliyun' prefix to get the real path
-        const targetPath = url.pathname.replace('/api/aliyun', '');
-        // Target standard OpenAI compatible endpoint for DashScope
-        const targetUrl = `https://dashscope.aliyuncs.com/compatible-mode/v1${targetPath}`;
-        
-        const newHeaders = new Headers(request.headers);
-        newHeaders.set('Host', 'dashscope.aliyuncs.com');
-        
-        const proxyResponse = await fetch(targetUrl, {
-           method: 'POST',
-           headers: newHeaders,
-           body: request.body
-        });
-
-        const responseHeaders = new Headers(proxyResponse.headers);
-        responseHeaders.set('Access-Control-Allow-Origin', '*');
-        responseHeaders.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-        responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-        return new Response(proxyResponse.body, {
-           status: proxyResponse.status,
-           statusText: proxyResponse.statusText,
-           headers: responseHeaders
-        });
-      }
-
       // 1. Fetch the static asset (HTML, JS, CSS, etc.) from the ASSETS binding
       const response = await env.ASSETS.fetch(request);
 
@@ -88,7 +56,6 @@ export default {
          const safeEnv = {
            VITE_GEMINI_API_KEY: env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY || "",
            VITE_HUNYUAN_API_KEY: env.VITE_HUNYUAN_API_KEY || env.HUNYUAN_API_KEY || "",
-           VITE_ALIYUN_API_KEY: env.VITE_ALIYUN_API_KEY || env.ALIYUN_API_KEY || "",
          };
 
          // Create the injection script

@@ -4,12 +4,11 @@ import { ModelProvider, MarketType } from './types';
 import { LayoutDashboard, TrendingUp, NotebookPen } from 'lucide-react';
 
 export const APP_NAME = "QuantMind A-Share Assistant";
-export const APP_VERSION = "v1.1.4";
+export const APP_VERSION = "v1.1.5";
 
 export const MODEL_OPTIONS = [
   { value: ModelProvider.GEMINI_INTL, label: 'Gemini 3 (海外版)', recommended: true, region: 'Global' },
   { value: ModelProvider.HUNYUAN_CN, label: '腾讯混元 (国内版)', recommended: false, region: 'CN' },
-  { value: ModelProvider.ALIYUN_CN, label: '通义千问 (Qwen-Max)', recommended: true, region: 'CN' },
 ];
 
 export const MARKET_OPTIONS = [

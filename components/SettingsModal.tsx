@@ -14,13 +14,11 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSave }) => {
   const [hunyuanKey, setHunyuanKey] = useState(settings.hunyuanKey || '');
   const [geminiKey, setGeminiKey] = useState(settings.geminiKey || '');
-  const [aliyunKey, setAliyunKey] = useState(settings.aliyunKey || '');
 
   useEffect(() => {
     if (isOpen) {
       setHunyuanKey(settings.hunyuanKey || '');
       setGeminiKey(settings.geminiKey || '');
-      setAliyunKey(settings.aliyunKey || '');
     }
   }, [isOpen, settings]);
 
@@ -30,7 +28,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
     onSave({
       hunyuanKey: hunyuanKey.trim() || undefined,
       geminiKey: geminiKey.trim() || undefined,
-      aliyunKey: aliyunKey.trim() || undefined,
     });
     onClose();
   };
@@ -58,7 +55,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
               <ul className="list-disc ml-4 mt-1 space-y-0.5">
                 <li><code>VITE_GEMINI_API_KEY</code></li>
                 <li><code>VITE_HUNYUAN_API_KEY</code></li>
-                <li><code>VITE_ALIYUN_API_KEY</code></li>
               </ul>
             </div>
           </div>
@@ -74,20 +70,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
                 value={geminiKey}
                 onChange={(e) => setGeminiKey(e.target.value)}
                 placeholder={settings.geminiKey ? "已从环境加载 (可覆盖)" : "AIzaSy..."}
-                className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm font-mono"
-              />
-            </div>
-
-            {/* Aliyun Key */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                阿里云通义千问 API Key
-              </label>
-              <input
-                type="password"
-                value={aliyunKey}
-                onChange={(e) => setAliyunKey(e.target.value)}
-                placeholder={settings.aliyunKey ? "已从环境加载 (可覆盖)" : "sk-..."}
                 className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm font-mono"
               />
             </div>

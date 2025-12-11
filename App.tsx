@@ -50,16 +50,6 @@ const App: React.FC = () => {
       process.env.VITE_HUNYUAN_API_KEY || 
       process.env.HUNYUAN_API_KEY;
 
-    // Check Aliyun Env Vars
-    const aliyunKey = 
-      injectedEnv.VITE_ALIYUN_API_KEY ||
-      // @ts-ignore
-      import.meta.env?.VITE_ALIYUN_API_KEY || 
-      // @ts-ignore
-      import.meta.env?.ALIYUN_API_KEY ||
-      process.env.VITE_ALIYUN_API_KEY || 
-      process.env.ALIYUN_API_KEY;
-
     // Check Gemini Env Vars
     const geminiKey = 
       injectedEnv.VITE_GEMINI_API_KEY ||
@@ -76,7 +66,6 @@ const App: React.FC = () => {
     return {
       hunyuanKey: parsed.hunyuanKey || hunyuanKey,
       geminiKey: parsed.geminiKey || geminiKey,
-      aliyunKey: parsed.aliyunKey || aliyunKey,
     };
   });
 
@@ -187,8 +176,6 @@ const App: React.FC = () => {
                    <p>
                      {selectedModel === ModelProvider.GEMINI_INTL 
                        ? "Gemini 2.5 具备全球联网能力，适合所有市场分析。"
-                       : selectedModel === ModelProvider.ALIYUN_CN
-                       ? "通义千问 (Qwen) 针对中文语境优化，已开启实时联网搜索。"
                        : "混元模型对国内市场(A/H)理解较深。"}
                    </p>
                 </div>
