@@ -35,7 +35,7 @@ const marketDashboardSchema: Schema = {
       type: Type.OBJECT,
       properties: {
         inflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } },
-        inflow_reason: { type: Type.STRING },
+        inflow_reason: { type: Type.STRING, description: "Focus on Main Force/Institutional buying logic" },
         outflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } },
         outflow_reason: { type: Type.STRING }
       },
@@ -331,7 +331,7 @@ export const fetchGeminiAnalysis = async (
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: "你是一个专业的全球金融市场量化分析助手。请根据用户指定的市场（A股/港股/美股）输出Markdown格式的分析报告。",
+        systemInstruction: "你是一个专业的全球金融市场量化分析助手。请务必查询最新的【主力资金流向】（Main Force Fund Flow）、【北向资金】（Northbound Capital）和【机构动向】。请根据用户指定的市场（A股/港股/美股）输出Markdown格式的分析报告。",
       },
     }));
 
@@ -429,22 +429,25 @@ export const fetchMarketDashboard = async (
   
   let marketSpecificPrompt = "";
   if (market === MarketType.CN) {
-    marketSpecificPrompt = "主要指数关注：上证指数、深证成指、创业板指、科创50。重点关注中国政策、内资动向及高低切换逻辑。";
+    marketSpecificPrompt = "主要指数：上证/深证/科创。核心任务：【必须】搜索并分析今日的“主力资金净流入”（Main Force Net Inflow）和“北向资金”（Northbound Capital）数据。在“资金轮动”部分明确指出哪些板块是“机构/主力”在买入。";
   } else if (market === MarketType.HK) {
-    marketSpecificPrompt = "主要指数关注：恒生指数、恒生科技指数、国企指数。重点关注南向资金和外资流动。";
+    marketSpecificPrompt = "主要指数：恒指/恒生科技。核心任务：分析“南向资金”（Southbound Capital）流向及外资机构动向。";
   } else if (market === MarketType.US) {
-    marketSpecificPrompt = "主要指数关注：道琼斯、纳斯达克、标普500。重点关注美联储政策和科技巨头表现。";
+    marketSpecificPrompt = "主要指数：道指/纳指/标普。核心任务：分析华尔街机构（Institutional Money）流向及科技巨头动向。";
   }
 
+  // NOTE: When using 'googleSearch' tool, we CANNOT use 'responseMimeType: "application/json"'.
+  // Instead, we MUST inject the schema into the prompt and parse the text response manually.
+  
   try {
     const prompt = `
       今天是 ${dateStr}。
-      请根据当前【${market === 'US' ? '美股' : market === 'HK' ? '港股' : 'A股'}】市场情况（需基于最新互联网信息），生成一份"${period === 'day' ? '当日' : '本月'}"的市场深度分析报告。
+      请根据当前【${market === 'US' ? '美股' : market === 'HK' ? '港股' : 'A股'}】市场情况（使用 Search 工具获取实时数据），生成一份"${period === 'day' ? '当日' : '本月'}"的市场深度分析报告。
       
       ${marketSpecificPrompt}
 
       重点任务：
-      1. 分析主要指数、市场情绪、资金流向。
+      1. 分析主要指数、市场情绪、资金流向（重点是机构/主力资金）。
       2. 提供投资机会分析（防御 vs 成长）。
       3. **生成实战仓位配置表 (Portfolio Table)**：
          - 假设用户需要在两种策略中二选一：【激进型/成长】（通常高仓位）或【稳健型/防御】（通常中低仓位）。
@@ -453,9 +456,14 @@ export const fetchMarketDashboard = async (
            - **标的**：具体的股票名称和代码 (A股600/000/300, 港股0XXXX, 美股Symbol)。
            - **持仓数量/Volume**：假设初始资金10万，给出具体的建议股数（如 "800股"）。
            - **占比/Weight**：建议的持仓比例（如 "34%"）。
-           - **逻辑标签**：一句话概括买入逻辑（如 "新质生产力龙头"）。
+           - **逻辑标签**：一句话概括买入逻辑（如 "主力大幅加仓"）。
          - **务必在表格最后包含一行 "现金 (Cash)"**，用于应对短期波动。
          - 确保推荐的个股具有代表性和流动性，符合当前的"Deep Logic"分析。
+      
+      IMPORTANT: You must return the result as valid JSON strictly following this schema structure. Do NOT output markdown code blocks.
+      
+      JSON Schema Structure:
+      ${JSON.stringify(marketDashboardSchema, null, 2)}
       
       请确保数据具有逻辑性和专业性。
     `;
@@ -464,25 +472,34 @@ export const fetchMarketDashboard = async (
       model: GEMINI_MODEL_FAST,
       contents: prompt,
       config: {
-        responseMimeType: "application/json",
-        responseSchema: marketDashboardSchema,
-        systemInstruction: `你是一个资深基金经理。在生成"allocation_model"时，必须提供具体的股票代码(如 600xxx, 300xxx)和明确的持仓数量与比例。表格最后必须包含"现金"行。不要使用模糊的建议。`
+        tools: [{ googleSearch: {} }],
+        // REMOVED: responseMimeType: "application/json" IS NOT SUPPORTED WITH googleSearch
+        // REMOVED: responseSchema: marketDashboardSchema
+        systemInstruction: `你是一个资深基金经理。在分析资金流向时，必须区分"散户"与"主力/机构"。在"capital_rotation"字段中，请特指主力资金的流向。`
       },
     }));
 
-    const jsonText = response.text || "{}";
+    const text = response.text || "{}";
     let parsedData: MarketDashboardData;
+    
     try {
-      const cleanJson = cleanJsonString(jsonText);
+      const cleanJson = cleanJsonString(text);
       parsedData = JSON.parse(cleanJson);
     } catch (e) {
       console.error("JSON Parse Error", e);
-      throw new Error("无法解析模型返回的数据，请重试。");
+      console.log("Raw Text:", text);
+      throw new Error("无法解析模型返回的数据 (JSON Parse Error)。请重试，或尝试使用其他模型。");
     }
 
+    // Get sources if available
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const sources = groundingChunks
+      .map((chunk: any) => chunk.web)
+      .filter((web: any) => web !== undefined);
+
     return {
-      content: jsonText,
-      groundingSource: [],
+      content: text,
+      groundingSource: sources,
       timestamp: Date.now(),
       modelUsed: ModelProvider.GEMINI_INTL,
       isStructured: true,

@@ -1,8 +1,7 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
-import { Loader2, BarChart2, TrendingUp, Zap, Wind, Layers, Settings, ShieldCheck, Rocket, ListChecks, Target } from 'lucide-react';
+import { Loader2, BarChart2, TrendingUp, Zap, Wind, Layers, Settings, ShieldCheck, Rocket, ListChecks, Target, Hourglass, Search, Cpu } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 
 interface MarketAnalysisProps {
@@ -30,6 +29,20 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [allocationType, setAllocationType] = useState<'aggressive' | 'balanced'>('aggressive');
+  
+  // Progress tracking
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    let interval: any;
+    if (loading) {
+      setElapsedSeconds(0);
+      interval = setInterval(() => {
+        setElapsedSeconds(prev => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const handleAnalysis = async () => {
     setLoading(true);
@@ -47,6 +60,19 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
 
   const d = savedResult?.structuredData;
   const marketLabel = MARKET_OPTIONS.find(m => m.value === currentMarket)?.label || currentMarket;
+
+  // Dynamic Loading Text based on elapsed time
+  const getLoadingStatus = () => {
+    if (elapsedSeconds < 3) return { text: "正在初始化 AI 模型...", icon: Cpu };
+    if (elapsedSeconds < 8) return { text: `联网搜索 ${marketLabel} 实时行情与新闻...`, icon: Search };
+    if (elapsedSeconds < 16) return { text: "深度挖掘：主力资金流向与机构动向...", icon: TrendingUp };
+    if (elapsedSeconds < 24) return { text: "量化计算：市场情绪评分与板块轮动...", icon: BarChart2 };
+    if (elapsedSeconds < 32) return { text: "策略推演：生成攻守兼备的仓位模型...", icon: Layers };
+    return { text: "正在整理最终结构化报告 (数据量大，请稍候)...", icon: Loader2 };
+  };
+
+  const status = getLoadingStatus();
+  const StatusIcon = status.icon;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -81,13 +107,37 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
             <button
               onClick={handleAnalysis}
               disabled={loading}
-              className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px] justify-center"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-              {loading ? '全维扫描中...' : '生成全景报告'}
+              {loading ? (
+                 <span className="font-mono">{elapsedSeconds}s</span>
+              ) : '生成全景报告'}
             </button>
           </div>
         </div>
+
+        {/* Loading State Visualization */}
+        {loading && (
+          <div className="mb-6 p-8 bg-slate-50 rounded-xl border border-indigo-100 flex flex-col items-center justify-center text-center animate-pulse relative overflow-hidden">
+             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent translate-x-[-100%] animate-[shimmer_2s_infinite]"></div>
+             <div className="bg-white p-4 rounded-full shadow-sm mb-4 relative z-10">
+               <StatusIcon className={`w-8 h-8 text-indigo-600 ${elapsedSeconds > 32 ? 'animate-spin' : 'animate-bounce'}`} />
+             </div>
+             <h3 className="text-lg font-bold text-slate-800 mb-2 relative z-10">
+               {status.text}
+             </h3>
+             <p className="text-sm text-slate-500 relative z-10 max-w-md">
+               AI 正在实时聚合多维数据。本次分析包含联网搜索、主力资金追踪及量化策略生成，通常耗时 20-40 秒。
+             </p>
+             <div className="mt-6 w-64 h-2 bg-slate-200 rounded-full overflow-hidden relative z-10">
+               <div 
+                 className="h-full bg-indigo-500 rounded-full transition-all duration-1000 ease-linear"
+                 style={{ width: `${Math.min((elapsedSeconds / 45) * 100, 95)}%` }}
+               ></div>
+             </div>
+          </div>
+        )}
 
         {/* Error State */}
         {error && (
@@ -117,20 +167,30 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
         {/* Indices Row */}
         {d && d.market_indices && d.market_indices.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            {d.market_indices.map((idx, i) => (
-              <div key={i} className="bg-slate-900 rounded-lg p-4 text-white shadow-lg relative overflow-hidden">
-                <div className="relative z-10">
-                  <div className="flex justify-between items-baseline mb-1">
-                    <span className="text-slate-400 text-sm font-medium">{idx.name}</span>
-                    <span className={`text-sm font-bold ${idx.direction === 'up' ? 'text-rose-500' : 'text-emerald-500'}`}>
-                       {idx.change}
-                    </span>
+            {d.market_indices.map((idx, i) => {
+              // Check if data is valid (not 0.00, not NaN, not "未更新")
+              const isInvalid = !idx.value || idx.value === "0.00" || idx.value.includes("未更新") || idx.value.includes("NaN");
+              const isUp = idx.direction === 'up';
+              const colorClass = isInvalid ? 'text-slate-400' : isUp ? 'text-rose-500' : 'text-emerald-500';
+              const bgClass = isInvalid ? 'bg-slate-500' : isUp ? 'bg-rose-500' : 'bg-emerald-500';
+
+              return (
+                <div key={i} className="bg-slate-900 rounded-lg p-4 text-white shadow-lg relative overflow-hidden">
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-baseline mb-1">
+                      <span className="text-slate-400 text-sm font-medium">{idx.name}</span>
+                      <span className={`text-sm font-bold ${colorClass}`}>
+                         {isInvalid ? 'Data Unavailable' : idx.change}
+                      </span>
+                    </div>
+                    <div className={`text-2xl font-bold tracking-tight ${isInvalid ? 'text-slate-500' : ''}`}>
+                      {idx.value}
+                    </div>
                   </div>
-                  <div className="text-2xl font-bold tracking-tight">{idx.value}</div>
+                  <div className={`absolute -right-4 -bottom-6 w-20 h-20 rounded-full blur-2xl opacity-20 ${bgClass}`}></div>
                 </div>
-                <div className={`absolute -right-4 -bottom-6 w-20 h-20 rounded-full blur-2xl opacity-20 ${idx.direction === 'up' ? 'bg-rose-500' : 'bg-emerald-500'}`}></div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -183,7 +243,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
             <div className="lg:col-span-1 bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
               <h3 className="text-slate-800 font-bold flex items-center gap-2 mb-6">
                 <TrendingUp className="w-5 h-5 text-emerald-600" />
-                深度资金轮动
+                主力/资金轮动 (Main Force)
               </h3>
               <div className="space-y-6">
                 <div>

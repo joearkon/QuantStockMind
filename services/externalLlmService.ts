@@ -1,5 +1,3 @@
-
-
 import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType } from "../types";
 
 // Configuration for external providers
@@ -84,12 +82,13 @@ export const fetchExternalAI = async (
   const dateStr = now.toLocaleDateString('zh-CN');
 
   let indicesExample = "";
+  // NOTE: We use 0.00 as placeholders to prevent the model from hallucinating specific numbers if search fails.
   if (market === MarketType.CN) {
-    indicesExample = `{ "name": "上证指数", "value": "...", "change": "...", "direction": "up" }, { "name": "创业板指", ... }`;
+    indicesExample = `{ "name": "上证指数", "value": "0.00", "change": "0.00%", "direction": "up" }, { "name": "创业板指", "value": "0.00", "change": "0.00%", "direction": "down" }`;
   } else if (market === MarketType.HK) {
-    indicesExample = `{ "name": "恒生指数", "value": "...", "change": "...", "direction": "down" }, { "name": "恒生科技", ... }`;
+    indicesExample = `{ "name": "恒生指数", "value": "0.00", "change": "0.00%", "direction": "down" }, { "name": "恒生科技", "value": "0.00", "change": "0.00%", "direction": "up" }`;
   } else if (market === MarketType.US) {
-    indicesExample = `{ "name": "纳斯达克", "value": "...", "change": "...", "direction": "up" }, { "name": "标普500", ... }`;
+    indicesExample = `{ "name": "纳斯达克", "value": "0.00", "change": "0.00%", "direction": "up" }, { "name": "标普500", "value": "0.00", "change": "0.00%", "direction": "down" }`;
   }
 
   // JSON Schema Instruction for Dashboard
@@ -109,9 +108,9 @@ export const fetchExternalAI = async (
       },
       "capital_rotation": {
         "inflow_sectors": ["Sector A", "Sector B"],
-        "inflow_reason": "Reason",
+        "inflow_reason": "Specific reasons (e.g., 'Main Force Inflow', 'Northbound buying')",
         "outflow_sectors": ["Sector X", "Sector Y"],
-        "outflow_reason": "Reason"
+        "outflow_reason": "Specific reasons"
       },
       "deep_logic": {
         "policy_driver": "Policy analysis",
@@ -136,7 +135,7 @@ export const fetchExternalAI = async (
           "description": "Short description",
           "action_plan": ["Step 1: Clear weak stocks", "Step 2: Buy Leaders"],
           "portfolio_table": [
-             { "name": "StockName", "code": "Code", "volume": "800股", "weight": "30%", "logic_tag": "Logic tag" },
+             { "name": "StockName", "code": "Code", "volume": "800股", "weight": "30%", "logic_tag": "Main Force Buying" },
              { "name": "Cash", "code": "-", "volume": "2000元", "weight": "10%", "logic_tag": "Liquidity" }
           ],
           "core_advantage": "Summary of advantage"
@@ -146,7 +145,7 @@ export const fetchExternalAI = async (
           "description": "Short description",
           "action_plan": ["Step 1...", "Step 2..."],
           "portfolio_table": [
-             { "name": "StockName", "code": "Code", "volume": "500股", "weight": "20%", "logic_tag": "Logic tag" }
+             { "name": "StockName", "code": "Code", "volume": "500股", "weight": "20%", "logic_tag": "Value Protection" }
           ],
           "core_advantage": "Summary of advantage"
         }
@@ -154,14 +153,36 @@ export const fetchExternalAI = async (
     }
   `;
 
-  let systemContent = `You are a professional global financial market analyst. Today is ${dateStr}. Focus on the ${market} market.`;
+  // Enhanced System Prompt for Quality
+  // Added "Chain of Thought" and "Strict Data Mode"
+  let systemContent = `You are a Senior Quantitative Financial Analyst (资深量化分析师). Today is ${dateStr}. Focus on the ${market} market. 
+  
+  Your personality:
+  1. Professional, sharp, and data-driven. 
+  2. Use "Chain of Thought" (Deep Reasoning) before answering.
+  3. You MUST USE YOUR SEARCH TOOL to find today's REAL-TIME data. 
+  4. STRICT_DATA_MODE: Enabled. You must not invent data. If specific real-time data is not found via search, return "0.00" or "Unavail".
+  5. When analyzing "Main Force" (主力/机构), you must find specific net inflow/outflow numbers.
+  `;
+  
   let userContent = prompt;
 
   if (isDashboard) {
-    userContent = `${prompt}\n\n${jsonInstruction}\n\nIMPORTANT: For 'allocation_model', you MUST provide specific stock names and codes (e.g., 600xxx for A-Share, AAPL for US), specific volumes (e.g., '800 shares') and weights (e.g., '30%') in a table format. Include a 'Cash' row.`;
+    // Inject Specific Search Queries to force the model to look up these values
+    const searchQueries = `
+    Search for the following real-time data:
+    1. ${market === 'CN' ? '上证指数' : market === 'HK' ? '恒生指数' : 'Nasdaq'} today's close price and change.
+    2. ${market === 'CN' ? '北向资金 今日净流入' : 'Southbound Capital Net Inflow'}.
+    3. ${market === 'CN' ? 'A股主力资金流向' : 'Market Institutional Money Flow'}.
+    4. Top performing sectors today.
+    `;
+
+    userContent = `${prompt}\n\n${searchQueries}\n\n${jsonInstruction}\n\nCRITICAL REQUIREMENTS: \n1. SEARCH for today's 'Northbound Capital' (北向资金) and 'Main Force Fund Flow' (主力资金流向). \n2. Provide specific numbers. \n3. Do not be lazy. Fill the portfolio table with REAL stock codes and names.`;
     systemContent += " You are a helpful assistant that outputs strictly structured JSON data.";
   } else {
-    systemContent += " If the user provides a 'Current Price' in the prompt, accept it as the absolute truth for your calculations. Please output the analysis in professional Markdown format.";
+    // For Stock/Holdings analysis
+    systemContent += " Provide a comprehensive analysis report. Do not be brief. Use Markdown. Cite specific financial metrics (PE, PB, RSI, MACD).";
+    userContent += `\n[Requirement] You MUST SEARCH for the latest news and price action for this stock/market as of ${dateStr}.`;
   }
 
   const messages: OpenAIChatMessage[] = [
@@ -172,8 +193,8 @@ export const fetchExternalAI = async (
   const requestBody: any = {
     model: config.model,
     messages: messages,
-    temperature: 0.7,
-    max_tokens: 3000, 
+    temperature: 0.8, // Slightly higher temperature for more creative/detailed analysis
+    max_tokens: 4000, 
     stream: false,
   };
 
@@ -182,10 +203,10 @@ export const fetchExternalAI = async (
   }
   
   // Aliyun (DashScope) Search Enhancement
-  // We strictly enable search to ensure "Real-Time" market data access.
+  // Explicitly enable search and ensure result format is message
   if (provider === ModelProvider.ALIYUN_CN) {
     requestBody.enable_search = true;
-    // result_format: 'message' is default for OpenAI compatible, but enables search result injection in some contexts
+    requestBody.result_format = 'message'; 
   }
 
   try {
@@ -234,7 +255,7 @@ export const fetchExternalAI = async (
 
     return {
       content,
-      groundingSource: [], // External APIs might return search citations in text, but structured 'groundingChunks' is specific to Gemini
+      groundingSource: [], 
       timestamp: Date.now(),
       modelUsed: provider,
       isStructured: !!structuredData,

@@ -1,5 +1,3 @@
-
-
 import { AnalysisResult, ModelProvider, UserSettings, MarketType } from "../types";
 import { fetchGeminiAnalysis, fetchMarketDashboard } from "./geminiService";
 import { fetchExternalAI } from "./externalLlmService";
@@ -37,6 +35,10 @@ export const analyzeWithLLM = async (
     if (currentPrice) {
       datedPrompt += `\n[IMPORTANT: The user states the CURRENT PRICE is ${currentPrice}. Use this value for all calculations.]`;
     }
+    // Add specific instruction for Stock Analysis to check Main Force
+    if (!isDashboard) {
+      datedPrompt += `\n[MANDATORY]: You MUST search for and analyze 'Main Force/Institutional Money' (主力/机构) flows and 'Institutional Ratings' (机构评级) for this target.`;
+    }
     return await fetchGeminiAnalysis(datedPrompt, isComplex, geminiKey);
   }
 
@@ -70,7 +72,7 @@ export const analyzeWithLLM = async (
       重点关注：
       1. 该市场主要指数数值与涨跌（例如${market === MarketType.US ? '道指/纳指/标普' : market === MarketType.HK ? '恒指/恒生科技' : '上证/深证/创业板'}）。
       2. 市场情绪评分。
-      3. 资金流向/板块轮动。
+      3. 资金流向/板块轮动（**必须明确指出“主力资金”或“机构”在买入什么，卖出什么**）。
       4. 深度逻辑。
       5. 热门题材/个股。
       6. 机会分析（防御vs成长）。
@@ -81,6 +83,8 @@ export const analyzeWithLLM = async (
     if (currentPrice) {
        finalPrompt += `\n[User Input] The current real-time price is: ${currentPrice}. You MUST use this price for all your analysis (PE, PB, Support/Resistance).`;
     }
+    // Add instruction for general analysis (Stock/Holdings) to check Main Force for ALL providers
+    finalPrompt += `\n[MANDATORY Requirement] Analyze the 'Main Force Cost' (主力成本) and 'Institutional Fund Flow' (机构资金流向) using your search capabilities. If data is not found, state it clearly.`;
   }
 
   return await fetchExternalAI(provider, apiKey, finalPrompt, isDashboard, period, market);
