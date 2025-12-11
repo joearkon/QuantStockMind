@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { parseBrokerageScreenshot } from '../services/geminiService';
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 
 interface HoldingsReviewProps {
   currentModel: ModelProvider;
@@ -14,6 +15,11 @@ interface HoldingsReviewProps {
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
+const HORIZON_COLORS = {
+  'short': '#f59e0b', // Amber
+  'medium': '#3b82f6', // Blue
+  'long': '#8b5cf6', // Violet
+};
 
 export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   currentModel,
@@ -306,6 +312,38 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     setSnapshot(entry.snapshot);
     setAnalysisResult(entry.analysis);
     setIsHistoryOpen(false);
+  };
+
+  // --- Helpers for Charts ---
+  const getTrendData = () => {
+    // Combine saved journal entries with current snapshot
+    const history = [...journal].sort((a, b) => a.timestamp - b.timestamp).map(entry => ({
+      date: new Date(entry.timestamp).toLocaleDateString('zh-CN', {month: '2-digit', day: '2-digit'}),
+      assets: entry.snapshot.totalAssets,
+      totalProfit: entry.snapshot.holdings.reduce((sum, h) => sum + h.profit, 0)
+    }));
+
+    // Add current snapshot
+    history.push({
+      date: 'Now',
+      assets: snapshot.totalAssets,
+      totalProfit: snapshot.holdings.reduce((sum, h) => sum + h.profit, 0)
+    });
+
+    return history;
+  };
+
+  const getHorizonData = () => {
+    const counts = { short: 0, medium: 0, long: 0 };
+    snapshot.holdings.forEach(h => {
+      const type = h.horizon || 'medium';
+      counts[type]++;
+    });
+    return [
+      { name: '短线 (Short)', value: counts.short, color: HORIZON_COLORS.short },
+      { name: '中线 (Medium)', value: counts.medium, color: HORIZON_COLORS.medium },
+      { name: '长线 (Long)', value: counts.long, color: HORIZON_COLORS.long },
+    ].filter(d => d.value > 0);
   };
 
   // --- Render Helper ---
@@ -640,7 +678,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                             <td className="px-4 py-3">
                                <div className={`font-bold ${item.profit >= 0 ? 'text-red-500' : 'text-green-500'}`}>
                                   {item.profit > 0 ? '+' : ''}{item.profit}
-                               </div>
+                                </div>
                                <div className={`text-xs ${item.profit >= 0 ? 'text-red-400' : 'text-green-400'}`}>
                                   {item.profitRate}
                                 </div>
@@ -691,7 +729,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                    className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'charts' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                    <BarChart3 className="w-4 h-4" />
-                   图表分析
+                   深度图表分析
                 </button>
               </div>
               <button 
@@ -708,11 +746,67 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
              {activeTab === 'report' ? (
                 renderReportContent(analysisResult.content)
              ) : (
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                   {/* Chart 1: Asset Allocation (Market Value) */}
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                   
+                   {/* 1. Historical Asset Trend (Full Width) */}
+                   <div className="md:col-span-2 lg:col-span-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                      <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
+                        <LineChartIcon className="w-4 h-4 text-indigo-500"/> 资金净值与盈亏走势 (Trend Analysis)
+                      </h4>
+                      <div className="h-72 w-full">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={getTrendData()}>
+                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                               <XAxis dataKey="date" tick={{fontSize: 12}} />
+                               <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" />
+                               <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" />
+                               <Tooltip 
+                                  contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                                  formatter={(value: any, name: string) => [
+                                    name === 'assets' ? `¥${value.toLocaleString()}` : `¥${value.toLocaleString()}`,
+                                    name === 'assets' ? '总资产' : '累计盈亏'
+                                  ]}
+                               />
+                               <Legend />
+                               <Line yAxisId="left" type="monotone" dataKey="assets" name="总资产" stroke="#3b82f6" strokeWidth={2} dot={{r: 4}} activeDot={{r: 6}} />
+                               <Line yAxisId="right" type="monotone" dataKey="totalProfit" name="累计盈亏" stroke="#f59e0b" strokeWidth={2} dot={{r: 4}} />
+                            </LineChart>
+                         </ResponsiveContainer>
+                      </div>
+                   </div>
+
+                   {/* 2. Horizon Allocation */}
                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                       <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
-                        <PieChartIcon className="w-4 h-4 text-blue-500"/> 仓位分布 (市值)
+                        <Clock className="w-4 h-4 text-violet-500"/> 投资周期分布 (Time Horizon)
+                      </h4>
+                      <div className="h-64">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                               <Pie
+                                  data={getHorizonData()}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={60}
+                                  outerRadius={80}
+                                  paddingAngle={5}
+                                  dataKey="value"
+                               >
+                                  {getHorizonData().map((entry, index) => (
+                                     <Cell key={`cell-${index}`} fill={entry.color} />
+                                  ))}
+                               </Pie>
+                               <Tooltip />
+                               <Legend />
+                            </PieChart>
+                         </ResponsiveContainer>
+                      </div>
+                   </div>
+
+                   {/* 3. Market Value Allocation */}
+                   <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                      <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
+                        <PieChartIcon className="w-4 h-4 text-blue-500"/> 仓位分布 (Market Value)
                       </h4>
                       <div className="h-64">
                          <ResponsiveContainer width="100%" height="100%">
@@ -733,29 +827,27 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                   ))}
                                </Pie>
-                               <Tooltip 
-                                  formatter={(value: number) => `¥${value.toLocaleString()}`}
-                               />
+                               <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
                                <Legend />
                             </PieChart>
                          </ResponsiveContainer>
                       </div>
                    </div>
 
-                   {/* Chart 2: Profit/Loss Distribution */}
+                   {/* 4. Profit/Loss Distribution */}
                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                       <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
-                        <BarChart3 className="w-4 h-4 text-emerald-500"/> 盈亏分布
+                        <BarChart3 className="w-4 h-4 text-emerald-500"/> 单标的盈亏分布 (Profit/Loss)
                       </h4>
                       <div className="h-64">
                          <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={snapshot.holdings}>
                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                               <XAxis dataKey="name" tick={{fontSize: 12}} />
+                               <XAxis dataKey="name" tick={{fontSize: 10}} interval={0} />
                                <YAxis />
                                <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
                                <ReferenceLine y={0} stroke="#94a3b8" />
-                               <Bar dataKey="profit" name="盈亏金额">
+                               <Bar dataKey="profit" name="盈亏金额" radius={[4, 4, 0, 0]}>
                                  {snapshot.holdings.map((entry, index) => (
                                    <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? '#ef4444' : '#10b981'} />
                                  ))}
@@ -764,6 +856,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                          </ResponsiveContainer>
                       </div>
                    </div>
+
                 </div>
              )}
            </div>
