@@ -181,6 +181,67 @@ const cleanJsonString = (jsonStr: string): string => {
 };
 
 /**
+ * Optimizes base64 image string by resizing and compressing it via Canvas.
+ * Solves issue where large screenshots cause API timeouts or network failures.
+ */
+const compressImage = (base64Str: string, maxWidth = 1024, quality = 0.7): Promise<string> => {
+  return new Promise((resolve) => {
+    // If running on server or without DOM, return original
+    if (typeof document === 'undefined') {
+      resolve(base64Str);
+      return;
+    }
+
+    const img = new Image();
+    // Prefix with potentially wrong mime type is usually fine for browser to sniff, 
+    // but we use png as generic fallback if unknown.
+    img.src = `data:image/png;base64,${base64Str}`;
+
+    img.onload = () => {
+      try {
+        let { width, height } = img;
+        
+        // Calculate new dimensions
+        if (width > maxWidth) {
+          const ratio = maxWidth / width;
+          width = maxWidth;
+          height = Math.round(height * ratio);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        
+        if (!ctx) {
+          resolve(base64Str);
+          return;
+        }
+
+        // Fill background white (handle transparent PNGs converting to JPEG)
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert to JPEG with reduced quality
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        // Remove prefix
+        const result = dataUrl.split(',')[1];
+        resolve(result);
+      } catch (e) {
+        console.warn("Image compression failed, using original.", e);
+        resolve(base64Str);
+      }
+    };
+
+    img.onerror = (e) => {
+      console.warn("Image load error, using original.", e);
+      resolve(base64Str);
+    };
+  });
+};
+
+/**
  * Executes a Gemini API call with exponential backoff retry logic.
  * Handles 503 (Overloaded) and 429 (Rate Limit) errors.
  */
@@ -305,6 +366,9 @@ export const parseBrokerageScreenshot = async (
   const effectiveKey = apiKey || process.env.API_KEY;
   if (!effectiveKey) throw new Error("API Key Required for Image Analysis");
 
+  // COMPRESS: Optimize image before sending to prevent timeouts and reduce latency
+  const optimizedImage = await compressImage(base64Image);
+
   const ai = new GoogleGenAI({ apiKey: effectiveKey });
 
   try {
@@ -314,8 +378,9 @@ export const parseBrokerageScreenshot = async (
         parts: [
           {
             inlineData: {
+              // We explicitly convert to JPEG in compressImage for better compression ratio
               mimeType: 'image/jpeg',
-              data: base64Image
+              data: optimizedImage
             }
           },
           {
