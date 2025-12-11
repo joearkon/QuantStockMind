@@ -68,7 +68,8 @@ export const fetchExternalAI = async (
   prompt: string,
   isDashboard: boolean,
   period?: 'day' | 'month',
-  market: MarketType = MarketType.CN
+  market: MarketType = MarketType.CN,
+  forceJson: boolean = false
 ): Promise<AnalysisResult> => {
   
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
@@ -179,8 +180,12 @@ export const fetchExternalAI = async (
     userContent = `${prompt}\n\n${searchQueries}\n\n${jsonInstruction}`;
     systemContent += " You are a helpful assistant that outputs strictly structured JSON data.";
   } else {
-    // For Stock/Holdings analysis
-    systemContent += " Provide a comprehensive analysis report. Do not be brief. Use Markdown. Cite specific financial metrics (PE, PB, RSI, MACD).";
+    // For Stock/Holdings analysis OR Opportunity Mining
+    if (forceJson) {
+      systemContent += " You must return valid JSON only. Do NOT use Markdown formatting (no ```json blocks). Output raw JSON string.";
+    } else {
+      systemContent += " Provide a comprehensive analysis report. Do not be brief. Use Markdown. Cite specific financial metrics (PE, PB, RSI, MACD).";
+    }
     userContent += `\n[Requirement] You MUST SEARCH for the latest news, Main Force Cost (主力成本), and price action for this stock/market as of ${dateStr}.`;
   }
 

@@ -80,5 +80,6 @@ export const analyzeWithLLM = async (
     finalPrompt += `\n[MANDATORY Requirement] Analyze the 'Main Force Cost' (主力成本) and 'Institutional Fund Flow' (机构资金流向) using your search capabilities. If data is not found, state it clearly.`;
   }
 
-  return await fetchExternalAI(provider, apiKey, finalPrompt, isDashboard, period, market);
+  // Pass forceJson = false for standard analysis
+  return await fetchExternalAI(provider, apiKey, finalPrompt, isDashboard, period, market, false);
 };

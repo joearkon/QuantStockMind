@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Schema, Type } from "@google/genai";
 import { AnalysisResult, ModelProvider, MarketType, OpportunityResponse } from "../types";
 import { fetchExternalAI } from "./externalLlmService";
@@ -135,7 +134,8 @@ export const fetchOpportunityMining = async (
     // Re-use the existing external fetcher but wrap the prompt for JSON
     const finalPrompt = `${systemPrompt}\n${userPrompt}\n\nIMPORTANT: Return valid JSON only. Structure:\n${JSON.stringify(opportunitySchema, null, 2)}`;
     
-    const result = await fetchExternalAI(provider, apiKey, finalPrompt, false, undefined, market);
+    // Pass forceJson = true to disable Markdown instructions
+    const result = await fetchExternalAI(provider, apiKey, finalPrompt, false, undefined, market, true);
     
     // Attempt to parse the content as JSON
     try {
@@ -149,7 +149,8 @@ export const fetchOpportunityMining = async (
       result.opportunityData = JSON.parse(clean);
       result.isStructured = true;
     } catch (e) {
-      console.warn("Hunyuan JSON parse failed for Opportunity Mining");
+      console.warn("Hunyuan JSON parse failed for Opportunity Mining", e);
+      throw new Error("腾讯混元模型返回的数据格式有误，未能生成 JSON。");
     }
 
     return result;

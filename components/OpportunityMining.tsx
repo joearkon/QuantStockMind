@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
 import { fetchOpportunityMining } from '../services/opportunityService';
@@ -123,7 +122,7 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
       )}
 
       {/* Results Grid */}
-      {result && result.opportunityData && (
+      {result && result.opportunityData && result.opportunityData.opportunities && (
         <div className="space-y-8 animate-slide-up">
           
           {/* Phase Banner */}
