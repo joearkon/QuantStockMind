@@ -139,6 +139,7 @@ const holdingsParsingSchema: Schema = {
   type: Type.OBJECT,
   properties: {
     totalAssets: { type: Type.NUMBER, description: "Total assets amount from screenshot" },
+    positionRatio: { type: Type.NUMBER, description: "Position percentage (0-100), e.g. 82.5 for 82.5%. Try to find '仓位' in image." },
     date: { type: Type.STRING, description: "Date string YYYY-MM-DD" },
     holdings: {
       type: Type.ARRAY,
@@ -357,7 +358,7 @@ export const parseBrokerageScreenshot = async (
             }
           },
           {
-            text: "Analyze this image. Identify Total Assets (总资产) and Date. List all stocks with Name, Code (infer 6-digit if missing), Volume (持仓), Cost (成本), Current Price (现价), Profit (盈亏), Profit Rate (盈亏率%), Market Value (市值). OUTPUT RAW JSON ONLY. DO NOT USE MARKDOWN BLOCK. NO ```json."
+            text: "Analyze this brokerage screenshot. Identify Total Assets (总资产), Position Ratio/Percentage (仓位, e.g. 82.5%), and Date. List all stocks with Name, Code (infer 6-digit if missing), Volume (持仓), Cost (成本), Current Price (现价), Profit (盈亏), Profit Rate (盈亏率%), Market Value (市值). OUTPUT RAW JSON ONLY. DO NOT USE MARKDOWN BLOCK. NO ```json."
           }
         ]
       },

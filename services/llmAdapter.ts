@@ -38,6 +38,7 @@ export const analyzeWithLLM = async (
     // Add specific instruction for Stock Analysis to check Main Force
     if (!isDashboard) {
       datedPrompt += `\n[MANDATORY]: You MUST search for and analyze 'Main Force/Institutional Money' (主力/机构) flows and 'Institutional Ratings' (机构评级) for this target.`;
+      datedPrompt += `\n[MANDATORY]: You MUST analyze the 'Trading Volume Trend' (成交量趋势) - is it Expanding (放量) or Contracting (缩量)? Explain the implication.`;
     }
     return await fetchGeminiAnalysis(datedPrompt, isComplex, geminiKey);
   }
@@ -78,6 +79,7 @@ export const analyzeWithLLM = async (
     }
     // Add instruction for general analysis (Stock/Holdings) to check Main Force for ALL providers
     finalPrompt += `\n[MANDATORY Requirement] Analyze the 'Main Force Cost' (主力成本) and 'Institutional Fund Flow' (机构资金流向) using your search capabilities. If data is not found, state it clearly.`;
+    finalPrompt += `\n[MANDATORY Requirement] Analyze 'Volume Trend' (成交量: 放量/缩量).`;
   }
 
   // Pass forceJson = false for standard analysis

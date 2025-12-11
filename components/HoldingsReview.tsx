@@ -30,6 +30,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   // --- State ---
   const [snapshot, setSnapshot] = useState<HoldingsSnapshot>({
     totalAssets: 0,
+    positionRatio: 0, // Initialize
     date: new Date().toISOString().split('T')[0],
     holdings: []
   });
@@ -85,6 +86,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           
           setSnapshot({
             ...parsedData,
+            positionRatio: parsedData.positionRatio || 0, // Capture parsed ratio
             holdings: holdingsWithHorizon,
             date: new Date().toISOString().split('T')[0] // Reset date to today
           });
@@ -217,6 +219,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
       === 今日账户概况 ===
       - 总资产: ${snapshot.totalAssets} 元
+      - 真实仓位占比: ${snapshot.positionRatio || '未知'}% (请以此数值为准评估风险，不要只看持仓市值)
       - 交易日期: ${snapshot.date}
       - 详细持仓 (注意每只股票的【周期标记】):
       ${currentHoldingsText}
@@ -230,10 +233,11 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
       ## 2. 盈亏诊断与心理按摩 (Diagnosis)
       - 基于成本价和现价，判断当前是获利回吐、深套、还是刚刚起涨？
-      - 针对当前的盈亏比例，给出心理建议。
+      - 针对当前的盈亏比例和**仓位占比 (${snapshot.positionRatio}%)**，给出风险评估和心理建议。
       
-      ## 3. K线形态与关键点位 (Technical)
+      ## 3. K线与量能形态 (Technical)
       - **K线形态**: 识别今日收盘后的最新形态。
+      - **成交量分析 (Volume)**: 【必须】指出当前是“放量” (Volume Surge) 还是“缩量” (Volume Contraction)，并解读其含义（如：缩量下跌暗示抛压衰竭）。
       - **动态调整**: 必须更新每一只持仓的【止盈价 (Target Sell)】和【止损价 (Stop Loss)】。
 
       ## 4. 实战操作建议 (Action)
@@ -412,7 +416,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                   if (!trimmed) return <div key={i} className="h-2"></div>;
 
                   // 1. Highlight Action Keywords
-                  const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有|补救|执行力)/g;
+                  const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有|补救|执行力|放量|缩量)/g;
                   let processedLine = trimmed.replace(
                     highlightRegex, 
                     '<span class="font-bold text-white bg-indigo-500 px-1 py-0.5 rounded text-xs mx-0.5 shadow-sm">$1</span>'
@@ -582,21 +586,43 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
         {/* --- Holdings Table --- */}
         <div className="overflow-x-auto rounded-lg border border-slate-200 mb-6">
-           <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
-              <div className="flex items-center gap-4">
+           <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex flex-wrap gap-4 justify-between items-center">
+              <div className="flex items-center gap-4 flex-wrap">
+                 {/* Total Assets Input */}
                  <div className="flex flex-col">
-                   <span className="text-xs text-slate-500 uppercase font-bold">Total Assets</span>
+                   <span className="text-xs text-slate-500 uppercase font-bold">总资产 (Assets)</span>
                    <div className="flex items-baseline gap-2">
                       <span className="text-lg font-bold text-slate-800">¥</span>
                       <input 
                         type="number" 
                         value={snapshot.totalAssets} 
                         onChange={(e) => setSnapshot({...snapshot, totalAssets: parseFloat(e.target.value) || 0})}
-                        className="bg-transparent border-b border-dashed border-slate-400 w-32 font-bold text-lg text-slate-900 focus:outline-none focus:border-indigo-500"
+                        className="bg-transparent border-b border-dashed border-slate-400 w-28 font-bold text-lg text-slate-900 focus:outline-none focus:border-indigo-500"
                       />
                    </div>
                  </div>
-                 <div className="h-8 w-px bg-slate-300 mx-2"></div>
+                 
+                 <div className="h-8 w-px bg-slate-300 mx-2 hidden sm:block"></div>
+
+                 {/* Position Ratio Input */}
+                 <div className="flex flex-col">
+                   <span className="text-xs text-slate-500 uppercase font-bold flex items-center gap-1">
+                      仓位占比 (Pos %)
+                      <AlertTriangle className="w-3 h-3 text-amber-500" title="如果识别不准请手动修改" />
+                   </span>
+                   <div className="flex items-baseline gap-2">
+                      <input 
+                        type="number" 
+                        value={snapshot.positionRatio || 0} 
+                        onChange={(e) => setSnapshot({...snapshot, positionRatio: parseFloat(e.target.value) || 0})}
+                        className="bg-transparent border-b border-dashed border-slate-400 w-16 font-bold text-lg text-slate-900 focus:outline-none focus:border-indigo-500"
+                      />
+                      <span className="text-lg font-bold text-slate-800">%</span>
+                   </div>
+                 </div>
+
+                 <div className="h-8 w-px bg-slate-300 mx-2 hidden sm:block"></div>
+                 
                  <div className="text-xs text-slate-500">
                     日期: {snapshot.date}
                  </div>

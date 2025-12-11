@@ -49,7 +49,7 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
         请对 ${marketLabel} 的股票 "${savedQuery}" 进行深度量化分析。
         请搜索最新的股价数据和基本面信息。
         输出必须包含以下章节（请使用 Markdown H2 标题）：
-        ## 1. 基础数据
+        ## 1. 基础数据与成交量
         ## 2. 关键价位
         ## 3. 量化评级
         ## 4. 操作建议
@@ -57,6 +57,7 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
 
         内容要求：
         - **基础数据**：最新股价、PE(TTM)/Forward PE、PB、近期涨跌幅。
+        - **成交量分析 (Volume)**：【重要】明确指出近期是“放量” (Volume Surge) 还是“缩量” (Volume Contraction)，并解读其背后的资金意图（如：缩量回调洗盘）。
         - **关键价位**：第一止盈价（说明逻辑）、止损价（说明逻辑）、压力位/支撑位。
         - **量化评级**：风险等级(低/中/高)，并列出3个核心风险点。
         - **操作建议**：针对持仓者（止盈/加仓/减仓）和观望者（买入时机）的具体建议。

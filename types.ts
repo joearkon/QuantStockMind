@@ -110,6 +110,7 @@ export interface HoldingItemDetailed {
 
 export interface HoldingsSnapshot {
   totalAssets: number;
+  positionRatio?: number; // New: Percentage (0-100) or decimal
   date: string;
   holdings: HoldingItemDetailed[];
 }
