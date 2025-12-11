@@ -182,26 +182,20 @@ const cleanJsonString = (jsonStr: string): string => {
 
 /**
  * Optimizes base64 image string by resizing and compressing it via Canvas.
- * Solves issue where large screenshots cause API timeouts or network failures.
  */
 const compressImage = (base64Str: string, maxWidth = 1024, quality = 0.7): Promise<string> => {
   return new Promise((resolve) => {
-    // If running on server or without DOM, return original
     if (typeof document === 'undefined') {
       resolve(base64Str);
       return;
     }
 
     const img = new Image();
-    // Prefix with potentially wrong mime type is usually fine for browser to sniff, 
-    // but we use png as generic fallback if unknown.
     img.src = `data:image/png;base64,${base64Str}`;
 
     img.onload = () => {
       try {
         let { width, height } = img;
-        
-        // Calculate new dimensions
         if (width > maxWidth) {
           const ratio = maxWidth / width;
           width = maxWidth;
@@ -218,14 +212,11 @@ const compressImage = (base64Str: string, maxWidth = 1024, quality = 0.7): Promi
           return;
         }
 
-        // Fill background white (handle transparent PNGs converting to JPEG)
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Convert to JPEG with reduced quality
         const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        // Remove prefix
         const result = dataUrl.split(',')[1];
         resolve(result);
       } catch (e) {
@@ -243,7 +234,6 @@ const compressImage = (base64Str: string, maxWidth = 1024, quality = 0.7): Promi
 
 /**
  * Executes a Gemini API call with exponential backoff retry logic.
- * Handles 503 (Overloaded) and 429 (Rate Limit) errors.
  */
 async function callGeminiWithRetry(
   apiCall: () => Promise<GenerateContentResponse>,
@@ -260,35 +250,27 @@ async function callGeminiWithRetry(
       const isOverloaded = msg.includes('503') || msg.includes('overloaded') || msg.includes('unavailable');
       const isRateLimit = msg.includes('429') || msg.includes('resource_exhausted');
       
-      // Retry only on transient errors
       if ((isOverloaded || isRateLimit) && i < retries - 1) {
         const delay = baseDelay * Math.pow(2, i);
         console.warn(`Gemini API Busy (${msg}). Retrying in ${delay}ms... (Attempt ${i + 1}/${retries})`);
         await wait(delay);
         continue;
       }
-      
-      // If it's not retriable or out of attempts, stop
       break;
     }
   }
   
-  // Format the error for UI display before throwing
   let friendlyMsg = lastError.message || "未知错误";
   const rawMsg = friendlyMsg.toLowerCase();
   
-  // 1. Check for common HTTP codes in message
   if (rawMsg.includes('503') || rawMsg.includes('overloaded')) {
     friendlyMsg = "模型服务繁忙 (Model Overloaded)，请稍后再试。";
   } else if (rawMsg.includes('429') || rawMsg.includes('resource_exhausted')) {
     friendlyMsg = "请求过于频繁 (Rate Limit)，请稍后再试。";
   } else {
-     // 2. Try to parse JSON error message if possible to extract 'message'
      try {
-       // Check if it looks like JSON first to avoid syntax error in console
        if (friendlyMsg.trim().startsWith('{')) {
           const jsonError = JSON.parse(friendlyMsg);
-          // Handle nested Google API Error format: { error: { code: 500, message: "", status: "INTERNAL_SERVER_ERROR" } }
           if (jsonError.error) {
               friendlyMsg = jsonError.error.message || jsonError.error.status || `Error Code ${jsonError.error.code}`;
           } else if (jsonError.message) {
@@ -296,11 +278,10 @@ async function callGeminiWithRetry(
           }
        }
      } catch (e) {
-       // Ignore parse error, use original
+       // Ignore
      }
   }
   
-  // Final fallback if parsing resulted in empty string
   if (!friendlyMsg) friendlyMsg = "服务暂时不可用 (Unknown Error)";
 
   throw new Error(friendlyMsg);
@@ -308,9 +289,6 @@ async function callGeminiWithRetry(
 
 // --- API Functions ---
 
-/**
- * Perform analysis using Gemini with Google Search Grounding (Text Mode).
- */
 export const fetchGeminiAnalysis = async (
   prompt: string,
   useReasoning: boolean = false,
@@ -352,13 +330,10 @@ export const fetchGeminiAnalysis = async (
 
   } catch (error: any) {
     console.error("Gemini Analysis Error:", error);
-    throw error; // Already formatted by callGeminiWithRetry
+    throw error;
   }
 };
 
-/**
- * Parse brokerage app screenshot using Gemini Vision
- */
 export const parseBrokerageScreenshot = async (
   base64Image: string,
   apiKey?: string
@@ -366,7 +341,6 @@ export const parseBrokerageScreenshot = async (
   const effectiveKey = apiKey || process.env.API_KEY;
   if (!effectiveKey) throw new Error("API Key Required for Image Analysis");
 
-  // COMPRESS: Optimize image before sending to prevent timeouts and reduce latency
   const optimizedImage = await compressImage(base64Image);
 
   const ai = new GoogleGenAI({ apiKey: effectiveKey });
@@ -378,7 +352,6 @@ export const parseBrokerageScreenshot = async (
         parts: [
           {
             inlineData: {
-              // We explicitly convert to JPEG in compressImage for better compression ratio
               mimeType: 'image/jpeg',
               data: optimizedImage
             }
@@ -410,9 +383,6 @@ export const parseBrokerageScreenshot = async (
   }
 }
 
-/**
- * Perform structured market dashboard analysis using Gemini JSON mode.
- */
 export const fetchMarketDashboard = async (
   period: 'day' | 'month',
   market: MarketType = MarketType.CN,
@@ -436,8 +406,8 @@ export const fetchMarketDashboard = async (
     marketSpecificPrompt = "主要指数：道指/纳指/标普。核心任务：分析华尔街机构（Institutional Money）流向及科技巨头动向。";
   }
 
-  // NOTE: When using 'googleSearch' tool, we CANNOT use 'responseMimeType: "application/json"'.
-  // Instead, we MUST inject the schema into the prompt and parse the text response manually.
+  // NOTE: We do NOT use responseMimeType: 'application/json' because it conflicts with googleSearch tool in some API versions.
+  // We use prompt engineering instead.
   
   try {
     const prompt = `
@@ -460,7 +430,7 @@ export const fetchMarketDashboard = async (
          - **务必在表格最后包含一行 "现金 (Cash)"**，用于应对短期波动。
          - 确保推荐的个股具有代表性和流动性，符合当前的"Deep Logic"分析。
       
-      IMPORTANT: You must return the result as valid JSON strictly following this schema structure. Do NOT output markdown code blocks.
+      IMPORTANT: You must return the result as valid JSON strictly following this schema structure. Do NOT output markdown code blocks. Output ONLY the JSON string.
       
       JSON Schema Structure:
       ${JSON.stringify(marketDashboardSchema, null, 2)}
@@ -473,8 +443,7 @@ export const fetchMarketDashboard = async (
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        // REMOVED: responseMimeType: "application/json" IS NOT SUPPORTED WITH googleSearch
-        // REMOVED: responseSchema: marketDashboardSchema
+        // responseMimeType is intentionally removed to avoid tool conflict
         systemInstruction: `你是一个资深基金经理。在分析资金流向时，必须区分"散户"与"主力/机构"。在"capital_rotation"字段中，请特指主力资金的流向。`
       },
     }));
@@ -491,7 +460,6 @@ export const fetchMarketDashboard = async (
       throw new Error("无法解析模型返回的数据 (JSON Parse Error)。请重试，或尝试使用其他模型。");
     }
 
-    // Get sources if available
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const sources = groundingChunks
       .map((chunk: any) => chunk.web)

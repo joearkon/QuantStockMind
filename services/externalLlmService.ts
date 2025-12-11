@@ -50,7 +50,6 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, ba
       const isNetworkError = err.name === 'TypeError' && err.message === 'Failed to fetch';
       
       // If it's a network error or 5xx, we retry
-      // We don't have status code here for network errors, so we assume transient
       console.warn(`Fetch attempt ${i + 1} failed: ${err.message}. Retrying...`);
       
       if (i < retries - 1) {
@@ -82,7 +81,7 @@ export const fetchExternalAI = async (
   const dateStr = now.toLocaleDateString('zh-CN');
 
   let indicesExample = "";
-  // NOTE: We use 0.00 as placeholders to prevent the model from hallucinating specific numbers if search fails.
+  // NOTE: We use "0.00" as placeholders to prevent the model from hallucinating specific numbers if search fails.
   if (market === MarketType.CN) {
     indicesExample = `{ "name": "上证指数", "value": "0.00", "change": "0.00%", "direction": "up" }, { "name": "创业板指", "value": "0.00", "change": "0.00%", "direction": "down" }`;
   } else if (market === MarketType.HK) {
@@ -160,7 +159,7 @@ export const fetchExternalAI = async (
   Your personality:
   1. Professional, sharp, and data-driven. 
   2. Use "Chain of Thought" (Deep Reasoning) before answering.
-  3. You MUST USE YOUR SEARCH TOOL to find today's REAL-TIME data. 
+  3. You MUST USE YOUR 'web_search' TOOL to find today's REAL-TIME data. 
   4. STRICT_DATA_MODE: Enabled. You must not invent data. If specific real-time data is not found via search, return "0.00" or "Unavail".
   5. When analyzing "Main Force" (主力/机构), you must find specific net inflow/outflow numbers.
   `;
@@ -169,20 +168,22 @@ export const fetchExternalAI = async (
 
   if (isDashboard) {
     // Inject Specific Search Queries to force the model to look up these values
+    // This is crucial for Aliyun/Hunyuan to actually perform the search
     const searchQueries = `
-    Search for the following real-time data:
-    1. ${market === 'CN' ? '上证指数' : market === 'HK' ? '恒生指数' : 'Nasdaq'} today's close price and change.
-    2. ${market === 'CN' ? '北向资金 今日净流入' : 'Southbound Capital Net Inflow'}.
-    3. ${market === 'CN' ? 'A股主力资金流向' : 'Market Institutional Money Flow'}.
-    4. Top performing sectors today.
+    [Mandatory Search Task]
+    Search for the following real-time data now:
+    1. ${market === 'CN' ? '上证指数 今日收盘' : market === 'HK' ? '恒生指数 今日收盘' : 'Nasdaq today'} (price and change).
+    2. ${market === 'CN' ? '北向资金 今日净流入 亿元' : 'Southbound Capital Net Inflow today'}.
+    3. ${market === 'CN' ? 'A股主力资金流向 行业板块' : 'Market Institutional Money Flow sectors'}.
+    4. Top performing sectors today ${dateStr}.
     `;
 
-    userContent = `${prompt}\n\n${searchQueries}\n\n${jsonInstruction}\n\nCRITICAL REQUIREMENTS: \n1. SEARCH for today's 'Northbound Capital' (北向资金) and 'Main Force Fund Flow' (主力资金流向). \n2. Provide specific numbers. \n3. Do not be lazy. Fill the portfolio table with REAL stock codes and names.`;
-    systemContent += " You are a helpful assistant that outputs strictly structured JSON data.";
+    userContent = `${prompt}\n\n${searchQueries}\n\n${jsonInstruction}\n\nCRITICAL REQUIREMENTS: \n1. SEARCH for today's 'Northbound Capital' (北向资金) and 'Main Force Fund Flow' (主力资金流向). \n2. Provide specific numbers if found. If not, use "0.00". \n3. Do not be lazy. Fill the portfolio table with REAL stock codes and names.`;
+    systemContent += " You are a helpful assistant that outputs strictly structured JSON data. You have access to real-time tools.";
   } else {
     // For Stock/Holdings analysis
     systemContent += " Provide a comprehensive analysis report. Do not be brief. Use Markdown. Cite specific financial metrics (PE, PB, RSI, MACD).";
-    userContent += `\n[Requirement] You MUST SEARCH for the latest news and price action for this stock/market as of ${dateStr}.`;
+    userContent += `\n[Requirement] You MUST SEARCH for the latest news, Main Force Cost (主力成本), and price action for this stock/market as of ${dateStr}.`;
   }
 
   const messages: OpenAIChatMessage[] = [
@@ -203,10 +204,29 @@ export const fetchExternalAI = async (
   }
   
   // Aliyun (DashScope) Search Enhancement
-  // Explicitly enable search and ensure result format is message
+  // Explicitly enable search AND define the tool to trigger the agent behavior
   if (provider === ModelProvider.ALIYUN_CN) {
     requestBody.enable_search = true;
-    requestBody.result_format = 'message'; 
+    requestBody.result_format = 'message';
+    
+    // Explicitly define web_search tool to signal the model to use it
+    requestBody.tools = [{
+        type: 'function',
+        function: {
+            name: 'web_search',
+            description: 'Search for real-time information on the internet. Use this to get current stock prices, index values, and latest news.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    search_query: {
+                        type: 'string',
+                        description: 'The keywords to search for.'
+                    }
+                },
+                required: ['search_query']
+            }
+        }
+    }];
   }
 
   try {
