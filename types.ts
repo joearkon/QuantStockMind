@@ -28,6 +28,8 @@ export interface AnalysisResult {
   modelUsed: ModelProvider;
   isStructured?: boolean;
   structuredData?: MarketDashboardData;
+  // Generic field for other structured types
+  opportunityData?: OpportunityResponse; 
   market?: MarketType;
 }
 
@@ -128,6 +130,29 @@ export interface StockQuery {
 export interface UserSettings {
   hunyuanKey?: string;
   geminiKey?: string;
+}
+
+// --- New Types for Opportunity Mining (Short-term Wizard) ---
+
+export interface OpportunityStock {
+  name: string;
+  code: string;
+  current_price: string;
+  logic: string;
+}
+
+export interface OpportunityItem {
+  sector_name: string;
+  reason_seasonality: string; // e.g. "Historically in Dec, Consumer rises 80% of the time"
+  reason_fund_flow: string;   // e.g. "Main force net inflow 3 days, price stagnant"
+  avoid_reason: string;       // Why is this NOT a hyped sector?
+  representative_stocks: OpportunityStock[];
+}
+
+export interface OpportunityResponse {
+  month: string;
+  market_phase: string; // e.g. "Year-end Window Dressing" or "Spring Festival Layout"
+  opportunities: OpportunityItem[];
 }
 
 // Global definition for injected variables from Cloudflare Worker

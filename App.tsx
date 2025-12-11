@@ -6,6 +6,7 @@ import { Disclaimer } from './components/Disclaimer';
 import { MarketAnalysis } from './components/MarketAnalysis';
 import { StockAnalysis } from './components/StockAnalysis';
 import { HoldingsReview } from './components/HoldingsReview';
+import { OpportunityMining } from './components/OpportunityMining'; // Import new component
 import { SettingsModal } from './components/SettingsModal';
 import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS, APP_VERSION } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
@@ -215,6 +216,17 @@ const App: React.FC = () => {
                         onResultUpdate={setStockResult}
                         savedQuery={stockQuery}
                         onQueryUpdate={setStockQuery}
+                      />
+                    } 
+                  />
+                  <Route 
+                    path="/mining" 
+                    element={
+                      <OpportunityMining 
+                        currentModel={selectedModel} 
+                        currentMarket={selectedMarket}
+                        settings={userSettings}
+                        onOpenSettings={() => setIsSettingsOpen(true)}
                       />
                     } 
                   />
