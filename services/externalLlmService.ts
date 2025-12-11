@@ -183,10 +183,11 @@ export const fetchExternalAI = async (
     // For Stock/Holdings analysis OR Opportunity Mining
     if (forceJson) {
       systemContent += " You must return valid JSON only. Do NOT use Markdown formatting (no ```json blocks). Output raw JSON string.";
+      // NOTE: We do NOT append generic search requirements here because they can distract the model from the specific JSON schema provided in the 'prompt'.
     } else {
       systemContent += " Provide a comprehensive analysis report. Do not be brief. Use Markdown. Cite specific financial metrics (PE, PB, RSI, MACD).";
+      userContent += `\n[Requirement] You MUST SEARCH for the latest news, Main Force Cost (主力成本), and price action for this stock/market as of ${dateStr}.`;
     }
-    userContent += `\n[Requirement] You MUST SEARCH for the latest news, Main Force Cost (主力成本), and price action for this stock/market as of ${dateStr}.`;
   }
 
   const messages: OpenAIChatMessage[] = [

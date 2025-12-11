@@ -7,26 +7,26 @@ const GEMINI_MODEL = "gemini-2.5-flash";
 const opportunitySchema: Schema = {
   type: Type.OBJECT,
   properties: {
-    month: { type: Type.STRING, description: "Current Month" },
-    market_phase: { type: Type.STRING, description: "Current market phase description" },
+    month: { type: Type.STRING, description: "Current Month (Chinese)" },
+    market_phase: { type: Type.STRING, description: "Current market phase description (Chinese)" },
     opportunities: {
       type: Type.ARRAY,
       items: {
         type: Type.OBJECT,
         properties: {
-          sector_name: { type: Type.STRING },
-          reason_seasonality: { type: Type.STRING, description: "Historical performance in this month" },
-          reason_fund_flow: { type: Type.STRING, description: "Recent Main Force/Institutional flow divergence" },
-          avoid_reason: { type: Type.STRING, description: "Why this is NOT an overheated/hyped sector" },
+          sector_name: { type: Type.STRING, description: "Sector Name in Chinese" },
+          reason_seasonality: { type: Type.STRING, description: "Historical performance in this month (Chinese)" },
+          reason_fund_flow: { type: Type.STRING, description: "Recent Main Force/Institutional flow divergence (Chinese)" },
+          avoid_reason: { type: Type.STRING, description: "Why this is NOT an overheated/hyped sector (Chinese)" },
           representative_stocks: {
             type: Type.ARRAY,
             items: {
               type: Type.OBJECT,
               properties: {
-                name: { type: Type.STRING },
-                code: { type: Type.STRING },
+                name: { type: Type.STRING, description: "Stock Name" },
+                code: { type: Type.STRING, description: "Stock Code" },
                 current_price: { type: Type.STRING },
-                logic: { type: Type.STRING, description: "Technical + Fundamental logic" }
+                logic: { type: Type.STRING, description: "Technical + Fundamental logic (Chinese)" }
               }
             }
           }
@@ -52,28 +52,29 @@ export const fetchOpportunityMining = async (
   const dateStr = now.toLocaleDateString('zh-CN');
 
   // Core Prompt Strategy: "Contrarian but supported by Data"
+  // FORCE CHINESE OUTPUT IN SYSTEM PROMPT
   const systemPrompt = `
-    You are a professional quantitative strategist specializing in "Calendar Effects" (Seasonality) and "Smart Money" tracking.
+    你是一位精通“日历效应”(Seasonality)和“主力资金追踪”(Smart Money)的资深量化策略师。
     
-    Your Goal: Find "Hidden Gems" for the user.
+    你的目标: 为用户挖掘“低位潜力股” (Hidden Gems)。
     
     CRITICAL RULES:
-    1. **Avoid Overheated Sectors**: Do NOT recommend sectors that have already risen >20% in the last 2 weeks. We want "Low Position" (低位) opportunities.
-    2. **Seasonality Focus**: Analyze what usually performs well in ${month} historically (over last 5-10 years).
-    3. **Fund Flow Verification**: You MUST search for sectors where 'Main Force' (主力) or 'Northbound' (北向) funds are net BUYING recently, but the price hasn't exploded yet.
-    4. **Divergence**: Look for "Price Flat/Down + Money Inflow" patterns.
+    1. **Avoid Overheated Sectors**: 拒绝推荐过去2周涨幅已超过20%的热门板块。我们要找的是“低位潜伏”的机会。
+    2. **Seasonality Focus**: 分析历史上 ${month} 表现最好的板块 (回顾过去5-10年数据)。
+    3. **Fund Flow Verification**: 必须联网搜索最近3-5天“主力资金”或“北向资金”净流入、但股价尚未大涨的板块。
+    4. **Output Language**: JSON中的所有文本字段必须严格使用**简体中文** (Simplified Chinese)。
   `;
 
   const userPrompt = `
-    Current Date: ${dateStr}. Market: ${market === 'CN' ? 'A-Share' : market === 'HK' ? 'HK Stocks' : 'US Stocks'}.
+    当前日期: ${dateStr}. 市场: ${market === 'CN' ? 'A股' : market === 'HK' ? '港股' : '美股'}.
     
-    Please act as my "Short-term Wizard". 
-    1. Search for the historical best performing sectors in ${month} for this market.
-    2. Search for the specific 'Main Force Net Inflow' (主力资金净流入) data for the past 3-5 days.
-    3. Identify 3 sectors that match: [Historical Seasonality OK] AND [Recent Money Inflow OK] AND [Not Overheated].
-    4. For each sector, pick 2 representative stocks that are technically sound (not broken trends).
+    请作为我的“短线精灵” (Short-term Wizard):
+    1. 搜索该市场 ${month} 的历史最佳表现板块。
+    2. 搜索最近3-5日的具体“主力资金净流入”数据。
+    3. 筛选出3个符合 [历史胜率高] 且 [近期资金在流入] 且 [当前未过热] 的板块。
+    4. 每个板块推荐2只技术形态未破位的代表个股。
 
-    Output STRICT JSON.
+    输出格式必须是严格的 JSON。请确保所有分析、理由和逻辑都使用中文描述。
   `;
 
   // 1. Handle Gemini

@@ -139,7 +139,7 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {result.opportunityData.opportunities.map((opp, idx) => (
+            {result.opportunityData.opportunities?.map((opp, idx) => (
               <div key={idx} className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 group overflow-hidden flex flex-col">
                 {/* Card Header */}
                 <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 group-hover:bg-indigo-50/50 transition-colors">
@@ -188,7 +188,7 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
                       <Zap className="w-3 h-3 text-indigo-500" /> 关注标的 (Watchlist)
                    </h4>
                    <div className="space-y-3">
-                      {opp.representative_stocks.map((stock, sIdx) => (
+                      {opp.representative_stocks?.map((stock, sIdx) => (
                          <div key={sIdx} className="bg-white p-3 rounded border border-slate-200 shadow-sm flex flex-col gap-2 hover:border-indigo-300 transition-colors">
                             <div className="flex justify-between items-center">
                                <div>
