@@ -38,6 +38,28 @@ const opportunitySchema: Schema = {
   required: ["month", "market_phase", "opportunities"]
 };
 
+// Simplified Template for non-Gemini models (Hunyuan) which prefer examples over Schema objects
+const hunyuanJsonTemplate = {
+  month: "当前月份 (例如: 十二月)",
+  market_phase: "市场阶段 (例如: 年末震荡筑底)",
+  opportunities: [
+    {
+      sector_name: "板块名称 (例如: 消费电子)",
+      reason_seasonality: "历史日历效应逻辑...",
+      reason_fund_flow: "近期主力资金流向逻辑...",
+      avoid_reason: "为何该板块处于低位且未过热...",
+      representative_stocks: [
+        {
+          name: "股票名称",
+          code: "股票代码",
+          current_price: "最新价格",
+          logic: "技术面与基本面逻辑"
+        }
+      ]
+    }
+  ]
+};
+
 /**
  * Mining Logic: Seasonality + Fund Flow - Hype
  */
@@ -133,7 +155,8 @@ export const fetchOpportunityMining = async (
     if (!apiKey) throw new Error("Hunyuan API Key missing");
 
     // Re-use the existing external fetcher but wrap the prompt for JSON
-    const finalPrompt = `${systemPrompt}\n${userPrompt}\n\nIMPORTANT: Return valid JSON only. Structure:\n${JSON.stringify(opportunitySchema, null, 2)}`;
+    // USE CONCRETE TEMPLATE INSTEAD OF SCHEMA TYPE
+    const finalPrompt = `${systemPrompt}\n${userPrompt}\n\nIMPORTANT: Return valid JSON only. Output MUST strictly follow this structure example:\n${JSON.stringify(hunyuanJsonTemplate, null, 2)}`;
     
     // Pass forceJson = true to disable Markdown instructions
     const result = await fetchExternalAI(provider, apiKey, finalPrompt, false, undefined, market, true);
@@ -147,11 +170,18 @@ export const fetchOpportunityMining = async (
       if (firstBrace !== -1 && lastBrace !== -1) {
           clean = clean.substring(firstBrace, lastBrace + 1);
       }
-      result.opportunityData = JSON.parse(clean);
+      const parsed = JSON.parse(clean);
+
+      // Simple validation to ensure structure is correct
+      if (!parsed.opportunities || !Array.isArray(parsed.opportunities)) {
+         throw new Error("Missing opportunities array");
+      }
+
+      result.opportunityData = parsed;
       result.isStructured = true;
     } catch (e) {
       console.warn("Hunyuan JSON parse failed for Opportunity Mining", e);
-      throw new Error("腾讯混元模型返回的数据格式有误，未能生成 JSON。");
+      throw new Error("腾讯混元模型返回的数据格式有误，未能生成有效的 JSON 报告。");
     }
 
     return result;

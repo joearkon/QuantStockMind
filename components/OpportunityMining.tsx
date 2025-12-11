@@ -121,8 +121,17 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
         </div>
       )}
 
+      {/* Empty State */}
+      {result && result.opportunityData && (!result.opportunityData.opportunities || result.opportunityData.opportunities.length === 0) && (
+        <div className="p-12 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+          <Search className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <p>本次扫描未发现符合“高胜率且低位”的板块。</p>
+          <p className="text-xs mt-1">市场可能处于普涨高位或极致轮动期，建议观望。</p>
+        </div>
+      )}
+
       {/* Results Grid */}
-      {result && result.opportunityData && result.opportunityData.opportunities && (
+      {result && result.opportunityData && result.opportunityData.opportunities && result.opportunityData.opportunities.length > 0 && (
         <div className="space-y-8 animate-slide-up">
           
           {/* Phase Banner */}
@@ -139,7 +148,7 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {result.opportunityData.opportunities?.map((opp, idx) => (
+            {result.opportunityData.opportunities.map((opp, idx) => (
               <div key={idx} className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 group overflow-hidden flex flex-col">
                 {/* Card Header */}
                 <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 group-hover:bg-indigo-50/50 transition-colors">
