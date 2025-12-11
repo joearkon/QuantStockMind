@@ -1,3 +1,5 @@
+
+
 import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType } from "../types";
 
 // Configuration for external providers
@@ -8,6 +10,13 @@ const PROVIDER_CONFIG = {
     // Upgrade to hunyuan-pro for better search handling and reasoning
     model: "hunyuan-pro", 
     name: "Tencent Hunyuan"
+  },
+  [ModelProvider.ALIYUN_CN]: {
+    // Aliyun DashScope OpenAI-compatible endpoint
+    // We use a relative path here to trigger the proxy in worker.ts, avoiding CORS issues
+    baseUrl: "/api/aliyun", 
+    model: "qwen-max", 
+    name: "Aliyun Qwen"
   }
 };
 
@@ -55,7 +64,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, ba
 }
 
 /**
- * Generic fetcher for OpenAI-compatible APIs (Hunyuan)
+ * Generic fetcher for OpenAI-compatible APIs (Hunyuan, Aliyun)
  */
 export const fetchExternalAI = async (
   provider: ModelProvider,
@@ -171,6 +180,13 @@ export const fetchExternalAI = async (
   if (provider === ModelProvider.HUNYUAN_CN) {
     requestBody.enable_enhancement = true; 
   }
+  
+  // Aliyun (DashScope) Search Enhancement
+  // We strictly enable search to ensure "Real-Time" market data access.
+  if (provider === ModelProvider.ALIYUN_CN) {
+    requestBody.enable_search = true;
+    // result_format: 'message' is default for OpenAI compatible, but enables search result injection in some contexts
+  }
 
   try {
     const response = await fetchWithRetry(`${config.baseUrl}/chat/completions`, {
@@ -183,75 +199,51 @@ export const fetchExternalAI = async (
     });
 
     if (!response.ok) {
-      const errText = await response.text();
-      let friendlyMessage = `${config.name} API 请求失败 (${response.status})`;
-
-      let errJson: any = {};
-      try { errJson = JSON.parse(errText); } catch (e) {}
-
-      if (response.status === 402) {
-        friendlyMessage = `${config.name} 账户余额不足 (Insufficient Balance)。请充值。`;
-      } else if (response.status === 401) {
-        friendlyMessage = `${config.name} API Key 无效或未授权。`;
-      } else if (response.status === 504 || response.status === 503) {
-        friendlyMessage = `${config.name} 服务超时或繁忙，请稍后重试。`;
-      } else if (errJson?.error?.message) {
-        friendlyMessage = `${config.name} 错误: ${errJson.error.message}`;
-      } else {
-        friendlyMessage = `${config.name} 服务异常 (${response.status}): ${errText.substring(0, 200)}`;
+      const errorText = await response.text();
+      let errorMsg = `API Error (${response.status})`;
+      try {
+        const errJson = JSON.parse(errorText);
+        errorMsg = errJson.error?.message || errJson.message || errorText;
+      } catch (e) {
+        errorMsg = errorText;
       }
-      throw new Error(friendlyMessage);
+      throw new Error(`Model Provider Error: ${errorMsg}`);
     }
 
-    const data: OpenAICompletionResponse = await response.json();
-    const content = data.choices[0]?.message?.content || "";
+    const data = await response.json() as OpenAICompletionResponse;
+    const content = data.choices?.[0]?.message?.content || "";
 
+    // Parse JSON if dashboard
+    let structuredData: MarketDashboardData | undefined;
     if (isDashboard) {
       try {
-        let cleanJson = content.trim();
-        // Robust cleanup for JSON mode
-        cleanJson = cleanJson.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
-        const firstBrace = cleanJson.indexOf('{');
-        const lastBrace = cleanJson.lastIndexOf('}');
-        
-        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-          cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
+        // Clean markdown blocks if present
+        let cleanContent = content.trim();
+        cleanContent = cleanContent.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
+        const firstBrace = cleanContent.indexOf('{');
+        const lastBrace = cleanContent.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+          cleanContent = cleanContent.substring(firstBrace, lastBrace + 1);
         }
-
-        const parsedData = JSON.parse(cleanJson) as MarketDashboardData;
-        return {
-          content: "Dashboard Data",
-          structuredData: parsedData,
-          timestamp: Date.now(),
-          modelUsed: provider,
-          isStructured: true,
-          market: market
-        };
+        structuredData = JSON.parse(cleanContent);
       } catch (e) {
-        console.error("Failed to parse external JSON", e, "Content:", content);
-        throw new Error(`${config.name} 返回的数据格式不正确，无法解析为仪表盘数据。`);
+        console.warn("Failed to parse external LLM JSON", e);
+        // Do not throw, return content as text fallback
       }
     }
 
     return {
-      content: content,
+      content,
+      groundingSource: [], // External APIs might return search citations in text, but structured 'groundingChunks' is specific to Gemini
       timestamp: Date.now(),
       modelUsed: provider,
-      isStructured: false,
+      isStructured: !!structuredData,
+      structuredData,
       market: market
     };
 
   } catch (error: any) {
-    console.error(`${config.name} API Call Failed:`, error);
-    
-    // Handle Browser Network Errors (e.g. CORS, Offline, DNS) specifically
-    if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
-      throw new Error(`无法连接到 ${config.name} API。若使用国内模型，请检查是否存在跨域(CORS)限制，建议优先使用 Gemini 模型。`);
-    }
-
-    if (error.message.includes(config.name)) {
-        throw error;
-    }
-    throw new Error(`${config.name} 调用失败: ${error.message}`);
+    console.error("External LLM Error:", error);
+    throw error;
   }
 };
