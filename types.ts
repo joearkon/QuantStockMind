@@ -133,27 +133,33 @@ export interface UserSettings {
   geminiKey?: string;
 }
 
-// --- New Types for Opportunity Mining (Short-term Wizard) ---
+// --- New Types for Opportunity Mining (Strategic Supply Chain) ---
 
-export interface OpportunityStock {
-  name: string;
-  code: string;
-  current_price: string;
-  logic: string;
+export interface ChainOpportunity {
+  stock_name: string;
+  stock_code: string;
+  relation_type: string; // e.g. "Upstream Supplier", "Peer", "Shadow Stock"
+  logic_core: string;    // e.g. "Sole supplier of titanium alloy for Guoji"
+  policy_match: string;  // e.g. "Matches 15th Plan High-end Equipment"
 }
 
-export interface OpportunityItem {
-  sector_name: string;
-  reason_seasonality: string; // e.g. "Historically in Dec, Consumer rises 80% of the time"
-  reason_fund_flow: string;   // e.g. "Main force net inflow 3 days, price stagnant"
-  avoid_reason: string;       // Why is this NOT a hyped sector?
-  representative_stocks: OpportunityStock[];
+export interface ChainMapping {
+  user_holding: string; // The stock user input (e.g., Zhongke Sugon)
+  opportunities: ChainOpportunity[];
+}
+
+export interface RotationAdvice {
+  current_sector: string;
+  next_sector: string;
+  reason: string;
+  catalyst: string; // Trigger event
 }
 
 export interface OpportunityResponse {
-  month: string;
-  market_phase: string; // e.g. "Year-end Window Dressing" or "Spring Festival Layout"
-  opportunities: OpportunityItem[];
+  analysis_summary: string; // High level summary of the strategy
+  policy_theme: string;     // Current National Strategy Theme (e.g. New Productive Forces)
+  supply_chain_matrix: ChainMapping[];
+  rotation_strategy: RotationAdvice[];
 }
 
 // Global definition for injected variables from Cloudflare Worker

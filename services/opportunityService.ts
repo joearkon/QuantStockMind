@@ -4,102 +4,137 @@ import { fetchExternalAI } from "./externalLlmService";
 
 const GEMINI_MODEL = "gemini-2.5-flash";
 
-const opportunitySchema: Schema = {
+// --- New Schema: Supply Chain & Policy Focus ---
+const strategySchema: Schema = {
   type: Type.OBJECT,
   properties: {
-    month: { type: Type.STRING, description: "Current Month (Chinese)" },
-    market_phase: { type: Type.STRING, description: "Current market phase description (Chinese)" },
-    opportunities: {
+    analysis_summary: { type: Type.STRING, description: "Brief analysis of current market phase relating to user holdings." },
+    policy_theme: { type: Type.STRING, description: "The specific National Strategy Theme or Industry Logic (e.g., 'New Productive Forces', 'Domestic Substitution', 'Consumer Recovery')" },
+    supply_chain_matrix: {
       type: Type.ARRAY,
+      description: "Analysis of upstream/downstream opportunities for user's specific stocks.",
       items: {
         type: Type.OBJECT,
         properties: {
-          sector_name: { type: Type.STRING, description: "Sector Name in Chinese" },
-          reason_seasonality: { type: Type.STRING, description: "Historical performance in this month (Chinese)" },
-          reason_fund_flow: { type: Type.STRING, description: "Recent Main Force/Institutional flow divergence (Chinese)" },
-          avoid_reason: { type: Type.STRING, description: "Why this is NOT an overheated/hyped sector (Chinese)" },
-          representative_stocks: {
+          user_holding: { type: Type.STRING, description: "The stock name provided by user" },
+          opportunities: {
             type: Type.ARRAY,
             items: {
               type: Type.OBJECT,
               properties: {
-                name: { type: Type.STRING, description: "Stock Name" },
-                code: { type: Type.STRING, description: "Stock Code" },
-                current_price: { type: Type.STRING },
-                logic: { type: Type.STRING, description: "Technical + Fundamental logic (Chinese)" }
-              }
+                stock_name: { type: Type.STRING },
+                stock_code: { type: Type.STRING },
+                relation_type: { type: Type.STRING, description: "e.g., 'Core Upstream Supplier', 'Liquid Cooling Partner'" },
+                logic_core: { type: Type.STRING, description: "Why is this a dark horse? e.g. 'Sole supplier of X material'" },
+                policy_match: { type: Type.STRING, description: "How it fits current National Strategy (e.g. 15th Plan, Domestic Substitution)" }
+              },
+              required: ["stock_name", "stock_code", "relation_type", "logic_core", "policy_match"]
             }
           }
         },
-        required: ["sector_name", "reason_seasonality", "reason_fund_flow", "avoid_reason", "representative_stocks"]
+        required: ["user_holding", "opportunities"]
+      }
+    },
+    rotation_strategy: {
+      type: Type.ARRAY,
+      description: "Suggestions for switching positions (High->Low)",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          current_sector: { type: Type.STRING, description: "Where the user might be now (or what is hot)" },
+          next_sector: { type: Type.STRING, description: "Where to rotate next" },
+          reason: { type: Type.STRING, description: "Logic for rotation" },
+          catalyst: { type: Type.STRING, description: "Trigger event or policy expectation" }
+        },
+        required: ["current_sector", "next_sector", "reason", "catalyst"]
       }
     }
   },
-  required: ["month", "market_phase", "opportunities"]
+  required: ["analysis_summary", "policy_theme", "supply_chain_matrix", "rotation_strategy"]
 };
 
-// Simplified Template for non-Gemini models (Hunyuan) which prefer examples over Schema objects
-const hunyuanJsonTemplate = {
-  month: "当前月份 (例如: 十二月)",
-  market_phase: "市场阶段 (例如: 年末震荡筑底)",
-  opportunities: [
+// --- Template for Hunyuan ---
+const hunyuanStrategyTemplate = {
+  analysis_summary: "当前市场分析总结...",
+  policy_theme: "国产替代：核心基础零部件",
+  supply_chain_matrix: [
     {
-      sector_name: "板块名称 (例如: 消费电子)",
-      reason_seasonality: "历史日历效应逻辑...",
-      reason_fund_flow: "近期主力资金流向逻辑...",
-      avoid_reason: "为何该板块处于低位且未过热...",
-      representative_stocks: [
+      user_holding: "中科曙光",
+      opportunities: [
         {
-          name: "股票名称",
-          code: "股票代码",
-          current_price: "最新价格",
-          logic: "技术面与基本面逻辑"
+          stock_name: "某某科技",
+          stock_code: "300xxx",
+          relation_type: "液冷核心部件供应商",
+          logic_core: "曙光液冷服务器出货量激增，该公司为其独家供应快接头，市值仅50亿，弹性大。",
+          policy_match: "符合国家算力绿色低碳化战略"
         }
       ]
+    }
+  ],
+  rotation_strategy: [
+    {
+      current_sector: "高位纯AI软件炒作",
+      next_sector: "低位算力硬件上游 (材料/温控)",
+      reason: "财报季临近，纯题材炒作面临证伪，资金将回流有业绩支撑的硬件上游。",
+      catalyst: "国家数据局即将发布的新算力规划"
     }
   ]
 };
 
 /**
- * Mining Logic: Seasonality + Fund Flow - Hype
+ * Mining Logic: Supply Chain Resonance & Policy Alignment
  */
 export const fetchOpportunityMining = async (
   provider: ModelProvider,
   market: MarketType,
-  settings: any
+  settings: any,
+  userHoldings: string = ""
 ): Promise<AnalysisResult> => {
   
   const now = new Date();
-  const month = now.toLocaleString('zh-CN', { month: 'long' });
   const dateStr = now.toLocaleDateString('zh-CN');
 
-  // Core Prompt Strategy: "Contrarian but supported by Data"
-  // FORCE CHINESE OUTPUT IN SYSTEM PROMPT
+  // Logic:
+  // 1. Analyze User Holdings (e.g., Guoji Jinggong, Zhongke Sugon).
+  // 2. Identify Strategy relevance (Policy/Industry Cycle).
+  // 3. Find Upstream/Downstream "Shadow Stocks" (Dark Horses).
+  // 4. Suggest Rotation.
+
   const systemPrompt = `
-    你是一位精通“日历效应”(Seasonality)和“主力资金追踪”(Smart Money)的资深量化策略师。
+    你是一位精通 A 股产业链逻辑与国家宏观战略（如十五五规划、新质生产力、国产替代、内需复苏）的资深基金经理。
+    你的核心能力不是看简单的K线，而是挖掘**产业链协同**与**预期差**。
     
-    你的目标: 为用户挖掘“低位潜力股” (Hidden Gems)。
+    【核心任务】
+    1. **产业链穿透 (Supply Chain Penetration)**：针对用户持有的核心标的，挖掘其**上游**（原材料、核心零部件）或**下游**（核心应用）中，尚未被充分炒作的"隐形冠军"或"黑马"。
+    2. **战略与逻辑对齐**: 你的推荐必须紧扣当前的**国家宏观战略**（如：科技自主、高端装备）或**产业周期逻辑**（如：价格上涨、库存周期反转）。**不要局限于“新质生产力”，要根据用户的具体标的寻找最匹配的宏观逻辑。**
+    3. **高低切换 (Rotation)**: 如果用户持仓方向已经过热，请给出合理的切换方向建议。
     
-    CRITICAL RULES:
-    1. **Avoid Overheated Sectors**: 拒绝推荐过去2周涨幅已超过20%的热门板块。我们要找的是“低位潜伏”的机会。
-    2. **Seasonality Focus**: 分析历史上 ${month} 表现最好的板块 (回顾过去5-10年数据)。
-    3. **Fund Flow Verification**: 必须联网搜索最近3-5天“主力资金”或“北向资金”净流入、但股价尚未大涨的板块。
-    4. **Output Language**: JSON中的所有文本字段必须严格使用**简体中文** (Simplified Chinese)。
+    【数据要求】
+    - 必须联网搜索最新的产业链关系、供应商名单、参股控股关系。
+    - 推荐的标的应具有"弹性"（即：市值适中、逻辑硬、位置相对安全）。
+    - 严禁废话，只输出干货逻辑。
   `;
 
   const userPrompt = `
-    当前日期: ${dateStr}. 市场: ${market === 'CN' ? 'A股' : market === 'HK' ? '港股' : '美股'}.
+    当前日期: ${dateStr}。
     
-    请作为我的“短线精灵” (Short-term Wizard):
-    1. 搜索该市场 ${month} 的历史最佳表现板块。
-    2. 搜索最近3-5日的具体“主力资金净流入”数据。
-    3. 筛选出3个符合 [历史胜率高] 且 [近期资金在流入] 且 [当前未过热] 的板块。
-    4. 每个板块推荐2只技术形态未破位的代表个股。
+    我的持仓/关注方向: 【${userHoldings || "当前市场热门题材, 科技成长, 核心资产"}】。
 
-    输出格式必须是严格的 JSON。请确保所有分析、理由和逻辑都使用中文描述。
+    请为我生成一份【产业链协同与黑马挖掘报告】：
+    
+    1. **产业链协同矩阵**: 
+       - 针对我的关注方向，找出 2-3 个具体的**上游**或**关联**标的。
+       - 重点找那些：给大票供货的小票、核心技术卡位的小票。
+       - 说明它们与"当前主流宏观逻辑"（如新质生产力、国产替代、复苏等）的匹配度。
+    
+    2. **资金轮动策略**:
+       - 假设我现在想做高低切换，下一个风口可能轮动到哪里？
+       - 给出明确的逻辑和催化剂。
+
+    输出必须为严格的 JSON 格式。
   `;
 
-  // 1. Handle Gemini
+  // 1. Gemini Implementation
   if (provider === ModelProvider.GEMINI_INTL) {
     const apiKey = settings?.geminiKey || process.env.API_KEY;
     if (!apiKey) throw new Error("Gemini API Key missing");
@@ -107,14 +142,11 @@ export const fetchOpportunityMining = async (
     const ai = new GoogleGenAI({ apiKey });
     
     try {
-      // We explicitly ask for JSON in the prompt for robustness, 
-      // but also use schemas where possible or regex parsing.
       const response = await ai.models.generateContent({
         model: GEMINI_MODEL,
-        contents: systemPrompt + "\n" + userPrompt + `\n\nReturn strict JSON matching this schema: ${JSON.stringify(opportunitySchema)}`,
+        contents: systemPrompt + "\n" + userPrompt + `\n\nReturn strict JSON matching this schema: ${JSON.stringify(strategySchema)}`,
         config: {
           tools: [{ googleSearch: {} }],
-          // Inject schema into prompt text instead of responseSchema when using tools to avoid conflicts
         }
       });
 
@@ -145,23 +177,19 @@ export const fetchOpportunityMining = async (
       };
 
     } catch (e: any) {
-      throw new Error(`Gemini Mining Error: ${e.message}`);
+      throw new Error(`Gemini Strategy Error: ${e.message}`);
     }
   }
 
-  // 2. Handle Hunyuan (External)
+  // 2. Hunyuan Implementation
   if (provider === ModelProvider.HUNYUAN_CN) {
     const apiKey = settings?.hunyuanKey;
     if (!apiKey) throw new Error("Hunyuan API Key missing");
 
-    // Re-use the existing external fetcher but wrap the prompt for JSON
-    // USE CONCRETE TEMPLATE INSTEAD OF SCHEMA TYPE
-    const finalPrompt = `${systemPrompt}\n${userPrompt}\n\nIMPORTANT: Return valid JSON only. Output MUST strictly follow this structure example:\n${JSON.stringify(hunyuanJsonTemplate, null, 2)}`;
+    const finalPrompt = `${systemPrompt}\n${userPrompt}\n\nIMPORTANT: Return valid JSON only. Output MUST strictly follow this structure example:\n${JSON.stringify(hunyuanStrategyTemplate, null, 2)}`;
     
-    // Pass forceJson = true to disable Markdown instructions
     const result = await fetchExternalAI(provider, apiKey, finalPrompt, false, undefined, market, true);
     
-    // Attempt to parse the content as JSON
     try {
       let clean = result.content.trim();
       clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
@@ -172,15 +200,15 @@ export const fetchOpportunityMining = async (
       }
       const parsed = JSON.parse(clean);
 
-      // Simple validation to ensure structure is correct
-      if (!parsed.opportunities || !Array.isArray(parsed.opportunities)) {
-         throw new Error("Missing opportunities array");
+      // Validation
+      if (!parsed.supply_chain_matrix || !Array.isArray(parsed.supply_chain_matrix)) {
+         throw new Error("Missing supply_chain_matrix");
       }
 
       result.opportunityData = parsed;
       result.isStructured = true;
     } catch (e) {
-      console.warn("Hunyuan JSON parse failed for Opportunity Mining", e);
+      console.warn("Hunyuan JSON parse failed for Strategy Mining", e);
       throw new Error("腾讯混元模型返回的数据格式有误，未能生成有效的 JSON 报告。");
     }
 

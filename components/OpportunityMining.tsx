@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
 import { fetchOpportunityMining } from '../services/opportunityService';
-import { Radar, Loader2, Calendar, TrendingUp, AlertTriangle, Search, Lock, Zap, ArrowRight, DollarSign } from 'lucide-react';
+import { Radar, Loader2, Link2, Zap, AlertTriangle, Search, Shuffle, Factory, BrainCircuit, ArrowRight } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 
 interface OpportunityMiningProps {
@@ -20,6 +20,7 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [userHoldings, setUserHoldings] = useState("");
   
   // Progress visualization
   const [elapsed, setElapsed] = useState(0);
@@ -31,10 +32,10 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
       setElapsed(0);
       interval = setInterval(() => {
         setElapsed(prev => prev + 1);
-        if (elapsed < 5) setPhase("正在分析历史日历效应 (Seasonality)...");
-        else if (elapsed < 12) setPhase("正在扫描近期主力资金流向 (Smart Money)...");
-        else if (elapsed < 18) setPhase("正在排除过热/高位板块 (Filtering)...");
-        else setPhase("正在挖掘低位潜力标的 (Mining)...");
+        if (elapsed < 6) setPhase("正在解析持仓的产业链结构 (Supply Chain Mapping)...");
+        else if (elapsed < 12) setPhase("正在联网匹配“国家战略”与“产业逻辑”...");
+        else if (elapsed < 18) setPhase("正在挖掘上游隐形冠军与供应商...");
+        else setPhase("正在计算高低切换轮动逻辑...");
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -46,7 +47,7 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
     setResult(null);
 
     try {
-      const data = await fetchOpportunityMining(currentModel, currentMarket, settings);
+      const data = await fetchOpportunityMining(currentModel, currentMarket, settings, userHoldings);
       setResult(data);
     } catch (err: any) {
       setError(err.message || "挖掘失败");
@@ -59,54 +60,62 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 relative overflow-hidden">
+      {/* Header Card with Input */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8 relative overflow-hidden">
         <div className="relative z-10">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
-                <div className="p-2 bg-indigo-600 rounded-lg text-white shadow-lg shadow-indigo-200">
-                  <Radar className="w-6 h-6 animate-pulse-slow" />
+          <div className="mb-6">
+             <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3 mb-2">
+                <div className="p-2 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-lg text-white shadow-lg shadow-indigo-200">
+                  <BrainCircuit className="w-6 h-6" />
                 </div>
-                短线精灵 (Short-term Wizard)
+                产业链深度透视 · 机会挖掘
               </h2>
-              <p className="text-slate-500 mt-2 max-w-xl text-sm leading-relaxed">
-                不想追高？本功能利用 AI 结合 <span className="font-bold text-slate-700">“历史日历效应”</span> 与 <span className="font-bold text-slate-700">“近期资金暗流”</span>，
-                为您挖掘那些尚未起爆、但主力正在潜伏的低位板块。拒绝马后炮，只看潜力。
-              </p>
-            </div>
-            <button
+             <p className="text-slate-500 text-sm max-w-2xl">
+               不再盲目潜伏。输入您的持仓（如：中科曙光、国机精工），AI将结合 <b>国家宏观战略 (如：十五五规划、自主可控、新质生产力等)</b>，为您挖掘<b>上游核心供应商</b>与<b>高低切轮动机会</b>。
+             </p>
+          </div>
+
+          <div className="bg-slate-50 p-1.5 rounded-xl border border-slate-200 shadow-inner flex flex-col md:flex-row gap-2">
+             <div className="flex-1 relative">
+                <input 
+                  type="text" 
+                  value={userHoldings}
+                  onChange={(e) => setUserHoldings(e.target.value)}
+                  placeholder="输入您关注的标的，例如：中科曙光, 东方财富, 贵州茅台..." 
+                  className="w-full h-12 pl-10 pr-4 bg-white rounded-lg border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all font-medium text-slate-700 placeholder:text-slate-400"
+                />
+                <Factory className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+             </div>
+             <button
               onClick={handleMine}
               disabled={loading}
-              className="group relative inline-flex items-center justify-center px-8 py-4 font-bold text-white transition-all duration-200 bg-slate-900 font-lg rounded-xl hover:bg-slate-800 hover:shadow-xl hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
+              className="group relative inline-flex items-center justify-center px-8 h-12 font-bold text-white transition-all duration-200 bg-slate-900 font-lg rounded-lg hover:bg-slate-800 hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed whitespace-nowrap"
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   <span>{elapsed}s</span>
                 </>
               ) : (
                 <>
-                  <Search className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-                  启动雷达扫描
+                  <Search className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
+                  深度挖掘
                 </>
               )}
-              {/* Button Glow Effect */}
-              {!loading && <div className="absolute -inset-3 rounded-xl bg-indigo-500 opacity-20 blur-lg group-hover:opacity-40 transition duration-200"></div>}
             </button>
           </div>
         </div>
         
         {/* Background Decorations */}
         <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-indigo-50 to-transparent pointer-events-none"></div>
-        <div className="absolute -right-10 -top-10 w-64 h-64 bg-indigo-100 rounded-full blur-3xl opacity-50 pointer-events-none"></div>
       </div>
 
       {/* Loading Phase */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-12 text-slate-500 animate-pulse bg-slate-50 rounded-xl border border-dashed border-slate-200">
-          <Radar className="w-12 h-12 text-indigo-400 mb-4 animate-spin-slow" />
-          <p className="font-mono text-sm">{phase}</p>
+          <BrainCircuit className="w-12 h-12 text-indigo-400 mb-4 animate-pulse" />
+          <p className="font-mono text-sm font-medium text-indigo-600">{phase}</p>
+          <p className="text-xs text-slate-400 mt-2">正在通过 AI 搜索构建产业链图谱...</p>
         </div>
       )}
 
@@ -115,113 +124,105 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
         <div className="p-4 bg-red-50 border border-red-100 rounded-lg flex items-center gap-3 text-red-700">
           <AlertTriangle className="w-5 h-5" />
           <span>{error}</span>
-          {onOpenSettings && (
-             <button onClick={onOpenSettings} className="underline text-sm ml-auto">检查 API 设置</button>
-          )}
         </div>
       )}
 
-      {/* Empty State */}
-      {result && result.opportunityData && (!result.opportunityData.opportunities || result.opportunityData.opportunities.length === 0) && (
-        <div className="p-12 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-          <Search className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-          <p>本次扫描未发现符合“高胜率且低位”的板块。</p>
-          <p className="text-xs mt-1">市场可能处于普涨高位或极致轮动期，建议观望。</p>
-        </div>
-      )}
-
-      {/* Results Grid */}
-      {result && result.opportunityData && result.opportunityData.opportunities && result.opportunityData.opportunities.length > 0 && (
+      {/* Results */}
+      {result && result.opportunityData && (
         <div className="space-y-8 animate-slide-up">
           
-          {/* Phase Banner */}
-          <div className="flex items-center gap-4 bg-indigo-900 text-white px-6 py-4 rounded-xl shadow-lg">
-             <Calendar className="w-5 h-5 text-indigo-300" />
-             <div>
-                <span className="text-indigo-200 text-xs font-bold uppercase tracking-wider">Current Market Phase</span>
-                <div className="font-bold text-lg">{result.opportunityData.market_phase}</div>
+          {/* 1. Summary & Theme */}
+          <div className="bg-gradient-to-r from-indigo-900 to-slate-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
+             <div className="relative z-10">
+                <div className="flex items-center gap-2 text-indigo-300 font-bold text-xs uppercase tracking-wider mb-2">
+                   <Zap className="w-4 h-4" /> 核心逻辑主线 (Core Theme)
+                </div>
+                <h3 className="text-xl font-bold mb-3 text-white">{result.opportunityData.policy_theme}</h3>
+                <p className="text-slate-300 text-sm leading-relaxed opacity-90 max-w-4xl">
+                   {result.opportunityData.analysis_summary}
+                </p>
              </div>
-             <div className="ml-auto text-right hidden sm:block">
-                <div className="text-xs text-indigo-300">Target Month</div>
-                <div className="font-bold">{result.opportunityData.month}</div>
+             <div className="absolute right-0 top-0 w-64 h-64 bg-indigo-500 opacity-10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+          </div>
+
+          {/* 2. Supply Chain Matrix */}
+          <div className="grid grid-cols-1 gap-6">
+             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Link2 className="w-5 h-5 text-indigo-600" />
+                产业链协同与黑马挖掘
+             </h3>
+             
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               {result.opportunityData.supply_chain_matrix?.map((chain, idx) => (
+                 <div key={idx} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                    <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                       <span className="font-bold text-slate-700 flex items-center gap-2">
+                          <Factory className="w-4 h-4 text-slate-400" />
+                          {chain.user_holding} <span className="text-xs text-slate-400 font-normal">(原点)</span>
+                       </span>
+                       <ArrowRight className="w-4 h-4 text-slate-300" />
+                    </div>
+                    <div className="p-5 space-y-4">
+                       {chain.opportunities.map((opp, oIdx) => (
+                          <div key={oIdx} className="relative pl-4 border-l-2 border-indigo-100">
+                             <div className="flex justify-between items-start">
+                                <div>
+                                   <div className="font-bold text-indigo-700 flex items-center gap-2">
+                                      {opp.stock_name}
+                                      <span className="text-xs bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-mono border border-indigo-100">{opp.stock_code}</span>
+                                   </div>
+                                   <div className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wide">
+                                      {opp.relation_type}
+                                   </div>
+                                </div>
+                             </div>
+                             <p className="text-sm text-slate-700 mt-2 leading-relaxed">
+                                {opp.logic_core}
+                             </p>
+                             <div className="mt-2 text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded inline-block border border-emerald-100">
+                                🎯 {opp.policy_match}
+                             </div>
+                          </div>
+                       ))}
+                    </div>
+                 </div>
+               ))}
              </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {result.opportunityData.opportunities.map((opp, idx) => (
-              <div key={idx} className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 group overflow-hidden flex flex-col">
-                {/* Card Header */}
-                <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 group-hover:bg-indigo-50/50 transition-colors">
-                  <div className="flex justify-between items-start mb-2">
-                     <h3 className="text-xl font-bold text-slate-800 group-hover:text-indigo-700 transition-colors">
-                        {opp.sector_name}
-                     </h3>
-                     <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded border border-green-200">
-                        潜伏期
-                     </span>
-                  </div>
-                  <div className="text-xs text-slate-500 flex items-center gap-1">
-                     <Lock className="w-3 h-3" /> 未过热 (Low Hype)
-                  </div>
-                </div>
-
-                {/* Logic Section */}
-                <div className="p-6 space-y-4 flex-1">
-                   <div className="flex gap-3">
-                      <div className="mt-1 min-w-[20px]"><Calendar className="w-4 h-4 text-slate-400" /></div>
-                      <div>
-                         <h4 className="text-xs font-bold text-slate-500 uppercase">历史规律 (Seasonality)</h4>
-                         <p className="text-sm text-slate-700 leading-relaxed">{opp.reason_seasonality}</p>
+          {/* 3. Rotation Strategy */}
+          <div className="bg-amber-50 rounded-xl border border-amber-100 p-6">
+             <h3 className="text-lg font-bold text-amber-900 flex items-center gap-2 mb-4">
+                <Shuffle className="w-5 h-5 text-amber-600" />
+                资金高低切轮动策略 (Rotation)
+             </h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {result.opportunityData.rotation_strategy?.map((strat, idx) => (
+                   <div key={idx} className="bg-white rounded-lg p-4 border border-amber-200 shadow-sm">
+                      <div className="flex items-center gap-3 text-sm mb-3">
+                         <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded font-medium line-through decoration-slate-400 decoration-2">
+                            {strat.current_sector}
+                         </span>
+                         <ArrowRight className="w-4 h-4 text-amber-500" />
+                         <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded font-bold shadow-sm">
+                            {strat.next_sector}
+                         </span>
+                      </div>
+                      <div className="space-y-2">
+                         <p className="text-sm text-slate-700">
+                            <span className="font-bold text-slate-900">逻辑:</span> {strat.reason}
+                         </p>
+                         <p className="text-sm text-slate-700">
+                            <span className="font-bold text-slate-900">催化剂:</span> {strat.catalyst}
+                         </p>
                       </div>
                    </div>
-                   
-                   <div className="flex gap-3">
-                      <div className="mt-1 min-w-[20px]"><DollarSign className="w-4 h-4 text-slate-400" /></div>
-                      <div>
-                         <h4 className="text-xs font-bold text-slate-500 uppercase">资金暗流 (Flow)</h4>
-                         <p className="text-sm text-slate-700 leading-relaxed">{opp.reason_fund_flow}</p>
-                      </div>
-                   </div>
-
-                   <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg">
-                      <h4 className="text-xs font-bold text-amber-700 mb-1 flex items-center gap-1">
-                         <AlertTriangle className="w-3 h-3" /> 为什么选它 (Why Not Hype?)
-                      </h4>
-                      <p className="text-xs text-amber-900 opacity-80">{opp.avoid_reason}</p>
-                   </div>
-                </div>
-
-                {/* Stocks Section */}
-                <div className="bg-slate-50 px-6 py-4 border-t border-slate-100">
-                   <h4 className="text-xs font-bold text-slate-400 uppercase mb-3 flex items-center gap-2">
-                      <Zap className="w-3 h-3 text-indigo-500" /> 关注标的 (Watchlist)
-                   </h4>
-                   <div className="space-y-3">
-                      {opp.representative_stocks?.map((stock, sIdx) => (
-                         <div key={sIdx} className="bg-white p-3 rounded border border-slate-200 shadow-sm flex flex-col gap-2 hover:border-indigo-300 transition-colors">
-                            <div className="flex justify-between items-center">
-                               <div>
-                                  <span className="font-bold text-slate-800">{stock.name}</span>
-                                  <span className="text-xs text-slate-400 font-mono ml-2">{stock.code}</span>
-                               </div>
-                               <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                                  {stock.current_price}
-                               </span>
-                            </div>
-                            <div className="text-xs text-slate-500 border-t border-slate-100 pt-2 flex items-start gap-1">
-                               <ArrowRight className="w-3 h-3 mt-0.5 shrink-0 text-indigo-400" />
-                               {stock.logic}
-                            </div>
-                         </div>
-                      ))}
-                   </div>
-                </div>
-              </div>
-            ))}
+                ))}
+             </div>
           </div>
 
           <div className="text-center text-xs text-slate-400 mt-8">
-             * 数据基于历史统计与近期资金流向估算，过往业绩不代表未来表现，仅供选股参考。
+             * 产业链关系基于公开信息与AI推理，中小市值标的波动较大，请结合基本面审慎决策。
           </div>
         </div>
       )}
