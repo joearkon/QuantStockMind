@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { parseBrokerageScreenshot } from '../services/geminiService';
+import { analyzeImageWithExternal } from '../services/externalLlmService';
 import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
@@ -64,8 +64,15 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!settings.geminiKey) {
-      setError("截图识别需要 Google Gemini API Key。请在设置中配置。");
+    // Validation Check based on Provider
+    if (currentModel === ModelProvider.HUNYUAN_CN && !settings.hunyuanKey) {
+      setError("您当前选择了腾讯混元模型，请配置 Hunyuan API Key 以使用图片识别功能。");
+      onOpenSettings?.();
+      return;
+    }
+    
+    if (currentModel === ModelProvider.GEMINI_INTL && !settings.geminiKey) {
+      setError("您当前选择了 Gemini 模型，请配置 Gemini API Key 以使用图片识别功能。");
       onOpenSettings?.();
       return;
     }
@@ -79,7 +86,16 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       reader.onloadend = async () => {
         const base64String = (reader.result as string).split(',')[1];
         try {
-          const parsedData = await parseBrokerageScreenshot(base64String, settings.geminiKey);
+          let parsedData: HoldingsSnapshot;
+
+          if (currentModel === ModelProvider.HUNYUAN_CN) {
+             // Use Hunyuan Vision
+             parsedData = await analyzeImageWithExternal(ModelProvider.HUNYUAN_CN, base64String, settings.hunyuanKey!);
+          } else {
+             // Use Gemini Vision
+             parsedData = await parseBrokerageScreenshot(base64String, settings.geminiKey);
+          }
+          
           // Merge logic: Don't overwrite if parsed data is empty/partial, but here we assume generic success
           // Default to 'medium' horizon for new imports
           const holdingsWithHorizon = parsedData.holdings.map(h => ({ ...h, horizon: 'medium' as const }));
