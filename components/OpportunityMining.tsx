@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
 import { fetchOpportunityMining } from '../services/opportunityService';
-import { Radar, Loader2, Link2, Zap, AlertTriangle, Search, Shuffle, Factory, BrainCircuit, ArrowRight } from 'lucide-react';
+import { Radar, Loader2, Link2, Zap, AlertTriangle, Search, Shuffle, Factory, BrainCircuit, ArrowRight, Activity } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 
 interface OpportunityMiningProps {
@@ -17,6 +18,7 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
   settings,
   onOpenSettings
 }) => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +56,11 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleNavigateToStock = (code: string, name: string) => {
+    // Navigate to stock analysis with query param
+    navigate(`/stock?q=${encodeURIComponent(code + " " + name)}`);
   };
 
   const marketLabel = MARKET_OPTIONS.find(m => m.value === currentMarket)?.label || currentMarket;
@@ -164,7 +171,7 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
                     </div>
                     <div className="p-5 space-y-4">
                        {chain.opportunities.map((opp, oIdx) => (
-                          <div key={oIdx} className="relative pl-4 border-l-2 border-indigo-100">
+                          <div key={oIdx} className="relative pl-4 border-l-2 border-indigo-100 group">
                              <div className="flex justify-between items-start">
                                 <div>
                                    <div className="font-bold text-indigo-700 flex items-center gap-2">
@@ -175,6 +182,13 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
                                       {opp.relation_type}
                                    </div>
                                 </div>
+                                <button 
+                                  onClick={() => handleNavigateToStock(opp.stock_code, opp.stock_name)}
+                                  className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 shadow-sm text-xs font-medium text-slate-600 rounded hover:text-indigo-600 hover:border-indigo-200 transition-colors opacity-80 hover:opacity-100"
+                                >
+                                  <Activity className="w-3 h-3" />
+                                  量化诊断
+                                </button>
                              </div>
                              <p className="text-sm text-slate-700 mt-2 leading-relaxed">
                                 {opp.logic_core}

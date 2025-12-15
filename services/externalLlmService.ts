@@ -47,6 +47,9 @@ function robustJsonParse(text: string): any {
   // Match ```json ... ``` or just ``` ... ```
   clean = clean.replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '');
 
+  // --- NEW: Fix Number Hallucinations (similar to Gemini Service) ---
+  clean = clean.replace(/(\d+)\.0{5,}\d*/g, '$1'); // Fix infinite zeros
+  
   // 2. Locate JSON boundaries (find first '{' or '[' and last '}' or ']')
   const firstBrace = clean.search(/[{[]/);
   const lastBrace = clean.search(/[}\]]$/); // Optimization: Look from end? 
@@ -291,14 +294,18 @@ export const analyzeImageWithExternal = async (
     3. 持仓列表 (holdings), 包含:
        - 股票名称 (name)
        - 代码 (code)
-       - 持仓数量 (volume)
+       - 持仓数量 (volume, 必须为整数 Integer)
        - 成本价 (costPrice)
        - 现价 (currentPrice)
        - 浮动盈亏 (profit)
        - 盈亏比例 (profitRate, string like "+10%")
        - 市值 (marketValue)
     
-    IMPORTANT: Output ONLY valid JSON. No Markdown.
+    IMPORTANT RULES: 
+    1. Output ONLY valid JSON. No Markdown.
+    2. 'volume' MUST be a simple number (e.g. 100). Do NOT output infinite decimals (e.g. 100.000000000).
+    3. Do NOT repeat characters excessively.
+    
     Example:
     {
       "totalAssets": 100000.0,

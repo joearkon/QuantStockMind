@@ -1,5 +1,5 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { Search, Loader2, ArrowRightCircle, Target, ShieldAlert, TrendingUp, Settings, FileText, ChevronRight } from 'lucide-react';
@@ -27,17 +27,15 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
   savedQuery,
   onQueryUpdate
 }) => {
-  // Single Stock State
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPrice, setCurrentPrice] = useState('');
 
-  // --- Handlers ---
-
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!savedQuery.trim()) return;
-
+  // Extract analysis logic for reuse
+  const performAnalysis = async (query: string) => {
+    if (!query.trim()) return;
+    
     setLoading(true);
     onResultUpdate(null);
     setError(null);
@@ -46,7 +44,7 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
 
     try {
       const prompt = `
-        请对 ${marketLabel} 的股票 "${savedQuery}" 进行深度量化分析。
+        请对 ${marketLabel} 的股票 "${query}" 进行深度量化分析。
         请搜索最新的股价数据和基本面信息。
         输出必须包含以下章节（请使用 Markdown H2 标题）：
         ## 1. 基础数据与成交量
@@ -57,12 +55,11 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
 
         内容要求：
         - **基础数据**：最新股价、PE(TTM)/Forward PE、PB、近期涨跌幅。
-        - **成交量分析 (Volume)**：【重要】明确指出近期是“放量” (Volume Surge) 还是“缩量” (Volume Contraction)，并解读其背后的资金意图（如：缩量回调洗盘）。
+        - **成交量分析 (Volume)**：【重要】请对比今日成交量与近期均量（如5日均量），明确指出是“放量” (Volume Surge) 还是“缩量” (Volume Contraction)。结合股价位置，分析其技术含义（如：高位放量滞涨、缩量回调支撑、底部放量启动等）。
         - **关键价位**：第一止盈价（说明逻辑）、止损价（说明逻辑）、压力位/支撑位。
         - **量化评级**：风险等级(低/中/高)，并列出3个核心风险点。
         - **操作建议**：针对持仓者（止盈/加仓/减仓）和观望者（买入时机）的具体建议。
       `;
-      // Pass settings so the adapter can find the API keys
       const data = await analyzeWithLLM(currentModel, prompt, false, settings, false, 'day', currentPrice, currentMarket);
       onResultUpdate(data);
     } catch (err: any) {
@@ -71,6 +68,20 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
       setLoading(false);
     }
   };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    performAnalysis(savedQuery);
+  };
+
+  // Auto-trigger analysis if 'q' param exists and is new
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q && q !== savedQuery) {
+      onQueryUpdate(q);
+      performAnalysis(q);
+    }
+  }, [searchParams]); // Depend on searchParams
 
   // Helper to render sections cleanly
   const renderAnalysisContent = (content: string) => {

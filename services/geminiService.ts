@@ -148,7 +148,7 @@ const holdingsParsingSchema: Schema = {
         properties: {
           name: { type: Type.STRING },
           code: { type: Type.STRING },
-          volume: { type: Type.NUMBER },
+          volume: { type: Type.NUMBER, description: "Integer only. No decimals." },
           costPrice: { type: Type.NUMBER },
           currentPrice: { type: Type.NUMBER },
           profit: { type: Type.NUMBER },
@@ -170,6 +170,17 @@ const cleanJsonString = (jsonStr: string): string => {
   // Remove markdown wrapping
   clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
   
+  // --- ROBUST FIX: Handle Model Hallucinations (Infinite Zeros) ---
+  // Fix cases like: "volume": 200.000000000000000000000...
+  // Regex explains: Look for a number followed by a dot and 5+ zeros, replace with just the integer part.
+  clean = clean.replace(/(\d+)\.0{5,}\d*/g, '$1');
+  
+  // Fix cases like: "price": 12.34567890123... -> 12.34
+  // Look for number . 2 digits + 4 more digits, truncate.
+  // We use a safe lookahead or simple replacement to avoid breaking valid high precision numbers if strict, 
+  // but for stock prices, >4 decimals usually means hallucination loop.
+  clean = clean.replace(/(\d+\.\d{4})\d+/g, '$1');
+
   // Find valid JSON bounds
   const firstBrace = clean.indexOf('{');
   const lastBrace = clean.lastIndexOf('}');
@@ -358,7 +369,7 @@ export const parseBrokerageScreenshot = async (
             }
           },
           {
-            text: "Analyze this brokerage screenshot. Identify Total Assets (总资产), Position Ratio/Percentage (仓位, e.g. 82.5%), and Date. List all stocks with Name, Code (infer 6-digit if missing), Volume (持仓), Cost (成本), Current Price (现价), Profit (盈亏), Profit Rate (盈亏率%), Market Value (市值). OUTPUT RAW JSON ONLY. DO NOT USE MARKDOWN BLOCK. NO ```json."
+            text: "Analyze this brokerage screenshot. Extract: Total Assets (总资产), Position Ratio (仓位, 0-100), and all Stocks (Name, Code, Volume, Cost, Price, Profit). IMPORTANT RULES: 1. 'volume' must be an Integer (e.g. 100), do NOT output decimals like 200.000. 2. 'marketValue', 'costPrice', 'currentPrice' should have max 2 decimals. 3. Do not hallucinate infinite repeated numbers. OUTPUT RAW JSON ONLY."
           }
         ]
       },
