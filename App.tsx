@@ -1,12 +1,11 @@
-
-
 import React, { useState } from 'react';
 import { HashRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { Disclaimer } from './components/Disclaimer';
 import { MarketAnalysis } from './components/MarketAnalysis';
 import { StockAnalysis } from './components/StockAnalysis';
 import { HoldingsReview } from './components/HoldingsReview';
-import { OpportunityMining } from './components/OpportunityMining'; // Import new component
+import { OpportunityMining } from './components/OpportunityMining';
+import { InstitutionalMonitor } from './components/InstitutionalMonitor'; // Import
 import { SettingsModal } from './components/SettingsModal';
 import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS, APP_VERSION } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
@@ -234,6 +233,17 @@ const App: React.FC = () => {
                     path="/holdings" 
                     element={
                       <HoldingsReview 
+                        currentModel={selectedModel} 
+                        currentMarket={selectedMarket}
+                        settings={userSettings}
+                        onOpenSettings={() => setIsSettingsOpen(true)}
+                      />
+                    } 
+                  />
+                  <Route 
+                    path="/institution" 
+                    element={
+                      <InstitutionalMonitor
                         currentModel={selectedModel} 
                         currentMarket={selectedMarket}
                         settings={userSettings}

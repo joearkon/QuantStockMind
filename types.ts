@@ -28,8 +28,8 @@ export interface AnalysisResult {
   modelUsed: ModelProvider;
   isStructured?: boolean;
   structuredData?: MarketDashboardData;
-  // Generic field for other structured types
   opportunityData?: OpportunityResponse; 
+  institutionalData?: InstitutionalInsight; // New field
   market?: MarketType;
 }
 
@@ -160,6 +160,36 @@ export interface OpportunityResponse {
   policy_theme: string;     // Current National Strategy Theme (e.g. New Productive Forces)
   supply_chain_matrix: ChainMapping[];
   rotation_strategy: RotationAdvice[];
+}
+
+// --- New Types for Institutional Insights ---
+
+export interface SurveyHotspot {
+  sector_name: string;
+  intensity: number; // 0-100
+  top_stocks: string[]; // e.g. ["Hikvision", "CATL"]
+  reason: string; // Why are they visiting?
+}
+
+export interface InstitutionView {
+  institution_name: string; // e.g. "Morgan Stanley", "CITIC"
+  type: 'foreign' | 'domestic';
+  viewpoint: string; // Summary of their latest report
+  target_sector: string;
+  sentiment: 'bullish' | 'bearish' | 'neutral';
+}
+
+export interface SmartMoneyFlow {
+  concept_name: string;
+  flow_status: 'net_inflow' | 'net_outflow';
+  key_driver: string; // Why is smart money moving here?
+}
+
+export interface InstitutionalInsight {
+  market_heat_summary: string; // Overall summary
+  top_surveyed_sectors: SurveyHotspot[];
+  key_institution_views: InstitutionView[];
+  smart_money_trends: SmartMoneyFlow[];
 }
 
 // Global definition for injected variables from Cloudflare Worker

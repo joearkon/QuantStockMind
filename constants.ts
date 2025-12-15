@@ -1,5 +1,5 @@
 import { ModelProvider, MarketType } from './types';
-import { LayoutDashboard, TrendingUp, NotebookPen, Radar } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, NotebookPen, Radar, Building2 } from 'lucide-react';
 
 export const APP_NAME = "QuantMind A-Share Assistant";
 export const APP_VERSION = "v1.3.1";
@@ -20,6 +20,7 @@ export const NAV_ITEMS = [
   { id: 'stock', label: '个股量化', icon: TrendingUp },
   { id: 'mining', label: '产业链透视', icon: Radar },
   { id: 'holdings', label: '持仓复盘', icon: NotebookPen },
+  { id: 'institution', label: '机构调研', icon: Building2 },
 ];
 
 // Mock data for visualizations since we don't have a real DB
