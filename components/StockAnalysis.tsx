@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
-import { Search, Loader2, ArrowRightCircle, Target, ShieldAlert, TrendingUp, Settings, FileText, ChevronRight } from 'lucide-react';
+import { Search, Loader2, ArrowRightCircle, Target, ShieldAlert, TrendingUp, Settings, FileText, ChevronRight, BarChart2, Activity, DollarSign } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 
 interface StockAnalysisProps {
@@ -81,68 +81,195 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
       onQueryUpdate(q);
       performAnalysis(q);
     }
-  }, [searchParams]); // Depend on searchParams
+  }, [searchParams]);
 
-  // Helper to render sections cleanly
+  // --- Render Helpers ---
+
+  // Helper: Try to parse key-value lines for metrics grid
+  const extractMetrics = (text: string) => {
+    const lines = text.split('\n');
+    const metrics: { label: string; value: string }[] = [];
+    const others: string[] = [];
+
+    lines.forEach(line => {
+      const trimmed = line.trim().replace(/^[-*]\s*/, ''); // remove bullet
+      // Regex for "Key: Value" or "**Key**: Value"
+      const match = trimmed.match(/^(\*\*.*?\*\*|[^：:]+?)[:：]\s*(.+)$/);
+      
+      if (match && trimmed.length < 60) { // Limit length to avoid long sentences being treated as metrics
+         const rawLabel = match[1].replace(/\*\*/g, '');
+         const rawValue = match[2].replace(/\*\*/g, '');
+         metrics.push({ label: rawLabel, value: rawValue });
+      } else {
+         if (trimmed) others.push(line);
+      }
+    });
+    return { metrics, others };
+  };
+
+  const formatText = (text: string) => {
+    // 1. Bold Keywords
+    let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 font-bold">$1</strong>');
+    
+    // 2. Highlight Sentiment/Action words
+    const redKeywords = /(卖出|止损|跌破|风险|高位|放量滞涨|压力)/g;
+    const greenKeywords = /(买入|止盈|支撑|反弹|底背离|缩量回调|启动)/g; // Note: In CN stocks, Red is Up, Green is Down usually, but logic words vary. Let's use neutral colors or standard bullish/bearish.
+    // Actually in UI design: Green for positive (Profit/Up), Red for negative (Loss/Down) is standard global, 
+    // BUT China A-share is Red=Up, Green=Down. 
+    // Let's use "Rise/Bullish" -> Red, "Fall/Bearish" -> Green for A-share context? 
+    // To avoid confusion, let's use:
+    // Bullish (Red in CN): 买入, 止盈, 支撑, 启动
+    // Bearish (Green in CN): 卖出, 止损, 压力, 风险
+    
+    formatted = formatted.replace(redKeywords, '<span class="text-emerald-600 font-bold bg-emerald-50 px-1 rounded">$1</span>'); // Bearish/Risk
+    formatted = formatted.replace(greenKeywords, '<span class="text-rose-600 font-bold bg-rose-50 px-1 rounded">$1</span>'); // Bullish/Opportunity
+    
+    return formatted;
+  };
+
+  const renderSectionContent = (title: string, body: string) => {
+    // Strategy: Different layout based on Title
+
+    // 1. Base Data & Volume (Grid Layout)
+    if (title.includes("基础数据") || title.includes("成交量")) {
+       const { metrics, others } = extractMetrics(body);
+       const volumeSectionIndex = others.findIndex(l => l.includes("成交量") || l.includes("Volume"));
+       
+       const baseDataLines = volumeSectionIndex > -1 ? others.slice(0, volumeSectionIndex) : others;
+       const volumeLines = volumeSectionIndex > -1 ? others.slice(volumeSectionIndex) : [];
+
+       return (
+         <div className="space-y-4">
+            {metrics.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                 {metrics.map((m, i) => (
+                   <div key={i} className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                      <div className="text-xs text-slate-500 mb-1 truncate" title={m.label}>{m.label}</div>
+                      <div className="text-sm font-bold text-slate-800 break-words">{m.value}</div>
+                   </div>
+                 ))}
+              </div>
+            )}
+            
+            {/* Remaining text (Volume analysis usually) */}
+            <div className="space-y-2">
+               {[...baseDataLines, ...volumeLines].map((line, i) => {
+                  if (!line.trim()) return null;
+                  // Highlight Volume specific logic
+                  if (line.includes("成交量") || line.includes("放量") || line.includes("缩量")) {
+                     return (
+                        <div key={i} className="flex gap-2 items-start bg-blue-50/50 p-2 rounded-lg">
+                           <BarChart2 className="w-4 h-4 text-blue-500 mt-1 shrink-0" />
+                           <p className="text-sm text-slate-700" dangerouslySetInnerHTML={{__html: formatText(line.replace(/^[-*]\s*/, ''))}}></p>
+                        </div>
+                     )
+                  }
+                  return (
+                     <div key={i} className="flex gap-2 items-start">
+                        <span className="mt-2 w-1.5 h-1.5 bg-slate-300 rounded-full shrink-0"></span>
+                        <p className="text-sm text-slate-600 leading-relaxed" dangerouslySetInnerHTML={{__html: formatText(line.replace(/^[-*]\s*/, ''))}}></p>
+                     </div>
+                  );
+               })}
+            </div>
+         </div>
+       );
+    }
+
+    // 2. Key Levels (Target/Stop)
+    if (title.includes("关键价位")) {
+       return (
+         <div className="space-y-3">
+            {body.split('\n').filter(l => l.trim()).map((line, i) => {
+               const cleanLine = line.replace(/^[-*]\s*/, '');
+               let styleClass = "border-l-4 border-slate-300 bg-slate-50";
+               let Icon = Target;
+               
+               if (cleanLine.includes("支撑")) { styleClass = "border-l-4 border-rose-400 bg-rose-50"; Icon = ArrowRightCircle; }
+               if (cleanLine.includes("压力") || cleanLine.includes("阻力")) { styleClass = "border-l-4 border-emerald-400 bg-emerald-50"; Icon = ShieldAlert; }
+               if (cleanLine.includes("止损")) { styleClass = "border-l-4 border-slate-500 bg-slate-100"; Icon = ShieldAlert; }
+               if (cleanLine.includes("止盈")) { styleClass = "border-l-4 border-rose-500 bg-rose-100"; Icon = DollarSign; }
+
+               return (
+                  <div key={i} className={`p-3 rounded-r-lg ${styleClass} flex items-start gap-3`}>
+                     <Icon className="w-4 h-4 mt-0.5 opacity-70" />
+                     <p className="text-sm text-slate-800" dangerouslySetInnerHTML={{__html: formatText(cleanLine)}}></p>
+                  </div>
+               );
+            })}
+         </div>
+       )
+    }
+
+    // Default Render
+    return (
+       <div className="space-y-2">
+          {body.split('\n').filter(l => l.trim()).map((line, i) => (
+             <div key={i} className={`flex gap-3 items-start ${line.startsWith('###') ? 'mt-4 mb-2' : ''}`}>
+                {!line.startsWith('###') && <span className="mt-2 w-1.5 h-1.5 bg-slate-300 rounded-full shrink-0"></span>}
+                {line.startsWith('###') ? (
+                   <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                      {line.replace(/###\s*/, '')}
+                   </h4>
+                ) : (
+                   <p className="text-sm text-slate-600 leading-relaxed" dangerouslySetInnerHTML={{__html: formatText(line.replace(/^[-*]\s*/, ''))}}></p>
+                )}
+             </div>
+          ))}
+       </div>
+    );
+  };
+
+  // Main Render Logic for Sections
   const renderAnalysisContent = (content: string) => {
     const sections = content.split(/^##\s+/gm).filter(Boolean);
     
     // Fallback if no ## headers found
     if (sections.length <= 1) {
        return (
-         <div className="prose prose-slate max-w-none prose-p:text-slate-700 prose-headings:text-slate-900" dangerouslySetInnerHTML={{ 
-           __html: content.replace(/\n/g, '<br/>') 
+         <div className="prose prose-slate max-w-none p-6" dangerouslySetInnerHTML={{ 
+           __html: formatText(content.replace(/\n/g, '<br/>')) 
          }} />
        );
     }
     
     return (
-      <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-6">
         {sections.map((sec, index) => {
           const lines = sec.trim().split('\n');
-          const title = lines[0];
-          const body = lines.slice(1).join('\n');
+          const title = lines[0].trim();
+          const body = lines.slice(1).join('\n').trim();
 
           // Custom icons/colors for known sections
           let Icon = FileText;
-          let colorClass = "text-slate-800";
+          let colorClass = "text-slate-700";
           let bgClass = "bg-white";
+          let borderClass = "border-slate-200";
           
-          if (title.includes("基础数据")) { Icon = TrendingUp; colorClass = "text-blue-600"; }
-          else if (title.includes("关键价位")) { Icon = Target; colorClass = "text-amber-600"; }
-          else if (title.includes("量化评级") || title.includes("风险")) { Icon = ShieldAlert; colorClass = "text-rose-600"; }
-          else if (title.includes("操作建议") || title.includes("核心逻辑")) { Icon = ArrowRightCircle; colorClass = "text-emerald-600"; }
+          if (title.includes("基础数据") || title.includes("成交量")) { 
+             Icon = Activity; colorClass = "text-blue-700"; borderClass = "border-blue-100";
+          }
+          else if (title.includes("关键价位")) { 
+             Icon = Target; colorClass = "text-amber-700"; borderClass = "border-amber-100";
+          }
+          else if (title.includes("量化评级") || title.includes("风险")) { 
+             Icon = ShieldAlert; colorClass = "text-rose-700"; borderClass = "border-rose-100";
+          }
+          else if (title.includes("操作建议")) { 
+             Icon = ArrowRightCircle; colorClass = "text-emerald-700"; borderClass = "border-emerald-100";
+          }
 
           return (
-            <div key={index} className={`rounded-xl border border-slate-200 shadow-sm overflow-hidden ${bgClass}`}>
-              <div className="bg-slate-50/80 px-6 py-3 border-b border-slate-100 flex items-center gap-2">
-                <Icon className={`w-5 h-5 ${colorClass}`} />
+            <div key={index} className={`rounded-xl border ${borderClass} shadow-sm overflow-hidden bg-white hover:shadow-md transition-shadow`}>
+              <div className={`px-6 py-4 border-b ${borderClass} bg-opacity-30 bg-slate-50 flex items-center gap-2`}>
+                <div className={`p-1.5 rounded-lg ${borderClass.replace('border', 'bg').replace('100', '50')}`}>
+                   <Icon className={`w-5 h-5 ${colorClass}`} />
+                </div>
                 <h3 className={`font-bold text-lg ${colorClass}`}>{title}</h3>
               </div>
-              <div className="p-6 prose prose-slate max-w-none prose-p:text-slate-600 prose-p:leading-relaxed prose-li:text-slate-600 prose-strong:text-slate-900 prose-strong:font-bold">
-                 {body.split('\n').map((line, i) => {
-                    const trimmed = line.trim();
-                    if (!trimmed) return <div key={i} className="h-2"></div>;
-                    
-                    if (trimmed.startsWith('-') || trimmed.startsWith('* ')) {
-                      return (
-                        <div key={i} className="flex gap-2 mb-2 items-start">
-                           <span className="text-slate-400 mt-1.5 w-1.5 h-1.5 bg-slate-400 rounded-full flex-shrink-0"></span>
-                           <span className="flex-1 text-slate-700" dangerouslySetInnerHTML={{
-                             __html: trimmed.replace(/^[-*]\s/, '').replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900">$1</strong>')
-                           }}></span>
-                        </div>
-                      );
-                    }
-                    if (trimmed.startsWith('###')) {
-                       return <h4 key={i} className="text-md font-bold text-slate-800 mt-4 mb-2">{trimmed.replace(/###\s*/, '')}</h4>
-                    }
-                    return (
-                      <p key={i} className="mb-2 text-slate-600" dangerouslySetInnerHTML={{
-                          __html: trimmed.replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900">$1</strong>')
-                      }}></p>
-                    );
-                 })}
+              <div className="p-6">
+                 {renderSectionContent(title, body)}
               </div>
             </div>
           );
@@ -243,7 +370,7 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
           </div>
 
           {/* Result Body */}
-          <div className="p-6">
+          <div className="p-6 bg-slate-50/50">
              {renderAnalysisContent(savedResult.content)}
           </div>
 
