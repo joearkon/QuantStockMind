@@ -154,6 +154,13 @@ export const fetchExternalAI = async (
     JSON Structure required:
     {
       "market_indices": [ ${indicesExample} ],
+      "market_volume": {
+        "total_volume": "1.5万亿",
+        "volume_delta": "放量2000亿",
+        "volume_trend": "expansion",
+        "net_inflow": "主力净流入+50亿",
+        "capital_mood": "增量资金进场"
+      },
       "market_sentiment": { "score": 0-100, "summary": "...", "trend": "bullish" },
       "capital_rotation": {
         "inflow_sectors": ["..."], "inflow_reason": "...",
@@ -185,8 +192,9 @@ export const fetchExternalAI = async (
     [Tasks]
     Search real-time data for ${dateStr}:
     1. ${market} Indices values and change.
-    2. Main Force / Institutional Fund Flow (主力资金/北向资金).
-    3. Market Sentiment.
+    2. Total Trading Volume & Volume Delta (成交额与增量).
+    3. Main Force / Institutional Fund Flow (主力资金/北向资金).
+    4. Market Sentiment.
     `;
     userContent = `${prompt}\n\n${searchQueries}\n\n${jsonInstruction}`;
   } else {
@@ -274,7 +282,7 @@ export const fetchExternalAI = async (
 };
 
 /**
- * Image Analysis using External Provider (Hunyuan Vision)
+ * Analyzes an image using an external provider's Vision model (e.g., Hunyuan Vision)
  */
 export const analyzeImageWithExternal = async (
   provider: ModelProvider,
@@ -282,59 +290,69 @@ export const analyzeImageWithExternal = async (
   apiKey: string
 ): Promise<HoldingsSnapshot> => {
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
-  if (!config || !config.visionModel) {
-    throw new Error(`${provider} does not support Vision API.`);
+  if (!config) {
+    throw new Error(`Configuration for ${provider} not found.`);
   }
 
-  // Holdings Prompt strictly for JSON
+  // Only Hunyuan supported for now in this path
+  if (provider !== ModelProvider.HUNYUAN_CN) {
+     throw new Error("Image analysis only supported for Hunyuan in external service.");
+  }
+
   const prompt = `
-    请分析这张证券账户持仓截图。提取以下信息并输出 JSON：
-    1. 总资产 (totalAssets, number)
-    2. 仓位百分比 (positionRatio, number 0-100)
-    3. 持仓列表 (holdings), 包含:
-       - 股票名称 (name)
-       - 代码 (code)
-       - 持仓数量 (volume, 必须为整数 Integer)
-       - 成本价 (costPrice)
-       - 现价 (currentPrice)
-       - 浮动盈亏 (profit)
-       - 盈亏比例 (profitRate, string like "+10%")
-       - 市值 (marketValue)
+    Analyze this brokerage screenshot to extract holdings information.
     
-    IMPORTANT RULES: 
-    1. Output ONLY valid JSON. No Markdown.
-    2. 'volume' MUST be a simple number (e.g. 100). Do NOT output infinite decimals (e.g. 100.000000000).
-    3. Do NOT repeat characters excessively.
+    Tasks:
+    1. Extract Total Assets (总资产).
+    2. Extract Position Ratio (仓位) as percentage 0-100. If not explicitly shown, estimate it or put 0.
+    3. Extract all Stocks in the list. For each stock: Name, Code, Volume (持仓数), Cost Price (成本), Current Price (现价), Profit (盈亏), Profit Rate (盈亏比).
     
-    Example:
+    IMPORTANT RULES:
+    1. 'volume' must be an Integer (e.g. 100).
+    2. 'marketValue', 'costPrice', 'currentPrice' should have max 2 decimals.
+    3. Do not hallucinate. If data is unclear, do not invent.
+    4. Return strictly valid JSON matching the structure below.
+    
+    JSON Structure:
     {
-      "totalAssets": 100000.0,
+      "totalAssets": 12345.67,
       "positionRatio": 85.5,
-      "date": "2023-12-01",
+      "date": "${new Date().toISOString().split('T')[0]}",
       "holdings": [
-        { "name": "贵州茅台", "code": "600519", "volume": 100, "costPrice": 1500, "currentPrice": 1600, "profit": 10000, "profitRate": "+6.6%", "marketValue": 160000 }
+        {
+          "name": "StockName",
+          "code": "StockCode",
+          "volume": 100,
+          "costPrice": 10.00,
+          "currentPrice": 12.00,
+          "profit": 200.00,
+          "profitRate": "+20%",
+          "marketValue": 1200.00
+        }
       ]
     }
   `;
 
-  const requestBody = {
-    model: config.visionModel,
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: prompt },
-          {
-            type: "image_url",
-            image_url: {
-              url: `data:image/jpeg;base64,${base64Image}`
-            }
+  const messages: OpenAIChatMessage[] = [
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: prompt },
+        {
+          type: 'image_url',
+          image_url: {
+            url: `data:image/jpeg;base64,${base64Image}`
           }
-        ]
-      }
-    ],
-    max_tokens: 2000,
-    temperature: 0.1 // Low temperature for precision
+        }
+      ]
+    }
+  ];
+
+  const requestBody: any = {
+    model: config.visionModel || config.model, // Use vision model if available
+    messages: messages,
+    temperature: 0.1,
+    max_tokens: 4000
   };
 
   try {
@@ -348,17 +366,19 @@ export const analyzeImageWithExternal = async (
     });
 
     if (!response.ok) {
-      const txt = await response.text();
-      throw new Error(`Vision API Error: ${txt}`);
+      const errorText = await response.text();
+      throw new Error(`Vision Model Error (${response.status}): ${errorText.substring(0, 100)}`);
     }
 
     const data = await response.json() as OpenAICompletionResponse;
-    const content = data.choices[0]?.message?.content || "{}";
+    const content = data.choices[0]?.message?.content || "";
+
+    if (!content) throw new Error("API returned empty content.");
 
     return robustJsonParse(content);
 
   } catch (error: any) {
     console.error("External Vision Error:", error);
-    throw new Error(`图片识别失败: ${error.message}`);
+    throw error;
   }
 };

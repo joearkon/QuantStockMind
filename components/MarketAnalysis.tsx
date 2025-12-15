@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
-import { Loader2, BarChart2, TrendingUp, Zap, Wind, Layers, Settings, ShieldCheck, Rocket, ListChecks, Target, Hourglass, Search, Cpu } from 'lucide-react';
+import { Loader2, BarChart2, TrendingUp, Zap, Wind, Layers, Settings, ShieldCheck, Rocket, ListChecks, Target, Hourglass, Search, Cpu, Banknote, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 
 interface MarketAnalysisProps {
@@ -166,7 +166,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
 
         {/* Indices Row */}
         {d && d.market_indices && d.market_indices.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             {d.market_indices.map((idx, i) => {
               // Check if data is valid (not 0.00, not NaN, not "未更新")
               const isInvalid = !idx.value || idx.value === "0.00" || idx.value.includes("未更新") || idx.value.includes("NaN");
@@ -191,6 +191,48 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* --- NEW: Volume & Capital Dashboard --- */}
+        {d && d.market_volume && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+             {/* Total Volume */}
+             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex flex-col justify-center">
+                <div className="flex items-center gap-2 text-blue-600 font-bold text-xs uppercase mb-1">
+                   <Activity className="w-4 h-4" /> 两市成交额
+                </div>
+                <div className="text-2xl font-bold text-slate-800">{d.market_volume.total_volume}</div>
+                <div className="text-xs text-slate-500">Total Volume</div>
+             </div>
+
+             {/* Volume Delta */}
+             <div className={`border rounded-xl p-4 flex flex-col justify-center ${d.market_volume.volume_trend === 'expansion' ? 'bg-rose-50 border-rose-100' : d.market_volume.volume_trend === 'contraction' ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
+                <div className={`flex items-center gap-2 font-bold text-xs uppercase mb-1 ${d.market_volume.volume_trend === 'expansion' ? 'text-rose-600' : d.market_volume.volume_trend === 'contraction' ? 'text-emerald-600' : 'text-slate-600'}`}>
+                   {d.market_volume.volume_trend === 'expansion' ? <ArrowUpRight className="w-4 h-4"/> : <ArrowDownRight className="w-4 h-4"/>} 
+                   量能变化
+                </div>
+                <div className="text-lg font-bold text-slate-800 truncate">{d.market_volume.volume_delta}</div>
+                <div className="text-xs text-slate-500">Volume Delta</div>
+             </div>
+
+             {/* Net Inflow */}
+             <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex flex-col justify-center">
+                <div className="flex items-center gap-2 text-amber-600 font-bold text-xs uppercase mb-1">
+                   <Banknote className="w-4 h-4" /> 资金信号
+                </div>
+                <div className="text-lg font-bold text-slate-800 truncate">{d.market_volume.net_inflow}</div>
+                <div className="text-xs text-slate-500">Net Inflow</div>
+             </div>
+
+             {/* Capital Mood */}
+             <div className="bg-violet-50 border border-violet-100 rounded-xl p-4 flex flex-col justify-center">
+                <div className="flex items-center gap-2 text-violet-600 font-bold text-xs uppercase mb-1">
+                   <Zap className="w-4 h-4" /> 市场活水
+                </div>
+                <div className="text-lg font-bold text-slate-800 truncate">{d.market_volume.capital_mood}</div>
+                <div className="text-xs text-slate-500">Liquidity</div>
+             </div>
           </div>
         )}
 

@@ -22,6 +22,19 @@ const marketDashboardSchema: Schema = {
         }
       }
     },
+    // New Volume Section
+    market_volume: {
+      type: Type.OBJECT,
+      description: "Data about total trading volume and capital flow.",
+      properties: {
+        total_volume: { type: Type.STRING, description: "Total trading volume today, e.g. '1.5万亿' or '150B'" },
+        volume_delta: { type: Type.STRING, description: "Difference vs yesterday, e.g. '放量2000亿' or '缩量5%'" },
+        volume_trend: { type: Type.STRING, enum: ["expansion", "contraction", "flat"], description: "Trend direction" },
+        net_inflow: { type: Type.STRING, description: "Net inflow of Main Force/Northbound, e.g. '主力净流入+50亿'" },
+        capital_mood: { type: Type.STRING, description: "Summary of money flow, e.g. '增量资金进场' or '存量博弈'" }
+      },
+      required: ["total_volume", "volume_delta", "volume_trend", "net_inflow", "capital_mood"]
+    },
     market_sentiment: {
       type: Type.OBJECT,
       properties: {
@@ -132,7 +145,7 @@ const marketDashboardSchema: Schema = {
       required: ["aggressive", "balanced"]
     }
   },
-  required: ["market_sentiment", "capital_rotation", "deep_logic", "hot_topics", "opportunity_analysis", "strategist_verdict", "allocation_model"]
+  required: ["market_sentiment", "market_volume", "capital_rotation", "deep_logic", "hot_topics", "opportunity_analysis", "strategist_verdict", "allocation_model"]
 };
 
 const holdingsParsingSchema: Schema = {
@@ -411,11 +424,11 @@ export const fetchMarketDashboard = async (
   
   let marketSpecificPrompt = "";
   if (market === MarketType.CN) {
-    marketSpecificPrompt = "主要指数：上证/深证/科创。核心任务：【必须】搜索并分析今日的“主力资金净流入”（Main Force Net Inflow）和“北向资金”（Northbound Capital）数据。在“资金轮动”部分明确指出哪些板块是“机构/主力”在买入。";
+    marketSpecificPrompt = "主要指数：上证/深证/科创。核心任务：【必须】搜索并分析今日的“主力资金净流入”（Main Force Net Inflow）和“北向资金”（Northbound Capital）数据。务必统计【今日成交总额】(Total Volume) 并对比昨日是【放量】还是【缩量】(Volume Delta)。";
   } else if (market === MarketType.HK) {
-    marketSpecificPrompt = "主要指数：恒指/恒生科技。核心任务：分析“南向资金”（Southbound Capital）流向及外资机构动向。";
+    marketSpecificPrompt = "主要指数：恒指/恒生科技。核心任务：分析“南向资金”（Southbound Capital）流向及今日成交额变化。";
   } else if (market === MarketType.US) {
-    marketSpecificPrompt = "主要指数：道指/纳指/标普。核心任务：分析华尔街机构（Institutional Money）流向及科技巨头动向。";
+    marketSpecificPrompt = "主要指数：道指/纳指/标普。核心任务：分析成交量变化及资金流向。";
   }
 
   // NOTE: We do NOT use responseMimeType: 'application/json' because it conflicts with googleSearch tool in some API versions.
@@ -429,9 +442,14 @@ export const fetchMarketDashboard = async (
       ${marketSpecificPrompt}
 
       重点任务：
-      1. 分析主要指数、市场情绪、资金流向（重点是机构/主力资金）。
-      2. 提供投资机会分析（防御 vs 成长）。
-      3. **生成实战仓位配置表 (Portfolio Table)**：
+      1. 分析主要指数、市场情绪。
+      2. **资金与量能分析 (Capital & Volume)**:
+         - **成交额**: 今日两市/市场总成交额是多少？
+         - **量能对比**: 较昨日是放量还是缩量？幅度多少？
+         - **资金信号**: 主力资金/北向资金是净流入还是流出？判断是“增量资金进场”还是“存量博弈”？
+      3. 资金流向/板块轮动（重点是机构/主力资金）。
+      4. 提供投资机会分析（防御 vs 成长）。
+      5. **生成实战仓位配置表 (Portfolio Table)**：
          - 假设用户需要在两种策略中二选一：【激进型/成长】（通常高仓位）或【稳健型/防御】（通常中低仓位）。
          - 对于每种策略，请像专业的基金经理一样，给出具体的**操作步骤**（如：1. 清仓弱标的... 2. 调仓至...）。
          - **必须**提供一个详细的持仓表格，包含：
@@ -440,7 +458,6 @@ export const fetchMarketDashboard = async (
            - **占比/Weight**：建议的持仓比例（如 "34%"）。
            - **逻辑标签**：一句话概括买入逻辑（如 "主力大幅加仓"）。
          - **务必在表格最后包含一行 "现金 (Cash)"**，用于应对短期波动。
-         - 确保推荐的个股具有代表性和流动性，符合当前的"Deep Logic"分析。
       
       IMPORTANT: You must return the result as valid JSON strictly following this schema structure. Do NOT output markdown code blocks. Output ONLY the JSON string.
       

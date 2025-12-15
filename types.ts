@@ -56,8 +56,21 @@ export interface AllocationModel {
   core_advantage: string;
 }
 
+// New Interface for Volume Analysis
+export interface MarketVolumeData {
+  total_volume: string;     // e.g. "1.5万亿" or "150B"
+  volume_delta: string;     // e.g. "放量2000亿" or "缩量5%"
+  volume_trend: 'expansion' | 'contraction' | 'flat'; // visual indicator
+  net_inflow: string;       // e.g. "主力净流入+50亿"
+  capital_mood: string;     // e.g. "增量资金跑步进场" or "存量博弈"
+}
+
 export interface MarketDashboardData {
   market_indices?: MarketIndex[];
+  
+  // New Field
+  market_volume?: MarketVolumeData;
+
   market_sentiment: {
     score: number;
     summary: string;
