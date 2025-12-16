@@ -2,7 +2,8 @@ import { GoogleGenAI, GenerateContentResponse, Type, Schema } from "@google/gena
 import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot, HistoricalYearData } from "../types";
 
 const GEMINI_MODEL_FAST = "gemini-2.5-flash"; 
-const GEMINI_MODEL_LITE = "gemini-flash-lite-latest"; // Fallback model for high load
+// REMOVED: Fallback model to ensure data quality
+// const GEMINI_MODEL_LITE = "gemini-flash-lite-latest"; 
 
 // --- Schemas ---
 
@@ -303,36 +304,24 @@ async function callGeminiWithRetry(
 }
 
 /**
- * STRATEGY OPTIMIZATION: High-Level Fallback Wrapper
- * Tries Primary Model (Flash 2.5) -> Fails (503) -> Tries Lite Model (Flash Lite)
+ * STRATEGY UPDATE: Single Model Robust Retry (No Fallback)
+ * The user requested NOT to use the downgraded (Lite) strategy to ensure data accuracy.
+ * We stick to the primary model (Flash 2.5) but retry aggressively.
  */
 export async function runGeminiSafe(
   ai: GoogleGenAI,
   params: { contents: any; config?: any },
   description: string = "Request"
 ): Promise<GenerateContentResponse> {
-  // Attempt 1: Main Model (3 Retries)
   try {
     return await callGeminiWithRetry(() => ai.models.generateContent({
       model: GEMINI_MODEL_FAST,
       ...params
     }), 3, 2000);
   } catch (error: any) {
-    const msg = (error.message || "").toLowerCase();
-    // Only fallback on capacity issues
-    if (msg.includes('503') || msg.includes('overloaded') || msg.includes('unavailable') || msg.includes('fetch')) {
-       console.warn(`Primary model overloaded for ${description}. Switching to Flash Lite...`);
-       // Attempt 2: Fallback Model (3 Retries)
-       try {
-         return await callGeminiWithRetry(() => ai.models.generateContent({
-            model: GEMINI_MODEL_LITE,
-            ...params
-         }), 3, 2000);
-       } catch (fallbackError: any) {
-         throw new Error(`服务繁忙 (All Models Busy): ${fallbackError.message}`);
-       }
-    }
-    throw error;
+    console.error(`Gemini Error in ${description}:`, error);
+    // Directly throw to let the UI show the error, rather than switching to a potentially inaccurate model
+    throw new Error(`AI 服务暂时繁忙 (${description})，为保证数据准确性，请稍后重试。`);
   }
 }
 
@@ -529,13 +518,22 @@ export const fetchMarketDashboard = async (
     const prompt = `
       Date: ${dateStr}. Market: ${market}.
       Generate "${period}" Market Analysis Report (Dashboard).
+      
+      [CRITICAL SEARCH INSTRUCTION]
+      You MUST perform a specific Google Search for:
+      - "${market} Indices Today" (e.g. "上证指数 今日", "深证成指 今日", "创业板指 今日").
+      - "Northbound Capital Flow Today" (北向资金/主力资金).
+      - "Total Market Volume Today" (两市成交额).
+      
+      DO NOT HALLUCINATE NUMBERS. If Google Search fails, set value to "0.00" or "N/A".
+      Use the *EXACT* values found in the search snippets.
+
       Tasks:
       1. Indices & Sentiment.
       2. Volume & Capital Flow (Main Force/Northbound).
       3. Sector Rotation.
       4. Strategy (Aggressive vs Balanced).
-      Output STRICT JSON matching schema.
-
+      
       5. **生成实战仓位配置表 (Portfolio Table)**：
          - **必须**提供一个详细的持仓表格，包含：
            - **标的**：具体的股票名称和代码。**【重要】代码必须真实完整（如 600519），严禁使用 "600xxx" 或 "300xxx" 等掩码形式。**
@@ -543,6 +541,8 @@ export const fetchMarketDashboard = async (
            - **占比/Weight**：建议的持仓比例（如 "34%"）。
            - **逻辑标签**：一句话概括买入逻辑（如 "主力大幅加仓"）。
          - **务必在表格最后包含一行 "现金 (Cash)"**，用于应对短期波动。
+         
+      Output STRICT JSON matching schema.
     `;
 
     const response = await runGeminiSafe(ai, {
