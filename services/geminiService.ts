@@ -450,6 +450,121 @@ export const parseBrokerageScreenshot = async (
   }
 }
 
+export const fetchStockDetailWithImage = async (
+  base64Image: string,
+  stockQuery: string,
+  market: MarketType = MarketType.CN,
+  apiKey?: string
+): Promise<AnalysisResult> => {
+  const effectiveKey = apiKey || process.env.API_KEY;
+  if (!effectiveKey) throw new Error("API Key missing");
+
+  const optimizedImage = await compressImage(base64Image);
+  const ai = new GoogleGenAI({ apiKey: effectiveKey });
+
+  // Convert MarketType enum to proper Chinese name
+  const marketNameMap = {
+    [MarketType.CN]: 'A股',
+    [MarketType.HK]: '港股',
+    [MarketType.US]: '美股'
+  };
+  const marketName = marketNameMap[market] || market;
+
+  try {
+    // --- Step 1: Pure Vision Extraction (No Search Tools) ---
+    // This separation ensures the model actually reads the image without tool conflict/hallucination.
+    const visionPrompt = `
+      【Role】You are a technical stock analyst.
+      【Task】Read the provided stock chart/interface image for "${stockQuery}".
+      
+      Please Extract and Describe concisely in Chinese:
+      1. **盘口数据 (Metrics)**:
+         - 换手率 (Turnover Rate): e.g. 15.2% (High/Low?)
+         - 量比 (Volume Ratio): e.g. 1.5 (Active?)
+         - 成交量 (Volume): Current status relative to history.
+         - 内外盘对比 (Inside/Outside): Buying vs Selling pressure if visible.
+         
+      2. **K线形态 (Technical Pattern)**:
+         - Current Trend (Up/Down/Sideways).
+         - Key Support/Resistance visible.
+         - Recent bars: Large red/green candles? Gaps?
+      
+      Return a summary of what you see in the image.
+    `;
+
+    const visionResponse = await callGeminiWithRetry(() => ai.models.generateContent({
+      model: GEMINI_MODEL_FAST,
+      contents: {
+        parts: [
+          { inlineData: { mimeType: 'image/jpeg', data: optimizedImage } },
+          { text: visionPrompt }
+        ]
+      },
+      // IMPORTANT: No tools here to force visual processing
+    }));
+
+    const visualData = visionResponse.text || "（未检测到明显的盘口数据，将基于通用行情分析）";
+
+    // --- Step 2: Synthesis with Search (Text Only + Tool) ---
+    const analysisPrompt = `
+      【Role】你是一位精通 ${marketName} 的资深基金经理。
+      【Context】用户正在关注股票：${stockQuery}。
+      
+      【Input Data】
+      1. **视觉分析 (来自用户截图)**:
+         "${visualData}"
+      
+      【Task】
+      请结合上述视觉信息，并立刻使用 **Google Search** 联网查询该股票最新的：
+      - 实时股价与涨跌幅
+      - 主力资金流向 (Main Force Net Inflow)
+      - 行业板块热度与新闻
+      
+      【Output】
+      请生成一份Markdown深度诊断报告，必须包含以下章节（使用 H2 标题）：
+      ## 1. 盘口与量能解码
+      - **量价关系**: 结合截图中的"换手率"和"量比"以及联网查询的最新成交量，判断主力意图（吸筹/洗盘/出货？）。
+      - **多空力量**: 分析当前买卖盘力量对比。
+      
+      ## 2. 技术面形态诊断
+      - 解读K线组合与均线趋势（结合截图形态）。
+      - 明确当前的 **支撑位** 和 **压力位**。
+      
+      ## 3. 基本面与资金共振
+      - 结合联网搜索的主力资金数据和行业逻辑。
+      
+      ## 4. 操盘建议 (Action)
+      - 给出明确的短线/中线操作策略（买入/持有/减仓/观望）。
+    `;
+
+    const finalResponse = await callGeminiWithRetry(() => ai.models.generateContent({
+      model: GEMINI_MODEL_FAST,
+      contents: analysisPrompt,
+      config: {
+        tools: [{ googleSearch: {} }],
+      }
+    }));
+
+    const text = finalResponse.text || "无法生成分析结果。";
+    const groundingChunks = finalResponse.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const sources = groundingChunks
+      .map((chunk: any) => chunk.web)
+      .filter((web: any) => web !== undefined);
+
+    return {
+      content: text,
+      groundingSource: sources,
+      timestamp: Date.now(),
+      modelUsed: ModelProvider.GEMINI_INTL,
+      isStructured: false
+    };
+
+  } catch (error: any) {
+    console.error("Stock Image Analysis Error:", error);
+    throw error;
+  }
+};
+
 export const fetchSectorHistory = async (
   year: string,
   month: string = 'all',
