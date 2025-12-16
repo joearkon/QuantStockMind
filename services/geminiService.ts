@@ -302,10 +302,10 @@ const compressImage = (base64Str: string, maxWidth = 1024, quality = 0.7): Promi
 /**
  * Executes a Gemini API call with exponential backoff retry logic.
  */
-async function callGeminiWithRetry(
+export async function callGeminiWithRetry(
   apiCall: () => Promise<GenerateContentResponse>,
-  retries: number = 3,
-  baseDelay: number = 2000
+  retries: number = 5,
+  baseDelay: number = 3000
 ): Promise<GenerateContentResponse> {
   let lastError: any;
   for (let i = 0; i < retries; i++) {
@@ -318,8 +318,9 @@ async function callGeminiWithRetry(
       const isRateLimit = msg.includes('429') || msg.includes('resource_exhausted');
       
       if ((isOverloaded || isRateLimit) && i < retries - 1) {
-        const delay = baseDelay * Math.pow(2, i);
-        console.warn(`Gemini API Busy (${msg}). Retrying in ${delay}ms... (Attempt ${i + 1}/${retries})`);
+        // Exponential backoff: 3000, 6000, 12000... with small random jitter
+        const delay = baseDelay * Math.pow(2, i) + (Math.random() * 500);
+        console.warn(`Gemini API Busy (${msg}). Retrying in ${Math.round(delay)}ms... (Attempt ${i + 1}/${retries})`);
         await wait(delay);
         continue;
       }

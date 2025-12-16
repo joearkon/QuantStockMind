@@ -1,6 +1,7 @@
 import { GoogleGenAI, Schema, Type } from "@google/genai";
 import { AnalysisResult, ModelProvider, MarketType, OpportunityResponse } from "../types";
 import { fetchExternalAI } from "./externalLlmService";
+import { callGeminiWithRetry } from "./geminiService";
 
 const GEMINI_MODEL = "gemini-2.5-flash";
 
@@ -145,13 +146,13 @@ export const fetchOpportunityMining = async (
     const ai = new GoogleGenAI({ apiKey });
     
     try {
-      const response = await ai.models.generateContent({
+      const response = await callGeminiWithRetry(() => ai.models.generateContent({
         model: GEMINI_MODEL,
         contents: systemPrompt + "\n" + userPrompt + `\n\nReturn strict JSON matching this schema: ${JSON.stringify(opportunitySchema)}`,
         config: {
           tools: [{ googleSearch: {} }],
         }
-      });
+      }), 5, 4000); // Aggressive retry, 4s base delay
 
       const text = response.text || "{}";
       let structuredData: OpportunityResponse;
