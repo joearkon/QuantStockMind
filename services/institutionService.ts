@@ -1,9 +1,9 @@
 import { GoogleGenAI, Schema, Type } from "@google/genai";
 import { AnalysisResult, ModelProvider, MarketType, InstitutionalInsight } from "../types";
 import { fetchExternalAI } from "./externalLlmService";
-import { callGeminiWithRetry } from "./geminiService";
+import { runGeminiSafe } from "./geminiService"; // Updated import
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODEL = "gemini-2.5-flash"; // Reference only
 
 // --- Schema for Institutional Data ---
 const institutionSchema: Schema = {
@@ -91,13 +91,13 @@ export const fetchInstitutionalInsights = async (
     const ai = new GoogleGenAI({ apiKey });
     
     try {
-      const response = await callGeminiWithRetry(() => ai.models.generateContent({
-        model: GEMINI_MODEL,
+      // Use runGeminiSafe for failover capability
+      const response = await runGeminiSafe(ai, {
         contents: prompt + `\n\nStrictly output valid JSON matching this schema: ${JSON.stringify(institutionSchema)}`,
         config: {
           tools: [{ googleSearch: {} }],
         }
-      }), 5, 4000); // Retry with 5 attempts, 4s base delay
+      }, "Institutional Insights");
 
       const text = response.text || "{}";
       let structuredData: InstitutionalInsight;

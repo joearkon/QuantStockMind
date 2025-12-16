@@ -1,9 +1,9 @@
 import { GoogleGenAI, Schema, Type } from "@google/genai";
 import { AnalysisResult, ModelProvider, MarketType, OpportunityResponse } from "../types";
 import { fetchExternalAI } from "./externalLlmService";
-import { callGeminiWithRetry } from "./geminiService";
+import { runGeminiSafe } from "./geminiService"; // Updated import
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODEL = "gemini-2.5-flash"; // Still used for reference/validation if needed, but runGeminiSafe handles model selection
 
 // --- Schema: Chain Mining & Deployment ---
 const opportunitySchema: Schema = {
@@ -146,13 +146,13 @@ export const fetchOpportunityMining = async (
     const ai = new GoogleGenAI({ apiKey });
     
     try {
-      const response = await callGeminiWithRetry(() => ai.models.generateContent({
-        model: GEMINI_MODEL,
+      // Use runGeminiSafe for failover capability
+      const response = await runGeminiSafe(ai, {
         contents: systemPrompt + "\n" + userPrompt + `\n\nReturn strict JSON matching this schema: ${JSON.stringify(opportunitySchema)}`,
         config: {
           tools: [{ googleSearch: {} }],
         }
-      }), 5, 4000); // Aggressive retry, 4s base delay
+      }, "Opportunity Mining");
 
       const text = response.text || "{}";
       let structuredData: OpportunityResponse;

@@ -47,13 +47,11 @@ function robustJsonParse(text: string): any {
   // Match ```json ... ``` or just ``` ... ```
   clean = clean.replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '');
 
-  // --- NEW: Fix Number Hallucinations (similar to Gemini Service) ---
+  // --- Fix Number Hallucinations ---
   clean = clean.replace(/(\d+)\.0{5,}\d*/g, '$1'); // Fix infinite zeros
   
   // 2. Locate JSON boundaries (find first '{' or '[' and last '}' or ']')
   const firstBrace = clean.search(/[{[]/);
-  const lastBrace = clean.search(/[}\]]$/); // Optimization: Look from end? 
-  // Actually regex search from end is hard, let's just find lastIndexOf
   const lastCurly = clean.lastIndexOf('}');
   const lastSquare = clean.lastIndexOf(']');
   const lastIndex = Math.max(lastCurly, lastSquare);
@@ -63,26 +61,27 @@ function robustJsonParse(text: string): any {
   }
 
   // 3. Replace Chinese Punctuation common in JSON
-  // Full-width quotes “ ” -> "
-  clean = clean.replace(/[\u201C\u201D]/g, '"');
-  // Full-width colon ： -> : (only if strictly needed, but risky inside strings. 
-  // Safest is to rely on the model, but Hunyuan sometimes outputs keys like "name"： "value")
-  // We will replace it only if followed by space or quote to be safer, or just globally if we assume English keys.
-  // For safety, let's try standard parse first.
+  clean = clean.replace(/[\u201C\u201D]/g, '"'); // Quotes
   
   try {
     return JSON.parse(clean);
   } catch (e) {
-    // 4. Aggressive Fixes if first parse fails
     console.warn("Standard JSON parse failed, attempting aggressive fixes...", e);
     
-    // Replace Chinese colon outside of quoted strings is hard with Regex.
-    // Simple approach: Replace ALL Chinese colons. This might break content text containing "：", but rare in keys.
-    // Better: Rely on the fact that keys usually don't have Chinese colons.
-    let fixed = clean.replace(/：/g, ':');
+    // Aggressive fixes
+    let fixed = clean;
+    
+    // Replace Chinese Colon '：' ONLY if it looks like a key-value pair separator
+    // e.g. "key"： "value" -> "key": "value"
+    fixed = fixed.replace(/"\s*：\s*"/g, '": "');
+    fixed = fixed.replace(/"\s*：\s*(\d)/g, '": $1');
+    fixed = fixed.replace(/"\s*：\s*\[/g, '": [');
+    fixed = fixed.replace(/"\s*：\s*\{/g, '": {');
+    
+    // Replace Chinese comma '，'
     fixed = fixed.replace(/，/g, ','); 
     
-    // Fix trailing commas (simple regex approach, not perfect but helps)
+    // Fix trailing commas
     fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
 
     try {
@@ -161,7 +160,7 @@ export const fetchExternalAI = async (
         "net_inflow": "主力净流入+50亿",
         "capital_mood": "增量资金进场"
       },
-      "market_sentiment": { "score": 0-100, "summary": "...", "trend": "bullish" },
+      "market_sentiment": { "score": 60, "summary": "...", "trend": "bullish" },
       "capital_rotation": {
         "inflow_sectors": ["..."], "inflow_reason": "...",
         "outflow_sectors": ["..."], "outflow_reason": "..."
@@ -247,21 +246,12 @@ export const fetchExternalAI = async (
     // Robust Parse for Dashboard or when JSON is forced
     if (isDashboard || forceJson) {
       try {
-        // If it's the Opportunity Mining (forceJson=true) but not dashboard type, we handle it generic
-        // But for this function signature, we return 'AnalysisResult' which has generic structuredData field.
-        // Actually OpportunityMining result is stored in 'opportunityData' usually, but here we return raw logic.
-        // The caller handles assigning to the right field.
-        
-        // However, for fetchExternalAI, we usually put dashboard data in structuredData.
-        // If forceJson is true (for opportunity mining), the caller parses result.content usually.
-        // But let's try to parse it here to validate it.
         const parsed = robustJsonParse(content);
         if (isDashboard) {
            structuredData = parsed;
         }
       } catch (e) {
         console.warn("Parsing failed even with robust parser", e);
-        // Fallback: return content, let caller handle or fail
       }
     }
 
