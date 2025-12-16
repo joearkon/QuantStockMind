@@ -30,6 +30,7 @@ export interface AnalysisResult {
   structuredData?: MarketDashboardData;
   opportunityData?: OpportunityResponse; 
   institutionalData?: InstitutionalInsight; // New field
+  historyData?: HistoricalYearData; // New field for History
   market?: MarketType;
 }
 
@@ -168,11 +169,38 @@ export interface RotationAdvice {
   catalyst: string; // Trigger event
 }
 
+// -- NEW TYPES FOR CAPITAL DEPLOYMENT --
+
+export interface RecommendedStock {
+  name: string;
+  code: string;
+  sector: string;
+  reason: string; // e.g. "Top Institution Net Buy 3 days"
+  buy_point: string; // e.g. "Low suction at 5-day line"
+  risk_tag: 'High' | 'Medium' | 'Low';
+}
+
+export interface DeploymentPlan {
+  market_environment: string; // e.g. "Sentiment Warming, Volume Expanding"
+  suggested_style: string; // e.g. "Aggressive on Leaders"
+  focus_directions: {
+    sector: string;
+    logic: string;
+    inflow_status: string; // e.g. "Net Inflow 500M"
+  }[];
+  top_picks: RecommendedStock[];
+}
+
 export interface OpportunityResponse {
   analysis_summary: string; // High level summary of the strategy
   policy_theme: string;     // Current National Strategy Theme (e.g. New Productive Forces)
-  supply_chain_matrix: ChainMapping[];
-  rotation_strategy: RotationAdvice[];
+  
+  // Mode 1: Chain Mining
+  supply_chain_matrix?: ChainMapping[];
+  rotation_strategy?: RotationAdvice[];
+
+  // Mode 2: Capital Deployment
+  deployment_plan?: DeploymentPlan;
 }
 
 // --- New Types for Institutional Insights ---
@@ -203,6 +231,26 @@ export interface InstitutionalInsight {
   top_surveyed_sectors: SurveyHotspot[];
   key_institution_views: InstitutionView[];
   smart_money_trends: SmartMoneyFlow[];
+}
+
+// --- New Types for Historical Sector Review ---
+export interface SectorPerformance {
+  name: string;
+  change_approx: string; // e.g. "+15%" or "大涨"
+}
+
+export interface MonthlyPerformance {
+  month: number; // 1-12
+  summary: string; // e.g. "微盘股崩盘，高股息护盘"
+  winners: SectorPerformance[];
+  losers: SectorPerformance[];
+  key_event: string; // e.g. "新国九条发布"
+}
+
+export interface HistoricalYearData {
+  year: string;
+  yearly_summary: string;
+  months: MonthlyPerformance[];
 }
 
 // Global definition for injected variables from Cloudflare Worker

@@ -1,5 +1,5 @@
 import { GoogleGenAI, GenerateContentResponse, Type, Schema } from "@google/genai";
-import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot } from "../types";
+import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot, HistoricalYearData } from "../types";
 
 const GEMINI_MODEL_FAST = "gemini-2.5-flash"; 
 const GEMINI_MODEL_REASONING = "gemini-2.5-flash"; 
@@ -172,6 +172,48 @@ const holdingsParsingSchema: Schema = {
     }
   },
   required: ["totalAssets", "holdings"]
+};
+
+const historicalYearSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    year: { type: Type.STRING },
+    yearly_summary: { type: Type.STRING, description: "Summary of the whole year style in Chinese." },
+    months: {
+      type: Type.ARRAY,
+      description: "Array of months data.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          month: { type: Type.INTEGER, description: "1 to 12" },
+          summary: { type: Type.STRING, description: "Monthly analysis/summary in Chinese." },
+          winners: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING, description: "Sector name in Chinese" },
+                change_approx: { type: Type.STRING, description: "Approximate percentage change, e.g. '+15.5%'" }
+              }
+            }
+          },
+          losers: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING, description: "Sector name in Chinese" },
+                change_approx: { type: Type.STRING, description: "Approximate percentage change, e.g. '-8.2%'" }
+              }
+            }
+          },
+          key_event: { type: Type.STRING, description: "Key macro/policy event in Chinese" }
+        },
+        required: ["month", "summary", "winners", "losers", "key_event"]
+      }
+    }
+  },
+  required: ["year", "yearly_summary", "months"]
 };
 
 // --- Helpers ---
@@ -407,6 +449,77 @@ export const parseBrokerageScreenshot = async (
     throw error;
   }
 }
+
+export const fetchSectorHistory = async (
+  year: string,
+  month: string = 'all',
+  market: MarketType = MarketType.CN,
+  apiKey?: string
+): Promise<AnalysisResult> => {
+  const effectiveKey = apiKey || process.env.API_KEY;
+  if (!effectiveKey) throw new Error("API Key missing");
+
+  const ai = new GoogleGenAI({ apiKey: effectiveKey });
+
+  try {
+    const isSingleMonth = month !== 'all';
+    
+    // Convert MarketType enum to proper Chinese name for searching
+    const marketNameMap = {
+      [MarketType.CN]: '中国A股',
+      [MarketType.HK]: '港股',
+      [MarketType.US]: '美股'
+    };
+    const marketName = marketNameMap[market] || market;
+
+    const prompt = `
+      【Role】你是一名专业的金融分析师，专注于${marketName}市场。
+      【Task】请搜索并复盘 ${year}年 ${isSingleMonth ? `${month}月` : '全年'} 的市场行情。
+      【Language】必须使用**简体中文**输出。
+
+      ${isSingleMonth 
+        ? `请对 ${year}年${month}月 进行深度复盘。` 
+        : `请生成 ${year}年 1月到12月 的月度复盘摘要。`}
+      
+      对于返回的每个月份，请严格包含以下信息：
+      1. **领涨板块 (Winners)**: 找出涨幅最大的3-5个行业或概念板块。**必须**提供具体的涨跌幅百分比（例如 "+12.5%"），如果找不到精确数字，请根据行情描述预估幅度。
+      2. **领跌板块 (Losers)**: 找出跌幅最大的3-5个板块，并附带跌幅（例如 "-8.2%"）。
+      3. **月度摘要 (Summary)**: 用中文简练总结当月的市场风格、资金偏好和核心逻辑（例如："微盘股因流动性危机崩盘，资金抱团高股息"）。
+      4. **关键事件 (Key Event)**: 当月对市场影响最大的一个宏观政策或黑天鹅事件。
+      
+      请严格按照以下 JSON Schema 输出:
+      ${JSON.stringify(historicalYearSchema, null, 2)}
+    `;
+
+    const response = await callGeminiWithRetry(() => ai.models.generateContent({
+      model: GEMINI_MODEL_FAST,
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }],
+      }
+    }));
+
+    const text = response.text || "{}";
+    let parsedData: HistoricalYearData;
+    try {
+      parsedData = JSON.parse(cleanJsonString(text));
+    } catch (e) {
+      console.warn("JSON Parse Error History", e);
+      throw new Error("无法解析历史数据。");
+    }
+
+    return {
+      content: text,
+      timestamp: Date.now(),
+      modelUsed: ModelProvider.GEMINI_INTL,
+      isStructured: true,
+      historyData: parsedData,
+      market: market
+    };
+  } catch (error: any) {
+    throw error;
+  }
+};
 
 export const fetchMarketDashboard = async (
   period: 'day' | 'month',

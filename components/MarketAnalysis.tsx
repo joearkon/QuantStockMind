@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
+import { ModelProvider, AnalysisResult, UserSettings, MarketType, HistoricalYearData } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
-import { Loader2, BarChart2, TrendingUp, Zap, Wind, Layers, Settings, ShieldCheck, Rocket, ListChecks, Target, Hourglass, Search, Cpu, Banknote, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
+import { fetchSectorHistory } from '../services/geminiService';
+import { Loader2, BarChart2, TrendingUp, Zap, Wind, Layers, Settings, ShieldCheck, Rocket, ListChecks, Target, Hourglass, Search, Cpu, Banknote, ArrowUpRight, ArrowDownRight, Activity, CalendarDays, History } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 
 interface MarketAnalysisProps {
@@ -30,6 +31,12 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [allocationType, setAllocationType] = useState<'aggressive' | 'balanced'>('aggressive');
   
+  // History Mode State
+  const [historyMode, setHistoryMode] = useState(false);
+  const [historyYear, setHistoryYear] = useState('2024');
+  const [historyMonth, setHistoryMonth] = useState('all');
+  const [historyData, setHistoryData] = useState<HistoricalYearData | null>(null);
+
   // Progress tracking
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -58,11 +65,33 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
     }
   };
 
+  const handleHistoryFetch = async () => {
+    if (!settings.geminiKey) {
+       setError("历史复盘需要 Gemini API Key，请先配置。");
+       onOpenSettings?.();
+       return;
+    }
+    setLoading(true);
+    setError(null);
+    setHistoryData(null);
+    try {
+      const res = await fetchSectorHistory(historyYear, historyMonth, currentMarket, settings.geminiKey);
+      if (res.historyData) {
+        setHistoryData(res.historyData);
+      }
+    } catch (err: any) {
+      setError(err.message || "历史数据获取失败");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const d = savedResult?.structuredData;
   const marketLabel = MARKET_OPTIONS.find(m => m.value === currentMarket)?.label || currentMarket;
 
   // Dynamic Loading Text based on elapsed time
   const getLoadingStatus = () => {
+    if (historyMode) return { text: `正在回溯 ${historyYear}年 ${historyMonth === 'all' ? '' : historyMonth + '月'} 数据...`, icon: History };
     if (elapsedSeconds < 3) return { text: "正在初始化 AI 模型...", icon: Cpu };
     if (elapsedSeconds < 8) return { text: `联网搜索 ${marketLabel} 实时行情与新闻...`, icon: Search };
     if (elapsedSeconds < 16) return { text: "深度挖掘：主力资金流向与机构动向...", icon: TrendingUp };
@@ -80,40 +109,86 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <BarChart2 className="w-6 h-6 text-blue-600" />
-            {marketLabel} 深度推演 (Deep Dive)
+            {historyMode ? <CalendarDays className="w-6 h-6 text-indigo-600" /> : <BarChart2 className="w-6 h-6 text-blue-600" />}
+            {historyMode ? `${historyYear} 年度题材复盘` : `${marketLabel} 深度推演 (Deep Dive)`}
           </h2>
           
-          <div className="flex items-center gap-3">
-            <div className="inline-flex rounded-lg p-1 bg-slate-100 border border-slate-200">
-              <button
-                onClick={() => onPeriodUpdate('day')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  savedPeriod === 'day' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                今日
-              </button>
-              <button
-                onClick={() => onPeriodUpdate('month')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  savedPeriod === 'month' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                本月
-              </button>
-            </div>
-            
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Toggle History Mode */}
             <button
-              onClick={handleAnalysis}
-              disabled={loading}
-              className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px] justify-center"
+               onClick={() => setHistoryMode(!historyMode)}
+               className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors border ${
+                 historyMode ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+               }`}
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-              {loading ? (
-                 <span className="font-mono">{elapsedSeconds}s</span>
-              ) : '生成全景报告'}
+               <History className="w-4 h-4" />
+               {historyMode ? "返回实时分析" : "历史复盘"}
             </button>
+
+            {historyMode ? (
+              <div className="flex items-center gap-2">
+                 <select 
+                   value={historyYear} 
+                   onChange={(e) => setHistoryYear(e.target.value)}
+                   className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:border-indigo-500"
+                 >
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                    <option value="2023">2023</option>
+                 </select>
+                 <select 
+                   value={historyMonth} 
+                   onChange={(e) => setHistoryMonth(e.target.value)}
+                   className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:border-indigo-500"
+                 >
+                    <option value="all">全年 (All)</option>
+                    {Array.from({length: 12}, (_, i) => i + 1).map(m => (
+                       <option key={m} value={m.toString()}>{m}月</option>
+                    ))}
+                 </select>
+                 <button
+                   onClick={handleHistoryFetch}
+                   disabled={loading}
+                   className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-sm disabled:opacity-50"
+                 >
+                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                   查询
+                 </button>
+              </div>
+            ) : (
+              // Real-time Controls
+              <div className="flex items-center gap-3">
+                <div className="inline-flex rounded-lg p-1 bg-slate-100 border border-slate-200">
+                  <button
+                    onClick={() => onPeriodUpdate('day')}
+                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                      savedPeriod === 'day' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    今日
+                  </button>
+                  <button
+                    onClick={() => onPeriodUpdate('month')}
+                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                      savedPeriod === 'month' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    本月
+                  </button>
+                </div>
+                
+                <button
+                  onClick={handleAnalysis}
+                  disabled={loading}
+                  className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px] justify-center"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                  {loading ? (
+                    <span className="font-mono">{elapsedSeconds}s</span>
+                  ) : '生成全景报告'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -128,14 +203,8 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                {status.text}
              </h3>
              <p className="text-sm text-slate-500 relative z-10 max-w-md">
-               AI 正在实时聚合多维数据。本次分析包含联网搜索、主力资金追踪及量化策略生成，通常耗时 20-40 秒。
+               AI 正在实时聚合多维数据。通常耗时 20-40 秒。
              </p>
-             <div className="mt-6 w-64 h-2 bg-slate-200 rounded-full overflow-hidden relative z-10">
-               <div 
-                 className="h-full bg-indigo-500 rounded-full transition-all duration-1000 ease-linear"
-                 style={{ width: `${Math.min((elapsedSeconds / 45) * 100, 95)}%` }}
-               ></div>
-             </div>
           </div>
         )}
 
@@ -157,7 +226,64 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
           </div>
         )}
 
-        {!d && !loading && !error && (
+        {/* --- HISTORY MODE VIEW --- */}
+        {historyMode && !loading && historyData && (
+           <div className="animate-slide-up">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 text-center">
+                 <h3 className="text-lg font-bold text-slate-800">
+                    {historyData.year} {historyMonth === 'all' ? '年度' : `${historyMonth}月`} 主线回顾
+                 </h3>
+                 <p className="text-slate-600 text-sm mt-1">{historyData.yearly_summary}</p>
+              </div>
+              
+              <div className={`grid grid-cols-1 ${historyData.months.length === 1 ? 'max-w-2xl mx-auto' : 'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} gap-4`}>
+                 {historyData.months.map((m) => (
+                    <div key={m.month} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                       <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
+                          <span className="font-bold text-slate-700 text-lg">{m.month}月</span>
+                          <span className="text-xs bg-white px-2 py-0.5 rounded text-slate-500 border border-slate-200 line-clamp-1 max-w-[140px]" title={m.key_event}>{m.key_event}</span>
+                       </div>
+                       <div className="p-4 space-y-4 flex-1 flex flex-col">
+                          <div className="text-sm text-slate-600 italic mb-2 flex-grow bg-slate-50 p-2 rounded border border-slate-100">{m.summary}</div>
+                          
+                          {/* Winners */}
+                          <div>
+                             <div className="text-xs font-bold text-rose-600 uppercase mb-1 flex items-center gap-1">
+                                <TrendingUp className="w-3 h-3" /> 领涨 (Winners)
+                             </div>
+                             <div className="flex flex-wrap gap-1">
+                                {m.winners.map((w, i) => (
+                                   <div key={i} className="px-2 py-1 bg-rose-50 border border-rose-100 text-rose-700 rounded text-xs font-medium w-full flex justify-between">
+                                      <span>{w.name}</span>
+                                      <span className="font-bold">{w.change_approx}</span>
+                                   </div>
+                                ))}
+                             </div>
+                          </div>
+
+                          {/* Losers */}
+                          <div>
+                             <div className="text-xs font-bold text-emerald-600 uppercase mb-1 flex items-center gap-1">
+                                <TrendingUp className="w-3 h-3 rotate-180" /> 领跌 (Losers)
+                             </div>
+                             <div className="flex flex-wrap gap-1">
+                                {m.losers.map((l, i) => (
+                                   <div key={i} className="px-2 py-1 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded text-xs font-medium w-full flex justify-between">
+                                      <span>{l.name}</span>
+                                      <span className="font-bold">{l.change_approx}</span>
+                                   </div>
+                                ))}
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+                 ))}
+              </div>
+           </div>
+        )}
+
+        {/* --- REAL-TIME MODE VIEW --- */}
+        {!historyMode && !d && !loading && !error && (
           <div className="text-center py-12 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
             <Layers className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p>点击“生成全景报告”获取基于 {currentModel} 的深度市场复盘</p>
@@ -165,7 +291,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
         )}
 
         {/* Indices Row */}
-        {d && d.market_indices && d.market_indices.length > 0 && (
+        {!historyMode && d && d.market_indices && d.market_indices.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             {d.market_indices.map((idx, i) => {
               // Check if data is valid (not 0.00, not NaN, not "未更新")
@@ -195,7 +321,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
         )}
 
         {/* --- NEW: Volume & Capital Dashboard --- */}
-        {d && d.market_volume && (
+        {!historyMode && d && d.market_volume && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
              {/* Total Volume */}
              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex flex-col justify-center">
@@ -237,7 +363,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
         )}
 
         {/* Dashboard Content */}
-        {d && (
+        {!historyMode && d && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* Col 1: Market Sentiment */}
