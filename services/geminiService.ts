@@ -347,21 +347,17 @@ export const fetchGeminiAnalysis = async (
   if (!effectiveKey) throw new Error("API Key missing");
 
   const ai = new GoogleGenAI({ apiKey: effectiveKey });
-  // For standard analysis, we use the fallback strategy unless reasoning is specifically requested
-  // If reasoning is requested (gemini-3-pro), we don't have a direct lite fallback, so we rely on retry.
   
   try {
     let response: GenerateContentResponse;
     
     if (useReasoning) {
-       // Reasoning models don't have simple lite fallback yet, use aggressive retry
        response = await callGeminiWithRetry(() => ai.models.generateContent({
          model: "gemini-3-pro-preview",
          contents: prompt,
          config: { tools: [{ googleSearch: {} }] }
        }), 5, 3000);
     } else {
-       // Standard analysis -> Use Safe Runner
        response = await runGeminiSafe(ai, {
          contents: prompt,
          config: {
@@ -400,8 +396,6 @@ export const parseBrokerageScreenshot = async (
   const ai = new GoogleGenAI({ apiKey: effectiveKey });
 
   try {
-    // Vision tasks might be supported by Flash Lite, but sticking to Flash 2.5 preferred. 
-    // We try Safe Runner anyway.
     const response = await runGeminiSafe(ai, {
       contents: {
         parts: [
@@ -442,7 +436,6 @@ export const fetchStockDetailWithImage = async (
   const marketName = market === MarketType.US ? '美股' : market === MarketType.HK ? '港股' : 'A股';
 
   try {
-    // Step 1: Vision (Safe Run)
     const visionResponse = await runGeminiSafe(ai, {
       contents: {
         parts: [
@@ -454,7 +447,6 @@ export const fetchStockDetailWithImage = async (
 
     const visualData = visionResponse.text || "（未检测到明显的盘口数据）";
 
-    // Step 2: Synthesis (Safe Run)
     const finalResponse = await runGeminiSafe(ai, {
       contents: `Role: ${marketName} Fund Manager. Context: User looking at ${stockQuery}. Visual Info: ${visualData}. Task: Search latest price, Main Force Flow, News. Output: Markdown report (Metrics, Technicals, Funds, Action).`,
       config: { tools: [{ googleSearch: {} }] }
@@ -543,20 +535,20 @@ export const fetchMarketDashboard = async (
       3. Sector Rotation.
       4. Strategy (Aggressive vs Balanced).
       Output STRICT JSON matching schema.
+
+      5. **生成实战仓位配置表 (Portfolio Table)**：
+         - **必须**提供一个详细的持仓表格，包含：
+           - **标的**：具体的股票名称和代码。**【重要】代码必须真实完整（如 600519），严禁使用 "600xxx" 或 "300xxx" 等掩码形式。**
+           - **持仓数量/Volume**：假设初始资金10万，给出具体的建议股数（如 "800股"）。
+           - **占比/Weight**：建议的持仓比例（如 "34%"）。
+           - **逻辑标签**：一句话概括买入逻辑（如 "主力大幅加仓"）。
+         - **务必在表格最后包含一行 "现金 (Cash)"**，用于应对短期波动。
     `;
 
-    // Note: Schema passed in prompt text usually, but here we can try Schema mode if supported, 
-    // or rely on text-based JSON enforcement. To be safe with Lite models, we use text enforcement primarily,
-    // but can hint schema.
-    
-    // We removed responseMimeType in previous turn to avoid tool conflict, 
-    // but with fallback logic, let's try to keep it robust.
-    
     const response = await runGeminiSafe(ai, {
       contents: prompt + `\n\nReturn JSON strictly matching this schema: ${JSON.stringify(marketDashboardSchema)}`,
       config: {
         tools: [{ googleSearch: {} }],
-        // systemInstruction: "Output JSON only." // Optional
       }
     }, "Market Dashboard");
 

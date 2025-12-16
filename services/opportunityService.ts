@@ -115,6 +115,7 @@ export const fetchOpportunityMining = async (
       当前日期: ${dateStr}。
       我的持仓/关注: 【${inputData || "热门科技"}】。
       请生成【产业链协同与黑马挖掘报告】，找出上游/关联标的，并给出轮动策略。
+      **【重要规则】: 股票代码必须真实完整 (如 300059)，严禁使用 '300xxx' 等掩码。**
     `;
   } else {
     // --- MODE 2: Capital Deployment (Fresh Funds) ---
@@ -135,6 +136,7 @@ export const fetchOpportunityMining = async (
       1. 判断当前市场环境适合什么策略？
       2. 找出 2-3 个主力资金主攻方向。
       3. 精选 3-5 只个股，注明买入逻辑（如：机构大买、图形突破、政策利好）和建议买点。
+      **【重要规则】: 股票代码必须真实完整 (如 600519)，严禁使用 '600xxx' 等掩码。**
     `;
   }
 

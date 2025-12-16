@@ -194,6 +194,11 @@ export const fetchExternalAI = async (
     2. Total Trading Volume & Volume Delta (成交额与增量).
     3. Main Force / Institutional Fund Flow (主力资金/北向资金).
     4. Market Sentiment.
+
+    [CRITICAL RULE For Portfolio Table]
+    - **NO MASKED CODES**: You MUST provide REAL, SPECIFIC stock codes (e.g. "600519", "AAPL", "00700").
+    - DO NOT output "600xxx", "300xxx", etc.
+    - If you cannot recommend a specific stock due to policy, recommend a specific ETF code.
     `;
     userContent = `${prompt}\n\n${searchQueries}\n\n${jsonInstruction}`;
   } else {
