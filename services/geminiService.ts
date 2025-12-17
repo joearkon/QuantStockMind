@@ -1,5 +1,5 @@
 import { GoogleGenAI, GenerateContentResponse, Type, Schema } from "@google/genai";
-import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot, HistoricalYearData } from "../types";
+import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot, HistoricalYearData, JournalEntry } from "../types";
 
 const GEMINI_MODEL_FAST = "gemini-2.5-flash"; 
 // Fallback to 2.0 Flash Exp (High Performance) instead of Lite.
@@ -227,6 +227,10 @@ const cleanJsonString = (jsonStr: string): string => {
   clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
   clean = clean.replace(/(\d+)\.0{5,}\d*/g, '$1');
   clean = clean.replace(/(\d+\.\d{4})\d+/g, '$1');
+  
+  // Clean trailing commas in arrays/objects
+  clean = clean.replace(/,(\s*[}\]])/g, '$1');
+  
   const firstBrace = clean.indexOf('{');
   const lastBrace = clean.lastIndexOf('}');
   if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
@@ -345,6 +349,93 @@ export async function runGeminiSafe(
 }
 
 // --- API Functions ---
+
+export const fetchPeriodicReview = async (
+  journals: JournalEntry[],
+  periodLabel: string,
+  market: MarketType,
+  apiKey?: string
+): Promise<AnalysisResult> => {
+  const effectiveKey = apiKey || process.env.API_KEY;
+  if (!effectiveKey) throw new Error("API Key missing");
+  const ai = new GoogleGenAI({ apiKey: effectiveKey });
+
+  // 1. Serialize Journals into a readable string for the model
+  const sortedJournals = [...journals].sort((a, b) => a.timestamp - b.timestamp);
+  
+  if (sortedJournals.length < 1) {
+    throw new Error("日志数据不足，无法生成阶段性复盘。请至少保存一条历史记录。");
+  }
+
+  const journalSummary = sortedJournals.map((j, idx) => {
+    const date = new Date(j.timestamp).toLocaleDateString();
+    const assets = j.snapshot.totalAssets;
+    const holdingsStr = j.snapshot.holdings.map(h => `${h.name}(${h.profitRate})`).join(', ');
+    // Extract a brief advice snippet if available
+    const adviceSnippet = j.analysis?.content ? j.analysis.content.substring(0, 300).replace(/\n/g, ' ') + "..." : "无建议";
+    
+    return `
+    [Log #${idx + 1} - Date: ${date}]
+    - Total Assets: ${assets}
+    - Holdings: ${holdingsStr}
+    - AI Advice at that time: ${adviceSnippet}
+    `;
+  }).join('\n------------------\n');
+
+  const prompt = `
+    Role: Senior Trading Coach / Portfolio Manager.
+    Context: You are reviewing a user's trading journal for the period: 【${periodLabel}】.
+    Market: ${market}.
+
+    Here is the sequence of the user's trading logs (Chronological Order):
+    ${journalSummary}
+
+    Task: Generate a comprehensive "Periodic Performance Review" (Markdown).
+
+    Required Sections:
+    ## 1. 阶段大盘回顾 (Market Context)
+    - Search and summarize the general trend of the ${market} market during this period (from the date of the first log to the last log).
+    - Was it a bull market, bear market, or volatile? Did the user swim with the tide or against it?
+
+    ## 2. 核心亮点与至暗时刻 (Highs & Lows)
+    - **Highlight**: Which specific trade or decision protected assets or made the most profit?
+    - **Lowlight**: Where was the biggest drawdown? 
+
+    ## 3. 知行合一审计 (Execution Audit) - CRITICAL
+    - Look closely at the "AI Advice" vs the subsequent logs. 
+    - Did the user follow the advice? (e.g. If Log #1 said "Cut Loss on Stock A", did Stock A disappear or reduce in Log #2?)
+    - Point out specific instances of **"Lack of Discipline" (知行不一)** or **"Good Execution"**.
+
+    ## 4. 阶段性总结与下阶段方针 (Conclusion)
+    - Give a score (0-100) for this period based on asset growth and execution.
+    - Suggest the strategic focus for the next period.
+  `;
+
+  try {
+    const response = await runGeminiSafe(ai, {
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }],
+      }
+    }, "Periodic Review");
+
+    const text = response.text || "复盘生成失败。";
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const sources = groundingChunks.map((chunk: any) => chunk.web).filter((web: any) => web !== undefined);
+
+    return {
+      content: text,
+      groundingSource: sources,
+      timestamp: Date.now(),
+      modelUsed: ModelProvider.GEMINI_INTL,
+      isStructured: false
+    };
+
+  } catch (error: any) {
+    console.error("Periodic Review Error:", error);
+    throw error;
+  }
+};
 
 export const fetchGeminiAnalysis = async (
   prompt: string,
@@ -533,19 +624,32 @@ export const fetchMarketDashboard = async (
   const ai = new GoogleGenAI({ apiKey: effectiveKey });
   const dateStr = new Date().toLocaleDateString('zh-CN');
   
+  // Define specific indices to search based on market to improve grounding
+  let searchTerms = [];
+  if (market === MarketType.CN) {
+    searchTerms = ["上证指数 000001", "深证成指 399001", "创业板指 399006"];
+  } else if (market === MarketType.HK) {
+    searchTerms = ["恒生指数 HSI", "恒生科技指数 HSTECH"];
+  } else if (market === MarketType.US) {
+    searchTerms = ["道琼斯指数 DJI", "纳斯达克指数 IXIC", "标普500 SPX"];
+  }
+
   try {
     const prompt = `
       Date: ${dateStr}. Market: ${market}.
       Generate "${period}" Market Analysis Report (Dashboard).
       
-      [CRITICAL SEARCH INSTRUCTION]
-      You MUST perform a specific Google Search for:
-      - "${market} Indices Today" (e.g. "上证指数 今日", "深证成指 今日", "创业板指 今日").
-      - "Northbound Capital Flow Today" (北向资金/主力资金).
-      - "Total Market Volume Today" (两市成交额).
+      [CRITICAL SEARCH INSTRUCTION - NO HALLUCINATIONS]
+      You MUST perform specific Google Searches for:
+      1. ${searchTerms.join(", ")}.
+      2. "Northbound Capital Flow Today" (北向资金/主力资金).
+      3. "Total Market Volume Today" (两市成交额).
       
-      DO NOT HALLUCINATE NUMBERS. If Google Search fails, set value to "0.00" or "N/A".
-      Use the *EXACT* values found in the search snippets.
+      [DATA ACCURACY RULES]
+      - Use the *EXACT* values found in the search snippets.
+      - If the market is CLOSED (e.g. weekend/holiday/night), return the **LATEST AVAILABLE CLOSING DATA**.
+      - If specific flow data is not found, return "N/A" or "0", DO NOT invent a number.
+      - Ensure the "change" percentage matches the "value" direction.
 
       Tasks:
       1. Indices & Sentiment.
@@ -553,13 +657,9 @@ export const fetchMarketDashboard = async (
       3. Sector Rotation.
       4. Strategy (Aggressive vs Balanced).
       
-      5. **生成实战仓位配置表 (Portfolio Table)**：
-         - **必须**提供一个详细的持仓表格，包含：
-           - **标的**：具体的股票名称和代码。**【重要】代码必须真实完整（如 600519），严禁使用 "600xxx" 或 "300xxx" 等掩码形式。**
-           - **持仓数量/Volume**：假设初始资金10万，给出具体的建议股数（如 "800股"）。
-           - **占比/Weight**：建议的持仓比例（如 "34%"）。
-           - **逻辑标签**：一句话概括买入逻辑（如 "主力大幅加仓"）。
-         - **务必在表格最后包含一行 "现金 (Cash)"**，用于应对短期波动。
+      5. **Portfolio Table**:
+         - **NO MASKED CODES**: You MUST provide REAL, SPECIFIC stock codes (e.g. "600519").
+         - **Strictly No '600xxx'**.
          
       Output STRICT JSON matching schema.
     `;

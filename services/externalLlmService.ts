@@ -81,14 +81,19 @@ function robustJsonParse(text: string): any {
     // Replace Chinese comma '，'
     fixed = fixed.replace(/，/g, ','); 
     
-    // Fix trailing commas
+    // FIX: Missing comma between objects in array (e.g. {...} {...})
+    // This is a common error in streamed/long LLM outputs
+    fixed = fixed.replace(/}\s*{/g, '}, {');
+    fixed = fixed.replace(/]\s*\[/g, '], [');
+    
+    // Fix trailing commas before closing braces
     fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
 
     try {
       return JSON.parse(fixed);
     } catch (e2) {
       console.error("Robust JSON parse failed", e2, "Original:", text);
-      throw new Error("JSON 解析失败: 模型返回了无效的格式。请重试。");
+      throw new Error("JSON 解析失败: 模型返回的数据结构不完整或有误。");
     }
   }
 }
@@ -137,20 +142,22 @@ export const fetchExternalAI = async (
 
   let indicesExample = "";
   if (market === MarketType.CN) {
-    indicesExample = `{ "name": "上证指数", "value": "0.00", "change": "0.00%", "direction": "up" }`;
+    indicesExample = `{ "name": "上证指数", "value": "3000.00", "change": "+0.00%", "direction": "up" }`;
   } else if (market === MarketType.HK) {
-    indicesExample = `{ "name": "恒生指数", "value": "0.00", "change": "0.00%", "direction": "down" }`;
+    indicesExample = `{ "name": "恒生指数", "value": "17000.00", "change": "-0.00%", "direction": "down" }`;
   } else if (market === MarketType.US) {
-    indicesExample = `{ "name": "纳斯达克", "value": "0.00", "change": "0.00%", "direction": "up" }`;
+    indicesExample = `{ "name": "纳斯达克", "value": "15000.00", "change": "+0.00%", "direction": "up" }`;
   }
 
   // JSON Schema Instruction
   const jsonInstruction = `
-    Requirement: You must return a VALID JSON object.
-    Do NOT use Markdown code blocks (no \`\`\`json).
-    Do NOT use Chinese punctuation for keys or structural markers (use standard " and : and ,).
+    [FORMAT INSTRUCTION]
+    1. Return VALID JSON only. 
+    2. Do NOT use Markdown code blocks (no \`\`\`json).
+    3. Use standard quotes (") and commas (,). No Chinese punctuation.
+    4. Ensure Arrays are comma-separated: [ {...}, {...} ]
     
-    JSON Structure required:
+    JSON Structure:
     {
       "market_indices": [ ${indicesExample} ],
       "market_volume": {
@@ -257,6 +264,8 @@ export const fetchExternalAI = async (
         }
       } catch (e) {
         console.warn("Parsing failed even with robust parser", e);
+        // Rethrow if it's a critical JSON error so the UI can show it
+        throw e;
       }
     }
 

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
-import { parseBrokerageScreenshot } from '../services/geminiService';
+import { parseBrokerageScreenshot, fetchPeriodicReview } from '../services/geminiService';
 import { analyzeImageWithExternal } from '../services/externalLlmService';
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 
@@ -45,7 +45,10 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'report' | 'charts'>('report');
+  const [activeTab, setActiveTab] = useState<'report' | 'charts' | 'periodic'>('report');
+  
+  // Periodic Review State
+  const [periodicResult, setPeriodicResult] = useState<AnalysisResult | null>(null);
   
   // Editing State
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -183,6 +186,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
     setLoading(true);
     setAnalysisResult(null);
+    setPeriodicResult(null);
     setError(null);
     setActiveTab('report'); // Switch to report tab on new analysis
 
@@ -276,8 +280,63 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       setAnalysisResult(result);
     } catch (err: any) {
       console.error("Analyze Error", err);
-      // Ensure we display something even if the error object is strange
       setError(err.message || "分析请求未能完成，请检查网络设置或稍后重试。");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- Handlers: Periodic Review ---
+  const handlePeriodicReview = async (period: 'week' | 'month' | 'all') => {
+    if (journal.length < 1) {
+      setError("历史记录不足，无法进行阶段性复盘。请先积累至少两条交易日志。");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setAnalysisResult(null); // Clear daily analysis
+    setPeriodicResult(null);
+    setActiveTab('periodic');
+
+    const now = Date.now();
+    let startDate = 0;
+    let label = "";
+
+    if (period === 'week') {
+      startDate = now - 7 * 24 * 60 * 60 * 1000;
+      label = "近一周";
+    } else if (period === 'month') {
+      startDate = now - 30 * 24 * 60 * 60 * 1000;
+      label = "近一月";
+    } else {
+      startDate = 0;
+      label = "全历史";
+    }
+
+    const filteredJournals = journal.filter(j => j.timestamp >= startDate);
+    // Add current snapshot if it's new (not in journal yet)
+    // We construct a temporary entry for current snapshot to include it in review
+    const currentEntry: JournalEntry = {
+      id: 'current',
+      timestamp: Date.now(),
+      snapshot: snapshot,
+      analysis: null
+    };
+
+    const reviewJournals = [...filteredJournals, currentEntry];
+
+    if (reviewJournals.length < 2) {
+       setError(`【${label}】范围内数据点不足，无法形成趋势分析。请选择更长的时间段。`);
+       setLoading(false);
+       return;
+    }
+
+    try {
+      const result = await fetchPeriodicReview(reviewJournals, label, currentMarket, settings.geminiKey);
+      setPeriodicResult(result);
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -416,6 +475,16 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
             headerColor = "text-violet-700";
             iconBg = "bg-violet-100";
             cardBorder = "border-violet-100";
+          } else if (title.includes("大盘") || title.includes("Context")) {
+            Icon = TrendingUp;
+            headerColor = "text-amber-700";
+            iconBg = "bg-amber-100";
+            cardBorder = "border-amber-100";
+          } else if (title.includes("审计") || title.includes("Audit")) {
+            Icon = AlertTriangle;
+            headerColor = "text-red-700";
+            iconBg = "bg-red-100";
+            cardBorder = "border-red-100";
           }
 
           return (
@@ -432,7 +501,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                   if (!trimmed) return <div key={i} className="h-2"></div>;
 
                   // 1. Highlight Action Keywords
-                  const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有|补救|执行力|放量|缩量)/g;
+                  const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有|补救|执行力|知行不一|放量|缩量)/g;
                   let processedLine = trimmed.replace(
                     highlightRegex, 
                     '<span class="font-bold text-white bg-indigo-500 px-1 py-0.5 rounded text-xs mx-0.5 shadow-sm">$1</span>'
@@ -742,22 +811,44 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
         </div>
 
         {/* Action Bar */}
-        <div className="flex justify-end">
+        <div className="flex flex-col sm:flex-row justify-end items-center gap-4 border-t border-slate-100 pt-6">
+           {/* Periodic Review Actions */}
+           <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
+              <span className="text-xs font-bold text-slate-500 px-2 uppercase flex items-center gap-1">
+                 <Calendar className="w-3 h-3" /> 阶段复盘
+              </span>
+              <button 
+                onClick={() => handlePeriodicReview('week')}
+                disabled={loading || journal.length < 1}
+                className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded transition-all disabled:opacity-50"
+              >
+                近一周
+              </button>
+              <div className="w-px h-4 bg-slate-300"></div>
+              <button 
+                onClick={() => handlePeriodicReview('month')}
+                disabled={loading || journal.length < 1}
+                className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded transition-all disabled:opacity-50"
+              >
+                近一月
+              </button>
+           </div>
+           
            <button
              onClick={handleAnalyze}
              disabled={loading || snapshot.holdings.length === 0}
-             className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
+             className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
            >
              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <TrendingUp className="w-5 h-5" />}
-             {loading ? 'AI 连续性复盘 (vs 昨日)' : '开始连续性复盘'}
+             {loading ? 'AI 复盘中...' : '开始连续性复盘 (昨日 vs 今日)'}
            </button>
         </div>
       </div>
 
       {/* --- Analysis Result --- */}
-      {analysisResult && (
+      {(analysisResult || periodicResult) && (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-slide-up">
-           <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+           <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-wrap justify-between items-center gap-4">
               <div className="flex gap-4">
                 <button
                    onClick={() => setActiveTab('report')}
@@ -771,8 +862,17 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                    className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'charts' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                    <BarChart3 className="w-4 h-4" />
-                   深度图表分析
+                   深度图表
                 </button>
+                {periodicResult && (
+                  <button
+                     onClick={() => setActiveTab('periodic')}
+                     className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'periodic' ? 'bg-indigo-600 text-white shadow-sm border border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                     <Calendar className="w-4 h-4" />
+                     阶段性总结 (New)
+                  </button>
+                )}
               </div>
               <button 
                  onClick={saveToJournal}
@@ -785,8 +885,10 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
            
            {/* Custom Rendered Content */}
            <div className="bg-slate-50/50 min-h-[400px]">
-             {activeTab === 'report' ? (
+             {activeTab === 'report' && analysisResult ? (
                 renderReportContent(analysisResult.content)
+             ) : activeTab === 'periodic' && periodicResult ? (
+                renderReportContent(periodicResult.content)
              ) : (
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                    
@@ -903,9 +1005,9 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
              )}
            </div>
 
-           {analysisResult.groundingSource && analysisResult.groundingSource.length > 0 && (
+           {(analysisResult?.groundingSource || periodicResult?.groundingSource) && (
              <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500">
-               参考来源: {analysisResult.groundingSource.map(s => s.title).join(', ')}
+               参考来源: {(analysisResult?.groundingSource || periodicResult?.groundingSource || []).map(s => s.title).join(', ')}
              </div>
            )}
         </div>
