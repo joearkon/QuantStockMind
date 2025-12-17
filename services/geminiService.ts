@@ -2,8 +2,9 @@ import { GoogleGenAI, GenerateContentResponse, Type, Schema } from "@google/gena
 import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot, HistoricalYearData } from "../types";
 
 const GEMINI_MODEL_FAST = "gemini-2.5-flash"; 
-// REMOVED: Fallback model to ensure data quality
-// const GEMINI_MODEL_LITE = "gemini-flash-lite-latest"; 
+// Fallback to 2.0 Flash Exp (High Performance) instead of Lite.
+// This ensures we don't sacrifice reasoning/search capabilities when 2.5 is overloaded.
+const GEMINI_MODEL_BACKUP = "gemini-2.0-flash-exp"; 
 
 // --- Schemas ---
 
@@ -292,7 +293,7 @@ async function callGeminiWithRetry(
       const isRateLimit = msg.includes('429') || msg.includes('resource_exhausted');
       
       if ((isOverloaded || isRateLimit) && i < retries - 1) {
-        const delay = baseDelay * Math.pow(2, i) + (Math.random() * 500);
+        const delay = baseDelay * Math.pow(2, i) + (Math.random() * 1000);
         console.warn(`Gemini API Busy (${msg}). Retrying in ${Math.round(delay)}ms... (Attempt ${i + 1}/${retries})`);
         await wait(delay);
         continue;
@@ -304,24 +305,42 @@ async function callGeminiWithRetry(
 }
 
 /**
- * STRATEGY UPDATE: Single Model Robust Retry (No Fallback)
- * The user requested NOT to use the downgraded (Lite) strategy to ensure data accuracy.
- * We stick to the primary model (Flash 2.5) but retry aggressively.
+ * STRATEGY: High Performance Fallback
+ * 1. Try gemini-2.5-flash (Fastest, Newest)
+ * 2. If 503 Overloaded, switch to gemini-2.0-flash-exp (Stable, High Capable).
+ *    This avoids the "Lite" model inaccuracy issues while handling load.
  */
 export async function runGeminiSafe(
   ai: GoogleGenAI,
   params: { contents: any; config?: any },
   description: string = "Request"
 ): Promise<GenerateContentResponse> {
+  // Attempt 1: Primary Model (Flash 2.5)
   try {
     return await callGeminiWithRetry(() => ai.models.generateContent({
       model: GEMINI_MODEL_FAST,
       ...params
     }), 3, 2000);
   } catch (error: any) {
-    console.error(`Gemini Error in ${description}:`, error);
-    // Directly throw to let the UI show the error, rather than switching to a potentially inaccurate model
-    throw new Error(`AI 服务暂时繁忙 (${description})，为保证数据准确性，请稍后重试。`);
+    const msg = (error.message || "").toLowerCase();
+    
+    // Check for Capacity/Overload errors
+    if (msg.includes('503') || msg.includes('overloaded') || msg.includes('unavailable') || msg.includes('fetch')) {
+       console.warn(`Primary model (${GEMINI_MODEL_FAST}) overloaded. Switching to Backup (${GEMINI_MODEL_BACKUP})...`);
+       
+       // Attempt 2: Backup Model (Flash 2.0 Exp - High Performance, NOT Lite)
+       try {
+         return await callGeminiWithRetry(() => ai.models.generateContent({
+            model: GEMINI_MODEL_BACKUP,
+            ...params
+         }), 3, 3000);
+       } catch (fallbackError: any) {
+         throw new Error(`AI 服务暂时繁忙 (All Models Busy): ${fallbackError.message}`);
+       }
+    }
+    
+    // Rethrow other errors (e.g. API Key invalid)
+    throw error;
   }
 }
 
