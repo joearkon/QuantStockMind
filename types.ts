@@ -67,6 +67,7 @@ export interface MarketVolumeData {
 }
 
 export interface MarketDashboardData {
+  data_date?: string; // Actual date of the data (YYYY-MM-DD) or "Realtime"
   market_indices?: MarketIndex[];
   
   // New Field

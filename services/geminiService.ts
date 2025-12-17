@@ -1,16 +1,15 @@
 import { GoogleGenAI, GenerateContentResponse, Type, Schema } from "@google/genai";
 import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot, HistoricalYearData, JournalEntry } from "../types";
 
-const GEMINI_MODEL_FAST = "gemini-2.5-flash"; 
-// Fallback to 2.0 Flash Exp (High Performance) instead of Lite.
-// This ensures we don't sacrifice reasoning/search capabilities when 2.5 is overloaded.
-const GEMINI_MODEL_BACKUP = "gemini-2.0-flash-exp"; 
+// STRICTLY USE 2.5 FLASH. NO DOWNGRADE.
+const GEMINI_MODEL_PRIMARY = "gemini-2.5-flash"; 
 
 // --- Schemas ---
 
 const marketDashboardSchema: Schema = {
   type: Type.OBJECT,
   properties: {
+    data_date: { type: Type.STRING, description: "The actual date of the data found (YYYY-MM-DD) or 'Realtime'." },
     market_indices: {
       type: Type.ARRAY,
       description: "Current status of major indices.",
@@ -147,7 +146,7 @@ const marketDashboardSchema: Schema = {
       required: ["aggressive", "balanced"]
     }
   },
-  required: ["market_sentiment", "market_volume", "capital_rotation", "deep_logic", "hot_topics", "opportunity_analysis", "strategist_verdict", "allocation_model"]
+  required: ["data_date", "market_sentiment", "market_volume", "capital_rotation", "deep_logic", "hot_topics", "opportunity_analysis", "strategist_verdict", "allocation_model"]
 };
 
 const holdingsParsingSchema: Schema = {
@@ -222,21 +221,68 @@ const historicalYearSchema: Schema = {
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const cleanJsonString = (jsonStr: string): string => {
-  let clean = jsonStr.trim();
+/**
+ * Military-grade JSON Parser
+ * Handles comments, unquoted keys, trailing commas, and markdown.
+ */
+const robustParse = (text: string): any => {
+  if (!text) return {};
+  let clean = text.trim();
+  
+  // 1. Strip Markdown Code Blocks
   clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
-  clean = clean.replace(/(\d+)\.0{5,}\d*/g, '$1');
-  clean = clean.replace(/(\d+\.\d{4})\d+/g, '$1');
   
-  // Clean trailing commas in arrays/objects
-  clean = clean.replace(/,(\s*[}\]])/g, '$1');
+  // 2. Strip Comments (Aggressive)
+  // Remove // comments but be careful about URLs (http://)
+  // We use a safe regex that checks it's not inside a string, but for simple JSON output,
+  // simply removing // that are preceded by whitespace or at start of line is usually safe enough for LLM output.
+  // Better yet, remove anything after // if it's not a URL.
+  clean = clean.replace(/(?<!:) \/\/.*$/gm, ''); 
+  clean = clean.replace(/\/\*[\s\S]*?\*\//g, ''); // Multi line
+
+  // 3. Basic Cleanups
+  clean = clean.replace(/(\d+)\.0{5,}\d*/g, '$1'); // Fix floating point precision artifacts
+  clean = clean.replace(/[\u201C\u201D]/g, '"'); // Chinese quotes
   
-  const firstBrace = clean.indexOf('{');
-  const lastBrace = clean.lastIndexOf('}');
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    clean = clean.substring(firstBrace, lastBrace + 1);
+  // 4. Find JSON boundaries
+  const firstBrace = clean.search(/[{[]/);
+  const lastCurly = clean.lastIndexOf('}');
+  const lastSquare = clean.lastIndexOf(']');
+  const lastIndex = Math.max(lastCurly, lastSquare);
+  if (firstBrace !== -1 && lastIndex !== -1 && lastIndex > firstBrace) {
+    clean = clean.substring(firstBrace, lastIndex + 1);
   }
-  return clean;
+
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    // --- Aggressive Regex Fixes (Fallback) ---
+    
+    // 1. Missing comma between objects: } { -> }, {
+    clean = clean.replace(/}\s*{/g, '}, {');
+    clean = clean.replace(/]\s*\[/g, '], [');
+    
+    // 2. Trailing commas: , } -> }
+    clean = clean.replace(/,\s*}/g, '}');
+    clean = clean.replace(/,\s*]/g, ']');
+    
+    // 3. Missing comma between strings: "A" "B" -> "A", "B"
+    clean = clean.replace(/"\s+"/g, '", "');
+
+    // 4. Chinese punctuation to English
+    clean = clean.replace(/：/g, ':').replace(/，/g, ',');
+
+    // 5. Fix Unquoted Keys: { name: "val" } -> { "name": "val" }
+    // This regex looks for word characters followed by a colon, ensuring they are not already quoted.
+    clean = clean.replace(/([{,]\s*)([a-zA-Z0-9_]+?)\s*:/g, '$1"$2":');
+
+    try {
+      return JSON.parse(clean);
+    } catch (finalError) {
+      console.error("Robust parse failed completely. Raw:", text);
+      throw new Error("JSON 解析严重失败 (Syntax Error)。模型返回了非法格式。");
+    }
+  }
 };
 
 const compressImage = (base64Str: string, maxWidth = 1024, quality = 0.7): Promise<string> => {
@@ -309,42 +355,23 @@ async function callGeminiWithRetry(
 }
 
 /**
- * STRATEGY: High Performance Fallback
- * 1. Try gemini-2.5-flash (Fastest, Newest)
- * 2. If 503 Overloaded, switch to gemini-2.0-flash-exp (Stable, High Capable).
- *    This avoids the "Lite" model inaccuracy issues while handling load.
+ * STRATEGY: STRICTLY 2.5 FLASH. 
+ * Retries on failure but NEVER downgrades to weaker models.
  */
 export async function runGeminiSafe(
   ai: GoogleGenAI,
   params: { contents: any; config?: any },
   description: string = "Request"
 ): Promise<GenerateContentResponse> {
-  // Attempt 1: Primary Model (Flash 2.5)
+  // Try 2.5 Flash with more aggressive retries (5) to handle congestion
   try {
     return await callGeminiWithRetry(() => ai.models.generateContent({
-      model: GEMINI_MODEL_FAST,
+      model: GEMINI_MODEL_PRIMARY,
       ...params
-    }), 3, 2000);
+    }), 5, 2000); // Increased retries to 5
   } catch (error: any) {
     const msg = (error.message || "").toLowerCase();
-    
-    // Check for Capacity/Overload errors
-    if (msg.includes('503') || msg.includes('overloaded') || msg.includes('unavailable') || msg.includes('fetch')) {
-       console.warn(`Primary model (${GEMINI_MODEL_FAST}) overloaded. Switching to Backup (${GEMINI_MODEL_BACKUP})...`);
-       
-       // Attempt 2: Backup Model (Flash 2.0 Exp - High Performance, NOT Lite)
-       try {
-         return await callGeminiWithRetry(() => ai.models.generateContent({
-            model: GEMINI_MODEL_BACKUP,
-            ...params
-         }), 3, 3000);
-       } catch (fallbackError: any) {
-         throw new Error(`AI 服务暂时繁忙 (All Models Busy): ${fallbackError.message}`);
-       }
-    }
-    
-    // Rethrow other errors (e.g. API Key invalid)
-    throw error;
+    throw new Error(`AI 服务暂时繁忙 (${description}): ${msg}. 请稍后重试。`);
   }
 }
 
@@ -499,7 +526,7 @@ export const parseBrokerageScreenshot = async (
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: optimizedImage } },
-          { text: "Analyze this brokerage screenshot. Extract: Total Assets (总资产), Position Ratio (仓位), and all Stocks (Name, Code, Volume, Cost, Price, Profit). Output raw JSON." }
+          { text: "Analyze this brokerage screenshot. Extract: Total Assets (总资产), Position Ratio (仓位), and all Stocks (Name, Code, Volume, Cost, Price, Profit). \n\nIMPORTANT: Output RAW JSON ONLY. DO NOT Include comments (// or /*). DO NOT use Markdown." }
         ]
       },
       config: {
@@ -510,8 +537,8 @@ export const parseBrokerageScreenshot = async (
 
     const jsonText = response.text || "{}";
     try {
-      const cleanJson = cleanJsonString(jsonText);
-      return JSON.parse(cleanJson);
+      // Use Robust Parse instead of cleanJsonString
+      return robustParse(jsonText);
     } catch (parseError) {
       throw new Error("图片识别结果格式错误。请确保图片清晰，或尝试重新上传。");
     }
@@ -581,7 +608,7 @@ export const fetchSectorHistory = async (
   const ai = new GoogleGenAI({ apiKey: effectiveKey });
 
   try {
-    const prompt = `Review ${market} market for ${year} ${month === 'all' ? 'Full Year' : month + ' Month'}. Output JSON with winners, losers, summary, key events in Chinese.`;
+    const prompt = `Review ${market} market for ${year} ${month === 'all' ? 'Full Year' : month + ' Month'}. Output JSON with winners, losers, summary, key events in Chinese. NO COMMENTS.`;
     
     const response = await runGeminiSafe(ai, {
       contents: prompt,
@@ -595,7 +622,7 @@ export const fetchSectorHistory = async (
     const text = response.text || "{}";
     let parsedData: HistoricalYearData;
     try {
-      parsedData = JSON.parse(cleanJsonString(text));
+      parsedData = robustParse(text);
     } catch (e) {
       throw new Error("无法解析历史数据。");
     }
@@ -640,14 +667,15 @@ export const fetchMarketDashboard = async (
       Generate "${period}" Market Analysis Report (Dashboard).
       
       [CRITICAL SEARCH INSTRUCTION - NO HALLUCINATIONS]
-      You MUST perform specific Google Searches for:
-      1. ${searchTerms.join(", ")}.
-      2. "Northbound Capital Flow Today" (北向资金/主力资金).
-      3. "Total Market Volume Today" (两市成交额).
+      1. You MUST perform specific Google Searches for:
+         - ${searchTerms.join(", ")}.
+         - "Northbound Capital Flow Today" (北向资金/主力资金).
+         - "Total Market Volume Today" (两市成交额).
       
-      [DATA ACCURACY RULES]
+      [DATA ACCURACY RULES - STRICT]
+      - **IF TODAY'S DATA IS NOT AVAILABLE (e.g. before market open or search fails), YOU MUST SEARCH FOR THE PREVIOUS TRADING DAY'S CLOSING DATA.**
+      - **YOU MUST EXPLICITLY STATE THE DATE OF THE DATA FOUND in the 'data_date' field.** (e.g. "${dateStr}" or "2024-03-20").
       - Use the *EXACT* values found in the search snippets.
-      - If the market is CLOSED (e.g. weekend/holiday/night), return the **LATEST AVAILABLE CLOSING DATA**.
       - If specific flow data is not found, return "N/A" or "0", DO NOT invent a number.
       - Ensure the "change" percentage matches the "value" direction.
 
@@ -660,7 +688,8 @@ export const fetchMarketDashboard = async (
       5. **Portfolio Table**:
          - **NO MASKED CODES**: You MUST provide REAL, SPECIFIC stock codes (e.g. "600519").
          - **Strictly No '600xxx'**.
-         
+      
+      IMPORTANT: Output RAW JSON ONLY. NO COMMENTS (//). NO MARKDOWN.
       Output STRICT JSON matching schema.
     `;
 
@@ -675,8 +704,7 @@ export const fetchMarketDashboard = async (
     let parsedData: MarketDashboardData;
     
     try {
-      const cleanJson = cleanJsonString(text);
-      parsedData = JSON.parse(cleanJson);
+      parsedData = robustParse(text);
     } catch (e) {
       console.error("JSON Parse Error", e);
       throw new Error("数据解析失败，请重试。");

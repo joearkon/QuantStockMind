@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, HistoricalYearData } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { fetchSectorHistory } from '../services/geminiService';
-import { Loader2, BarChart2, TrendingUp, Zap, Wind, Layers, Settings, ShieldCheck, Rocket, ListChecks, Target, Hourglass, Search, Cpu, Banknote, ArrowUpRight, ArrowDownRight, Activity, CalendarDays, History } from 'lucide-react';
+import { Loader2, BarChart2, TrendingUp, Zap, Wind, Layers, Settings, ShieldCheck, Rocket, ListChecks, Target, Hourglass, Search, Cpu, Banknote, ArrowUpRight, ArrowDownRight, Activity, CalendarDays, History, Calendar } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 
 interface MarketAnalysisProps {
@@ -96,6 +96,10 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
   const capitalRotation = d?.capital_rotation;
   const deepLogic = d?.deep_logic;
   const allocationModel = d?.allocation_model;
+  
+  // Data Date Display logic
+  const dataDateStr = d?.data_date;
+  const isStale = dataDateStr && !dataDateStr.includes("Realtime") && dataDateStr !== new Date().toLocaleDateString('zh-CN');
 
   // Dynamic Loading Text based on elapsed time
   const getLoadingStatus = () => {
@@ -116,10 +120,19 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
       {/* Header & Controls */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            {historyMode ? <CalendarDays className="w-6 h-6 text-indigo-600" /> : <BarChart2 className="w-6 h-6 text-blue-600" />}
-            {historyMode ? `${historyYear} 年度题材复盘` : `${marketLabel} 深度推演 (Deep Dive)`}
-          </h2>
+          <div className="flex flex-col">
+            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              {historyMode ? <CalendarDays className="w-6 h-6 text-indigo-600" /> : <BarChart2 className="w-6 h-6 text-blue-600" />}
+              {historyMode ? `${historyYear} 年度题材复盘` : `${marketLabel} 深度推演 (Deep Dive)`}
+            </h2>
+            {/* Show Data Date if available */}
+            {d && d.data_date && !historyMode && (
+              <div className={`flex items-center gap-1.5 mt-1.5 text-xs font-medium px-2 py-0.5 rounded w-fit ${isStale ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'}`}>
+                <Calendar className="w-3 h-3" />
+                数据基准: {d.data_date} {isStale && "(非实时)"}
+              </div>
+            )}
+          </div>
           
           <div className="flex items-center gap-3 flex-wrap">
             {/* Toggle History Mode */}

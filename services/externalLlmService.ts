@@ -35,8 +35,8 @@ interface OpenAICompletionResponse {
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Robust JSON Parser that handles common LLM formatting errors
- * including Markdown blocks, Chinese punctuation, and trailing commas.
+ * Robust JSON Parser 2.0
+ * Aggressively fixes common LLM JSON syntax errors.
  */
 function robustJsonParse(text: string): any {
   if (!text) throw new Error("Empty response text");
@@ -44,13 +44,15 @@ function robustJsonParse(text: string): any {
   let clean = text.trim();
 
   // 1. Strip Markdown Code Blocks
-  // Match ```json ... ``` or just ``` ... ```
   clean = clean.replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '');
 
-  // --- Fix Number Hallucinations ---
-  clean = clean.replace(/(\d+)\.0{5,}\d*/g, '$1'); // Fix infinite zeros
+  // 2. Fix Chinese Punctuation (Quotes)
+  clean = clean.replace(/[\u201C\u201D]/g, '"'); 
   
-  // 2. Locate JSON boundaries (find first '{' or '[' and last '}' or ']')
+  // 3. Fix Infinite Zeros (Gemini bug: 1000.0000000000000001 -> 1000)
+  clean = clean.replace(/(\d+)\.0{5,}\d*/g, '$1');
+
+  // 4. Locate JSON boundaries
   const firstBrace = clean.search(/[{[]/);
   const lastCurly = clean.lastIndexOf('}');
   const lastSquare = clean.lastIndexOf(']');
@@ -60,40 +62,45 @@ function robustJsonParse(text: string): any {
     clean = clean.substring(firstBrace, lastIndex + 1);
   }
 
-  // 3. Replace Chinese Punctuation common in JSON
-  clean = clean.replace(/[\u201C\u201D]/g, '"'); // Quotes
-  
+  // Attempt standard parse first
   try {
     return JSON.parse(clean);
   } catch (e) {
-    console.warn("Standard JSON parse failed, attempting aggressive fixes...", e);
+    console.warn("Standard JSON parse failed, attempting aggressive regex fixes...", e);
     
-    // Aggressive fixes
     let fixed = clean;
     
-    // Replace Chinese Colon '：' ONLY if it looks like a key-value pair separator
-    // e.g. "key"： "value" -> "key": "value"
-    fixed = fixed.replace(/"\s*：\s*"/g, '": "');
-    fixed = fixed.replace(/"\s*：\s*(\d)/g, '": $1');
-    fixed = fixed.replace(/"\s*：\s*\[/g, '": [');
-    fixed = fixed.replace(/"\s*：\s*\{/g, '": {');
-    
-    // Replace Chinese comma '，'
-    fixed = fixed.replace(/，/g, ','); 
-    
-    // FIX: Missing comma between objects in array (e.g. {...} {...})
-    // This is a common error in streamed/long LLM outputs
+    // --- Aggressive Fixes ---
+
+    // 1. Fix missing comma between objects in array: } { -> }, {
     fixed = fixed.replace(/}\s*{/g, '}, {');
     fixed = fixed.replace(/]\s*\[/g, '], [');
     
-    // Fix trailing commas before closing braces
-    fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+    // 2. Fix missing comma between string elements: "A" "B" -> "A", "B"
+    // (Be careful not to break sentences inside quotes, but in JSON lists this is common error)
+    // Matches "quote" whitespace "quote"
+    fixed = fixed.replace(/"\s+"/g, '", "');
+
+    // 3. Fix Chinese Colon/Comma
+    fixed = fixed.replace(/：/g, ':');
+    fixed = fixed.replace(/，/g, ',');
+
+    // 4. Remove Trailing Commas (End of object/array)
+    // matches , } or , ]
+    fixed = fixed.replace(/,\s*}/g, '}');
+    fixed = fixed.replace(/,\s*]/g, ']');
+
+    // 5. Fix missing comma after value before key: "value" "key":
+    // This is tricky but common: ... "some value" "next_key": ... -> ... "some value", "next_key": ...
+    fixed = fixed.replace(/"\s+"(\w+)":/g, '", "$1":');
 
     try {
       return JSON.parse(fixed);
     } catch (e2) {
-      console.error("Robust JSON parse failed", e2, "Original:", text);
-      throw new Error("JSON 解析失败: 模型返回的数据结构不完整或有误。");
+      console.error("Robust JSON parse failed", e2);
+      console.log("Original Text:", text);
+      console.log("Fixed Text:", fixed);
+      throw new Error("JSON 解析失败: 模型返回的数据结构不完整或有误 (Syntax Error)。");
     }
   }
 }
@@ -155,10 +162,11 @@ export const fetchExternalAI = async (
     1. Return VALID JSON only. 
     2. Do NOT use Markdown code blocks (no \`\`\`json).
     3. Use standard quotes (") and commas (,). No Chinese punctuation.
-    4. Ensure Arrays are comma-separated: [ {...}, {...} ]
+    4. Ensure Arrays are comma-separated: [ {...}, {...} ] (Do not miss commas!)
     
     JSON Structure:
     {
+      "data_date": "YYYY-MM-DD",  // <--- IMPORTANT: The actual date of the data found.
       "market_indices": [ ${indicesExample} ],
       "market_volume": {
         "total_volume": "1.5万亿",
@@ -202,10 +210,14 @@ export const fetchExternalAI = async (
     3. Main Force / Institutional Fund Flow (主力资金/北向资金).
     4. Market Sentiment.
 
+    [CRITICAL DATA RULE]
+    - **IF TODAY'S DATA IS NOT AVAILABLE (e.g. market closed, or morning pre-market), YOU MUST SEARCH FOR THE PREVIOUS TRADING DAY'S CLOSING DATA.**
+    - **YOU MUST FILL 'data_date' WITH THE ACTUAL DATE OF THE DATA.**
+    - Do NOT return empty or zero values if old data exists.
+    
     [CRITICAL RULE For Portfolio Table]
     - **NO MASKED CODES**: You MUST provide REAL, SPECIFIC stock codes (e.g. "600519", "AAPL", "00700").
     - DO NOT output "600xxx", "300xxx", etc.
-    - If you cannot recommend a specific stock due to policy, recommend a specific ETF code.
     `;
     userContent = `${prompt}\n\n${searchQueries}\n\n${jsonInstruction}`;
   } else {
@@ -224,7 +236,7 @@ export const fetchExternalAI = async (
   const requestBody: any = {
     model: config.model,
     messages: messages,
-    temperature: 0.5, // Lower temperature for more stable JSON
+    temperature: 0.5, 
     max_tokens: 4000, 
   };
   
@@ -263,8 +275,7 @@ export const fetchExternalAI = async (
            structuredData = parsed;
         }
       } catch (e) {
-        console.warn("Parsing failed even with robust parser", e);
-        // Rethrow if it's a critical JSON error so the UI can show it
+        console.warn("Parsing failed", e);
         throw e;
       }
     }
