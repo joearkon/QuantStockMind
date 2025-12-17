@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry, PeriodicReviewData } from '../types';
+import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry, PeriodicReviewData, DailyTradingPlan, PlanItem } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
-import { parseBrokerageScreenshot, fetchPeriodicReview } from '../services/geminiService';
+import { parseBrokerageScreenshot, fetchPeriodicReview, extractTradingPlan } from '../services/geminiService';
 import { analyzeImageWithExternal } from '../services/externalLlmService';
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 
@@ -40,11 +40,20 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [tradingPlans, setTradingPlans] = useState<DailyTradingPlan[]>(() => {
+    const saved = localStorage.getItem('qm_trading_plans');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Drawers
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isPlanOpen, setIsPlanOpen] = useState(false);
+  
   const [activeTab, setActiveTab] = useState<'report' | 'charts' | 'periodic'>('report');
   
   // Periodic Review State
@@ -54,6 +63,9 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<HoldingItemDetailed | null>(null);
 
+  // Plan Generation State
+  const [generatingPlan, setGeneratingPlan] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,6 +73,10 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   useEffect(() => {
     localStorage.setItem('qm_journal', JSON.stringify(journal));
   }, [journal]);
+
+  useEffect(() => {
+    localStorage.setItem('qm_trading_plans', JSON.stringify(tradingPlans));
+  }, [tradingPlans]);
 
   // --- Handlers: Screenshot ---
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -283,6 +299,58 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       setError(err.message || "分析请求未能完成，请检查网络设置或稍后重试。");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // --- Handlers: Plan Generation ---
+  const handleGeneratePlan = async () => {
+    if (!analysisResult) return;
+    setGeneratingPlan(true);
+    
+    try {
+      // 1. Extract Plan from Analysis
+      const { items, summary } = await extractTradingPlan(analysisResult.content, settings.geminiKey);
+      
+      // 2. Create Plan Object
+      const newPlan: DailyTradingPlan = {
+        id: crypto.randomUUID(),
+        target_date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Default to tomorrow
+        created_at: Date.now(),
+        items: items,
+        strategy_summary: summary
+      };
+
+      // 3. Save
+      setTradingPlans(prev => [newPlan, ...prev]);
+      
+      // 4. Open Drawer
+      setIsPlanOpen(true);
+    } catch (err: any) {
+      setError("生成交易计划失败: " + err.message);
+    } finally {
+      setGeneratingPlan(false);
+    }
+  };
+
+  const togglePlanItemStatus = (planId: string, itemId: string) => {
+    setTradingPlans(prev => prev.map(p => {
+       if (p.id !== planId) return p;
+       return {
+         ...p,
+         items: p.items.map(item => {
+           if (item.id !== itemId) return item;
+           // Cycle: pending -> completed -> skipped -> failed -> pending
+           const states = ['pending', 'completed', 'skipped', 'failed'];
+           const nextIndex = (states.indexOf(item.status) + 1) % states.length;
+           return { ...item, status: states[nextIndex] as any };
+         })
+       };
+    }));
+  };
+  
+  const deletePlan = (planId: string) => {
+    if (confirm("确定删除该交易计划？")) {
+       setTradingPlans(prev => prev.filter(p => p.id !== planId));
     }
   };
 
@@ -642,11 +710,25 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
           return (
             <div key={idx} className={`bg-white rounded-xl border ${cardBorder} shadow-sm overflow-hidden`}>
-              <div className={`px-6 py-4 border-b ${cardBorder} flex items-center gap-3 bg-opacity-30 ${iconBg.replace('100', '50')}`}>
-                <div className={`p-2 rounded-lg ${iconBg}`}>
-                  <Icon className={`w-5 h-5 ${headerColor}`} />
+              <div className={`px-6 py-4 border-b ${cardBorder} flex justify-between items-center bg-opacity-30 ${iconBg.replace('100', '50')}`}>
+                <div className="flex items-center gap-3">
+                   <div className={`p-2 rounded-lg ${iconBg}`}>
+                     <Icon className={`w-5 h-5 ${headerColor}`} />
+                   </div>
+                   <h3 className={`text-lg font-bold ${headerColor}`}>{title}</h3>
                 </div>
-                <h3 className={`text-lg font-bold ${headerColor}`}>{title}</h3>
+                
+                {/* --- ADD PLAN BUTTON --- */}
+                {title.includes("建议") && (
+                   <button
+                     onClick={handleGeneratePlan}
+                     disabled={generatingPlan}
+                     className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all disabled:opacity-70"
+                   >
+                     {generatingPlan ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <ListTodo className="w-3.5 h-3.5"/>}
+                     生成明日计划
+                   </button>
+                )}
               </div>
               <div className="p-6">
                 {body.split('\n').map((line, i) => {
@@ -757,8 +839,15 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           </div>
           <div className="flex gap-2">
             <button 
+              onClick={() => setIsPlanOpen(!isPlanOpen)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200"
+            >
+              <ListTodo className="w-4 h-4" />
+              交易计划
+            </button>
+            <button 
               onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200"
             >
               <History className="w-4 h-4" />
               历史日志
@@ -780,6 +869,84 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
             </button>
           </div>
         </div>
+
+        {/* --- TRADING PLAN DRAWER --- */}
+        {isPlanOpen && (
+           <div className="mb-6 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden animate-slide-down shadow-inner">
+              <div className="px-6 py-4 bg-white border-b border-slate-200 flex justify-between items-center">
+                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                   <ListTodo className="w-5 h-5 text-emerald-600"/>
+                   我的交易计划 (Trading Plans)
+                 </h3>
+                 <span className="text-xs text-slate-400">勾选以确认完成情况</span>
+              </div>
+              <div className="p-4 space-y-6 max-h-[500px] overflow-y-auto">
+                 {tradingPlans.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400">暂无交易计划，请在分析报告中生成。</div>
+                 ) : (
+                    tradingPlans.map((plan) => (
+                       <div key={plan.id} className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
+                             <span className="font-bold text-slate-700 text-sm">{plan.target_date} (计划)</span>
+                             <button onClick={() => deletePlan(plan.id)} className="text-slate-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5"/></button>
+                          </div>
+                          <div className="p-4">
+                             <div className="mb-3 text-xs text-slate-500 bg-slate-50 p-2 rounded italic">
+                                策略总纲: {plan.strategy_summary}
+                             </div>
+                             <div className="space-y-2">
+                                {plan.items.map((item) => {
+                                   const isCompleted = item.status === 'completed';
+                                   const isSkipped = item.status === 'skipped';
+                                   const isFailed = item.status === 'failed';
+                                   
+                                   let statusColor = "bg-white border-slate-200";
+                                   if (isCompleted) statusColor = "bg-emerald-50 border-emerald-200";
+                                   if (isSkipped) statusColor = "bg-slate-50 border-slate-200 opacity-60";
+                                   if (isFailed) statusColor = "bg-rose-50 border-rose-200";
+
+                                   return (
+                                      <div key={item.id} className={`flex items-start gap-3 p-3 rounded border ${statusColor} transition-all`}>
+                                         <button 
+                                            onClick={() => togglePlanItemStatus(plan.id, item.id)}
+                                            className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                                               isCompleted ? 'bg-emerald-500 border-emerald-600 text-white' : 
+                                               isFailed ? 'bg-rose-500 border-rose-600 text-white' :
+                                               isSkipped ? 'bg-slate-300 border-slate-400 text-slate-500' :
+                                               'bg-white border-slate-300 hover:border-emerald-400'
+                                            }`}
+                                         >
+                                            {isCompleted && <Check className="w-3.5 h-3.5" />}
+                                            {isFailed && <X className="w-3.5 h-3.5" />}
+                                            {isSkipped && <MoreHorizontal className="w-3.5 h-3.5" />}
+                                         </button>
+                                         <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                               <span className={`text-sm font-bold ${isCompleted ? 'text-emerald-800' : isFailed ? 'text-rose-800' : 'text-slate-800'}`}>{item.symbol}</span>
+                                               <span className={`text-xs px-1.5 rounded uppercase font-medium border ${
+                                                  item.action === 'buy' ? 'bg-rose-100 text-rose-700 border-rose-200' :
+                                                  item.action === 'sell' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                                                  'bg-slate-100 text-slate-700 border-slate-200'
+                                               }`}>{item.action === 't_trade' ? '做T' : item.action}</span>
+                                            </div>
+                                            <div className="text-xs text-slate-600">
+                                               <span className="font-medium">目标:</span> {item.price_target} <span className="text-slate-300 mx-1">|</span> {item.reason}
+                                            </div>
+                                         </div>
+                                         <div className="text-[10px] text-slate-400 uppercase font-medium self-center">
+                                            {item.status}
+                                         </div>
+                                      </div>
+                                   );
+                                })}
+                             </div>
+                          </div>
+                       </div>
+                    ))
+                 )}
+              </div>
+           </div>
+        )}
 
         {/* --- History Drawer --- */}
         {isHistoryOpen && (

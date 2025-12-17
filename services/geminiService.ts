@@ -1,5 +1,5 @@
 import { GoogleGenAI, GenerateContentResponse, Type, Schema } from "@google/genai";
-import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot, HistoricalYearData, JournalEntry, PeriodicReviewData } from "../types";
+import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot, HistoricalYearData, JournalEntry, PeriodicReviewData, PlanItem } from "../types";
 
 // STRICTLY USE 2.5 FLASH. NO DOWNGRADE.
 const GEMINI_MODEL_PRIMARY = "gemini-2.5-flash"; 
@@ -147,6 +147,27 @@ const marketDashboardSchema: Schema = {
     }
   },
   required: ["data_date", "market_sentiment", "market_volume", "capital_rotation", "deep_logic", "hot_topics", "opportunity_analysis", "strategist_verdict", "allocation_model"]
+};
+
+const tradingPlanSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    items: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          symbol: { type: Type.STRING, description: "Stock Name or Code" },
+          action: { type: Type.STRING, enum: ['buy', 'sell', 'hold', 'monitor', 't_trade'] },
+          price_target: { type: Type.STRING, description: "Target Price or Range, e.g. >15.5 or 10-10.5" },
+          reason: { type: Type.STRING, description: "Short rationale" }
+        },
+        required: ["symbol", "action", "price_target", "reason"]
+      }
+    },
+    strategy_summary: { type: Type.STRING, description: "Overall strategy for the day, e.g. 'Defensive', 'Attack'" }
+  },
+  required: ["items", "strategy_summary"]
 };
 
 const periodicReviewSchema: Schema = {
@@ -397,6 +418,66 @@ export async function runGeminiSafe(
 }
 
 // --- API Functions ---
+
+export const extractTradingPlan = async (
+  analysisContent: string,
+  apiKey?: string
+): Promise<{ items: PlanItem[], summary: string }> => {
+  const effectiveKey = apiKey || process.env.API_KEY;
+  if (!effectiveKey) throw new Error("API Key missing");
+  const ai = new GoogleGenAI({ apiKey: effectiveKey });
+
+  // Extract the "Action" section roughly to save context window if possible, 
+  // but Gemini Context window is large enough for full report usually.
+  // We'll pass the full content for better context.
+  
+  const prompt = `
+    You are a professional trading assistant.
+    Extract specific, actionable trading instructions from the following analysis report into a structured JSON checklist for the next trading day.
+
+    SOURCE ANALYSIS:
+    """
+    ${analysisContent}
+    """
+
+    TASK:
+    1. Identify specific actions for each stock mentioned (Buy, Sell, Hold, Monitor, or T-Trade/做T).
+    2. Extract target prices (Stop Profit/Stop Loss) if mentioned.
+    3. Summarize the logic briefly.
+    4. Provide an overall strategy summary.
+
+    OUTPUT JSON ONLY. NO COMMENTS.
+  `;
+
+  try {
+    const response = await runGeminiSafe(ai, {
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: tradingPlanSchema
+      }
+    }, "Plan Extraction");
+
+    const text = response.text || "{}";
+    const parsed = robustParse(text);
+    
+    // Augment with IDs and default status
+    const items = (parsed.items || []).map((item: any) => ({
+      ...item,
+      id: crypto.randomUUID(),
+      status: 'pending'
+    }));
+
+    return {
+      items,
+      summary: parsed.strategy_summary || "无总纲"
+    };
+
+  } catch (error: any) {
+    console.error("Plan Extraction Error:", error);
+    throw error;
+  }
+};
 
 export const fetchPeriodicReview = async (
   journals: JournalEntry[],

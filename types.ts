@@ -42,6 +42,24 @@ export interface PeriodicReviewData {
   next_period_focus: string[];
 }
 
+// --- Trading Plan Types ---
+export interface PlanItem {
+  id: string;
+  symbol: string; // Stock Name/Code
+  action: 'buy' | 'sell' | 'hold' | 'monitor' | 't_trade'; // t_trade for 做T
+  price_target?: string;
+  reason?: string;
+  status: 'pending' | 'completed' | 'skipped' | 'failed';
+}
+
+export interface DailyTradingPlan {
+  id: string;
+  target_date: string; // YYYY-MM-DD (The day the plan is for)
+  created_at: number;
+  items: PlanItem[];
+  strategy_summary: string; // Brief summary of overall strategy
+}
+
 export interface AnalysisResult {
   content: string; // Markdown formatted text or JSON string
   groundingSource?: GroundingSource[];
