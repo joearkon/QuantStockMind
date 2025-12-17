@@ -1,5 +1,5 @@
 import { GoogleGenAI, GenerateContentResponse, Type, Schema } from "@google/genai";
-import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot, HistoricalYearData, JournalEntry } from "../types";
+import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot, HistoricalYearData, JournalEntry, PeriodicReviewData } from "../types";
 
 // STRICTLY USE 2.5 FLASH. NO DOWNGRADE.
 const GEMINI_MODEL_PRIMARY = "gemini-2.5-flash"; 
@@ -149,6 +149,47 @@ const marketDashboardSchema: Schema = {
   required: ["data_date", "market_sentiment", "market_volume", "capital_rotation", "deep_logic", "hot_topics", "opportunity_analysis", "strategist_verdict", "allocation_model"]
 };
 
+const periodicReviewSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    score: { type: Type.NUMBER, description: "0-100 Overall Performance Score" },
+    market_summary: { type: Type.STRING, description: "Summary of market condition" },
+    market_trend: { type: Type.STRING, enum: ["bull", "bear", "volatile"] },
+    highlight: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: "Best trade or decision" },
+        description: { type: Type.STRING }
+      },
+      required: ["title", "description"]
+    },
+    lowlight: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: "Worst trade or drawdown" },
+        description: { type: Type.STRING }
+      },
+      required: ["title", "description"]
+    },
+    execution: {
+      type: Type.OBJECT,
+      properties: {
+        score: { type: Type.NUMBER, description: "Execution discipline score 0-100" },
+        details: { type: Type.STRING },
+        good_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } },
+        bad_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } }
+      },
+      required: ["score", "details", "good_behaviors", "bad_behaviors"]
+    },
+    next_period_focus: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: "Strategic checklist for next period"
+    }
+  },
+  required: ["score", "market_summary", "market_trend", "highlight", "lowlight", "execution", "next_period_focus"]
+};
+
 const holdingsParsingSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -233,10 +274,6 @@ const robustParse = (text: string): any => {
   clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
   
   // 2. Strip Comments (Aggressive)
-  // Remove // comments but be careful about URLs (http://)
-  // We use a safe regex that checks it's not inside a string, but for simple JSON output,
-  // simply removing // that are preceded by whitespace or at start of line is usually safe enough for LLM output.
-  // Better yet, remove anything after // if it's not a URL.
   clean = clean.replace(/(?<!:) \/\/.*$/gm, ''); 
   clean = clean.replace(/\/\*[\s\S]*?\*\//g, ''); // Multi line
 
@@ -257,23 +294,12 @@ const robustParse = (text: string): any => {
     return JSON.parse(clean);
   } catch (e) {
     // --- Aggressive Regex Fixes (Fallback) ---
-    
-    // 1. Missing comma between objects: } { -> }, {
     clean = clean.replace(/}\s*{/g, '}, {');
     clean = clean.replace(/]\s*\[/g, '], [');
-    
-    // 2. Trailing commas: , } -> }
     clean = clean.replace(/,\s*}/g, '}');
     clean = clean.replace(/,\s*]/g, ']');
-    
-    // 3. Missing comma between strings: "A" "B" -> "A", "B"
     clean = clean.replace(/"\s+"/g, '", "');
-
-    // 4. Chinese punctuation to English
     clean = clean.replace(/：/g, ':').replace(/，/g, ',');
-
-    // 5. Fix Unquoted Keys: { name: "val" } -> { "name": "val" }
-    // This regex looks for word characters followed by a colon, ensuring they are not already quoted.
     clean = clean.replace(/([{,]\s*)([a-zA-Z0-9_]+?)\s*:/g, '$1"$2":');
 
     try {
@@ -354,21 +380,16 @@ async function callGeminiWithRetry(
   throw lastError;
 }
 
-/**
- * STRATEGY: STRICTLY 2.5 FLASH. 
- * Retries on failure but NEVER downgrades to weaker models.
- */
 export async function runGeminiSafe(
   ai: GoogleGenAI,
   params: { contents: any; config?: any },
   description: string = "Request"
 ): Promise<GenerateContentResponse> {
-  // Try 2.5 Flash with more aggressive retries (5) to handle congestion
   try {
     return await callGeminiWithRetry(() => ai.models.generateContent({
       model: GEMINI_MODEL_PRIMARY,
       ...params
-    }), 5, 2000); // Increased retries to 5
+    }), 5, 2000);
   } catch (error: any) {
     const msg = (error.message || "").toLowerCase();
     throw new Error(`AI 服务暂时繁忙 (${description}): ${msg}. 请稍后重试。`);
@@ -398,7 +419,6 @@ export const fetchPeriodicReview = async (
     const date = new Date(j.timestamp).toLocaleDateString();
     const assets = j.snapshot.totalAssets;
     const holdingsStr = j.snapshot.holdings.map(h => `${h.name}(${h.profitRate})`).join(', ');
-    // Extract a brief advice snippet if available
     const adviceSnippet = j.analysis?.content ? j.analysis.content.substring(0, 300).replace(/\n/g, ' ') + "..." : "无建议";
     
     return `
@@ -417,25 +437,17 @@ export const fetchPeriodicReview = async (
     Here is the sequence of the user's trading logs (Chronological Order):
     ${journalSummary}
 
-    Task: Generate a comprehensive "Periodic Performance Review" (Markdown).
+    Task: Generate a structured "Periodic Performance Review" in JSON.
+    
+    REQUIREMENTS:
+    1. Score: 0-100 based on asset growth and discipline.
+    2. Market Trend: Bull/Bear/Volatile based on recent performance.
+    3. Highlight: The best decision or trade.
+    4. Lowlight: The worst decision or drawdown.
+    5. Execution Audit: Analyze if user followed previous AI advice. List specific Good/Bad behaviors.
+    6. Next Focus: Actionable list.
 
-    Required Sections:
-    ## 1. 阶段大盘回顾 (Market Context)
-    - Search and summarize the general trend of the ${market} market during this period (from the date of the first log to the last log).
-    - Was it a bull market, bear market, or volatile? Did the user swim with the tide or against it?
-
-    ## 2. 核心亮点与至暗时刻 (Highs & Lows)
-    - **Highlight**: Which specific trade or decision protected assets or made the most profit?
-    - **Lowlight**: Where was the biggest drawdown? 
-
-    ## 3. 知行合一审计 (Execution Audit) - CRITICAL
-    - Look closely at the "AI Advice" vs the subsequent logs. 
-    - Did the user follow the advice? (e.g. If Log #1 said "Cut Loss on Stock A", did Stock A disappear or reduce in Log #2?)
-    - Point out specific instances of **"Lack of Discipline" (知行不一)** or **"Good Execution"**.
-
-    ## 4. 阶段性总结与下阶段方针 (Conclusion)
-    - Give a score (0-100) for this period based on asset growth and execution.
-    - Suggest the strategic focus for the next period.
+    OUTPUT JSON ONLY. NO COMMENTS.
   `;
 
   try {
@@ -443,19 +455,26 @@ export const fetchPeriodicReview = async (
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
+        responseMimeType: "application/json",
+        responseSchema: periodicReviewSchema
       }
     }, "Periodic Review");
 
-    const text = response.text || "复盘生成失败。";
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const sources = groundingChunks.map((chunk: any) => chunk.web).filter((web: any) => web !== undefined);
+    const text = response.text || "{}";
+    let parsedData: PeriodicReviewData;
+    try {
+      parsedData = robustParse(text);
+    } catch (e) {
+      throw new Error("复盘数据解析失败");
+    }
 
     return {
       content: text,
-      groundingSource: sources,
       timestamp: Date.now(),
       modelUsed: ModelProvider.GEMINI_INTL,
-      isStructured: false
+      isStructured: true,
+      periodicData: parsedData,
+      market: market
     };
 
   } catch (error: any) {
@@ -671,6 +690,7 @@ export const fetchMarketDashboard = async (
          - ${searchTerms.join(", ")}.
          - "Northbound Capital Flow Today" (北向资金/主力资金).
          - "Total Market Volume Today" (两市成交额).
+         - "Top performing stocks A-share today" (今日A股领涨龙头).
       
       [DATA ACCURACY RULES - STRICT]
       - **IF TODAY'S DATA IS NOT AVAILABLE (e.g. before market open or search fails), YOU MUST SEARCH FOR THE PREVIOUS TRADING DAY'S CLOSING DATA.**
@@ -685,7 +705,11 @@ export const fetchMarketDashboard = async (
       3. Sector Rotation.
       4. Strategy (Aggressive vs Balanced).
       
-      5. **Portfolio Table**:
+      5. **Portfolio Table (CRITICAL)**:
+         - **MANDATORY**: You MUST provide specific **INDIVIDUAL STOCKS (个股)**. 
+         - **DO NOT** fill the table with only ETFs. The user wants specific stock recommendations.
+         - For "Aggressive": Pick top performing leader stocks (龙头).
+         - For "Balanced": You can mix ETFs with Dividend/Blue-chip stocks, but individual stocks are required.
          - **NO MASKED CODES**: You MUST provide REAL, SPECIFIC stock codes (e.g. "600519").
          - **Strictly No '600xxx'**.
       

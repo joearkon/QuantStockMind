@@ -209,6 +209,7 @@ export const fetchExternalAI = async (
     2. Total Trading Volume & Volume Delta (成交额与增量).
     3. Main Force / Institutional Fund Flow (主力资金/北向资金).
     4. Market Sentiment.
+    5. Top performing individual stocks for Aggressive/Balanced strategies.
 
     [CRITICAL DATA RULE]
     - **IF TODAY'S DATA IS NOT AVAILABLE (e.g. market closed, or morning pre-market), YOU MUST SEARCH FOR THE PREVIOUS TRADING DAY'S CLOSING DATA.**
@@ -216,6 +217,8 @@ export const fetchExternalAI = async (
     - Do NOT return empty or zero values if old data exists.
     
     [CRITICAL RULE For Portfolio Table]
+    - **MANDATORY**: You MUST provide specific **INDIVIDUAL STOCKS (个股)**. Do not list only ETFs.
+    - **Aggressive**: Focus on Leaders (龙头). **Balanced**: Focus on Blue Chips (蓝筹).
     - **NO MASKED CODES**: You MUST provide REAL, SPECIFIC stock codes (e.g. "600519", "AAPL", "00700").
     - DO NOT output "600xxx", "300xxx", etc.
     `;

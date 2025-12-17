@@ -21,6 +21,27 @@ export interface GroundingSource {
   title: string;
 }
 
+export interface PeriodicReviewData {
+  score: number; // 0-100
+  market_summary: string;
+  market_trend: 'bull' | 'bear' | 'volatile';
+  highlight: {
+    title: string;
+    description: string;
+  };
+  lowlight: {
+    title: string;
+    description: string;
+  };
+  execution: {
+    score: number; // 0-100
+    details: string;
+    good_behaviors: string[]; // List of good habits
+    bad_behaviors: string[]; // List of bad habits
+  };
+  next_period_focus: string[];
+}
+
 export interface AnalysisResult {
   content: string; // Markdown formatted text or JSON string
   groundingSource?: GroundingSource[];
@@ -29,8 +50,9 @@ export interface AnalysisResult {
   isStructured?: boolean;
   structuredData?: MarketDashboardData;
   opportunityData?: OpportunityResponse; 
-  institutionalData?: InstitutionalInsight; // New field
-  historyData?: HistoricalYearData; // New field for History
+  institutionalData?: InstitutionalInsight; 
+  historyData?: HistoricalYearData; 
+  periodicData?: PeriodicReviewData; // New Field for Periodic Review
   market?: MarketType;
 }
 

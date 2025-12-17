@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry } from '../types';
+import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry, PeriodicReviewData } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { parseBrokerageScreenshot, fetchPeriodicReview } from '../services/geminiService';
 import { analyzeImageWithExternal } from '../services/externalLlmService';
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 
@@ -425,7 +425,160 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     ].filter(d => d.value > 0);
   };
 
-  // --- Render Helper ---
+  // --- Render Helper: Rich Periodic Review ---
+  const renderPeriodicDashboard = (data: PeriodicReviewData) => {
+    return (
+      <div className="p-6 space-y-8 animate-fade-in">
+        
+        {/* Row 1: Score & Market Context */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+           {/* Score Card */}
+           <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-xl p-6 text-white shadow-xl flex flex-col items-center justify-center relative overflow-hidden">
+              <div className="absolute inset-0 bg-white/5 opacity-10 blur-xl"></div>
+              <h3 className="text-slate-300 font-bold uppercase tracking-wider text-xs mb-2">综合表现评分</h3>
+              <div className="relative w-32 h-32 flex items-center justify-center mb-2">
+                 <svg className="w-full h-full transform -rotate-90">
+                    <circle cx="64" cy="64" r="56" stroke="#334155" strokeWidth="8" fill="none" />
+                    <circle 
+                      cx="64" cy="64" r="56" 
+                      stroke={data.score >= 80 ? '#10b981' : data.score >= 60 ? '#f59e0b' : '#ef4444'} 
+                      strokeWidth="8" fill="none" 
+                      strokeDasharray="351.86" 
+                      strokeDashoffset={351.86 * (1 - data.score / 100)} 
+                      className="transition-all duration-1000 ease-out"
+                    />
+                 </svg>
+                 <span className="absolute text-4xl font-bold">{data.score}</span>
+              </div>
+              <p className="text-sm opacity-80 mt-1">
+                 {data.score >= 80 ? '表现优异' : data.score >= 60 ? '表现尚可' : '需反思改进'}
+              </p>
+           </div>
+
+           {/* Market Context Banner */}
+           <div className="md:col-span-2 bg-slate-50 border border-slate-200 rounded-xl p-6 flex flex-col justify-center">
+              <div className="flex items-center gap-3 mb-3">
+                 <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${
+                    data.market_trend === 'bull' ? 'bg-red-50 text-red-600 border-red-100' :
+                    data.market_trend === 'bear' ? 'bg-green-50 text-green-600 border-green-100' :
+                    'bg-slate-100 text-slate-600 border-slate-200'
+                 }`}>
+                    {data.market_trend.toUpperCase()} MARKET
+                 </span>
+                 <h3 className="text-lg font-bold text-slate-800">阶段市场回顾</h3>
+              </div>
+              <p className="text-slate-600 leading-relaxed text-sm">
+                 {data.market_summary}
+              </p>
+           </div>
+        </div>
+
+        {/* Row 2: Highs & Lows */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+           {/* Highlight */}
+           <div className="bg-emerald-50 rounded-xl border border-emerald-100 p-6 relative overflow-hidden group">
+              <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                 <Trophy className="w-24 h-24 text-emerald-600" />
+              </div>
+              <div className="relative z-10">
+                 <div className="flex items-center gap-2 mb-3 text-emerald-800 font-bold">
+                    <div className="p-1.5 bg-white rounded-lg shadow-sm"><Trophy className="w-5 h-5 text-emerald-600" /></div>
+                    高光时刻 (Highlight)
+                 </div>
+                 <h4 className="text-lg font-bold text-emerald-900 mb-2">{data.highlight.title}</h4>
+                 <p className="text-sm text-emerald-800 leading-relaxed opacity-90">{data.highlight.description}</p>
+              </div>
+           </div>
+
+           {/* Lowlight */}
+           <div className="bg-rose-50 rounded-xl border border-rose-100 p-6 relative overflow-hidden group">
+              <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                 <AlertOctagon className="w-24 h-24 text-rose-600" />
+              </div>
+              <div className="relative z-10">
+                 <div className="flex items-center gap-2 mb-3 text-rose-800 font-bold">
+                    <div className="p-1.5 bg-white rounded-lg shadow-sm"><AlertOctagon className="w-5 h-5 text-rose-600" /></div>
+                    至暗时刻 (Lowlight)
+                 </div>
+                 <h4 className="text-lg font-bold text-rose-900 mb-2">{data.lowlight.title}</h4>
+                 <p className="text-sm text-rose-800 leading-relaxed opacity-90">{data.lowlight.description}</p>
+              </div>
+           </div>
+        </div>
+
+        {/* Row 3: Execution Audit */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+           <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                 <ClipboardList className="w-5 h-5 text-slate-500" />
+                 知行合一审计 (Execution Audit)
+              </h3>
+              <div className="flex items-center gap-2">
+                 <span className="text-sm text-slate-500 font-medium">执行力评分</span>
+                 <div className="w-24 h-3 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-500" style={{width: `${data.execution.score}%`}}></div>
+                 </div>
+                 <span className="text-sm font-bold text-indigo-600">{data.execution.score}/100</span>
+              </div>
+           </div>
+           
+           <p className="text-sm text-slate-600 mb-6 bg-slate-50 p-3 rounded-lg border border-slate-100 italic">
+              "{data.execution.details}"
+           </p>
+
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div>
+                 <h4 className="text-xs font-bold uppercase text-emerald-600 mb-3 flex items-center gap-1">
+                    <CheckCircle2 className="w-4 h-4" /> Good Behaviors
+                 </h4>
+                 <ul className="space-y-2">
+                    {data.execution.good_behaviors.map((item, idx) => (
+                       <li key={idx} className="flex gap-2 text-sm text-slate-700 bg-emerald-50/50 p-2 rounded">
+                          <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                          <span>{item}</span>
+                       </li>
+                    ))}
+                    {data.execution.good_behaviors.length === 0 && <li className="text-sm text-slate-400">暂无明显亮点</li>}
+                 </ul>
+              </div>
+              <div>
+                 <h4 className="text-xs font-bold uppercase text-rose-600 mb-3 flex items-center gap-1">
+                    <XCircle className="w-4 h-4" /> Areas to Improve
+                 </h4>
+                 <ul className="space-y-2">
+                    {data.execution.bad_behaviors.map((item, idx) => (
+                       <li key={idx} className="flex gap-2 text-sm text-slate-700 bg-rose-50/50 p-2 rounded">
+                          <X className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                          <span>{item}</span>
+                       </li>
+                    ))}
+                     {data.execution.bad_behaviors.length === 0 && <li className="text-sm text-slate-400">暂无明显失误</li>}
+                 </ul>
+              </div>
+           </div>
+        </div>
+
+        {/* Row 4: Next Focus */}
+        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6">
+           <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
+              <ArrowRightCircle className="w-5 h-5 text-indigo-600" />
+              下阶段战略重心 (Strategic Focus)
+           </h3>
+           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {data.next_period_focus.map((item, idx) => (
+                 <div key={idx} className="bg-white p-3 rounded-lg shadow-sm border border-indigo-100 flex items-start gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">{idx + 1}</span>
+                    <p className="text-sm text-slate-700 font-medium pt-0.5">{item}</p>
+                 </div>
+              ))}
+           </div>
+        </div>
+
+      </div>
+    );
+  };
+
+  // --- Render Helper: Daily Report ---
   const renderReportContent = (content: string) => {
     // Split by H2 headers
     const sections = content.split(/^##\s+/gm).filter(Boolean);
@@ -887,8 +1040,8 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
            <div className="bg-slate-50/50 min-h-[400px]">
              {activeTab === 'report' && analysisResult ? (
                 renderReportContent(analysisResult.content)
-             ) : activeTab === 'periodic' && periodicResult ? (
-                renderReportContent(periodicResult.content)
+             ) : activeTab === 'periodic' && periodicResult?.periodicData ? (
+                renderPeriodicDashboard(periodicResult.periodicData)
              ) : (
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                    
