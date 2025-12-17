@@ -44,15 +44,9 @@ function robustJsonParse(text: string): any {
   let clean = text.trim();
 
   // 1. Strip Markdown Code Blocks
-  clean = clean.replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '');
+  clean = clean.replace(/^```[a-z]*\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
 
-  // 2. Fix Chinese Punctuation (Quotes)
-  clean = clean.replace(/[\u201C\u201D]/g, '"'); 
-  
-  // 3. Fix Infinite Zeros (Gemini bug: 1000.0000000000000001 -> 1000)
-  clean = clean.replace(/(\d+)\.0{5,}\d*/g, '$1');
-
-  // 4. Locate JSON boundaries
+  // 2. Locate JSON boundaries (Do this FIRST to avoid cleaning non-JSON parts)
   const firstBrace = clean.search(/[{[]/);
   const lastCurly = clean.lastIndexOf('}');
   const lastSquare = clean.lastIndexOf(']');
@@ -62,46 +56,55 @@ function robustJsonParse(text: string): any {
     clean = clean.substring(firstBrace, lastIndex + 1);
   }
 
-  // Attempt standard parse first
+  // 3. First Attempt: Optimistic Parse
   try {
     return JSON.parse(clean);
   } catch (e) {
-    console.warn("Standard JSON parse failed, attempting aggressive regex fixes...", e);
-    
-    let fixed = clean;
-    
-    // --- Aggressive Fixes ---
+    // Proceed to repairs
+  }
 
-    // 1. Fix missing comma between objects in array: } { -> }, {
-    fixed = fixed.replace(/}\s*{/g, '}, {');
-    fixed = fixed.replace(/]\s*\[/g, '], [');
-    
-    // 2. Fix missing comma between string elements: "A" "B" -> "A", "B"
-    // (Be careful not to break sentences inside quotes, but in JSON lists this is common error)
-    // Matches "quote" whitespace "quote"
-    fixed = fixed.replace(/"\s+"/g, '", "');
+  // 4. Aggressive Fixes
 
-    // 3. Fix Chinese Colon/Comma
-    fixed = fixed.replace(/：/g, ':');
-    fixed = fixed.replace(/，/g, ',');
+  // Fix: Strip Comments safely (avoid stripping http://)
+  // Remove block comments
+  clean = clean.replace(/\/\*[\s\S]*?\*\//g, '');
+  // Remove line comments that start at line beginning or after structural chars
+  clean = clean.replace(/(^|[{,\[\]])\s*\/\/.*$/gm, '$1'); 
 
-    // 4. Remove Trailing Commas (End of object/array)
-    // matches , } or , ]
-    fixed = fixed.replace(/,\s*}/g, '}');
-    fixed = fixed.replace(/,\s*]/g, ']');
+  // Fix: Quote normalization
+  clean = clean.replace(/[\u201C\u201D]/g, '"'); 
+  
+  // Fix: Floating point artifacts (Gemini sometimes outputs 1.000000001)
+  clean = clean.replace(/(\d+)\.0{5,}\d*/g, '$1');
 
-    // 5. Fix missing comma after value before key: "value" "key":
-    // This is tricky but common: ... "some value" "next_key": ... -> ... "some value", "next_key": ...
-    fixed = fixed.replace(/"\s+"(\w+)":/g, '", "$1":');
+  // Fix: Missing commas between objects/arrays } { -> }, {
+  clean = clean.replace(/}\s*{/g, '}, {');
+  clean = clean.replace(/]\s*\[/g, '], [');
+  
+  // Fix: Missing commas between string array items "A" "B" -> "A", "B"
+  // Safer regex: look for Quote-Space-Quote
+  clean = clean.replace(/"\s+(?=")/g, '", ');
 
-    try {
-      return JSON.parse(fixed);
-    } catch (e2) {
-      console.error("Robust JSON parse failed", e2);
-      console.log("Original Text:", text);
-      console.log("Fixed Text:", fixed);
-      throw new Error("JSON 解析失败: 模型返回的数据结构不完整或有误 (Syntax Error)。");
-    }
+  // Fix: Trailing Commas
+  clean = clean.replace(/,\s*}/g, '}');
+  clean = clean.replace(/,\s*]/g, ']');
+
+  // Fix: Chinese Punctuation
+  clean = clean.replace(/：/g, ':').replace(/，/g, ',');
+
+  // Fix: Unquoted keys
+  clean = clean.replace(/([{,]\s*)([a-zA-Z0-9_]+?)\s*:/g, '$1"$2":');
+
+  // Fix: NaN/Infinity
+  clean = clean.replace(/\bNaN\b/g, 'null');
+  clean = clean.replace(/\bInfinity\b/g, 'null');
+
+  try {
+    return JSON.parse(clean);
+  } catch (finalError) {
+    console.error("Robust parse failed completely.", finalError);
+    // console.log("Failed JSON text:", clean);
+    throw new Error("JSON 解析失败: 模型返回的数据结构不完整或有误 (Syntax Error)。");
   }
 }
 

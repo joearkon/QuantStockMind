@@ -284,51 +284,75 @@ const historicalYearSchema: Schema = {
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Military-grade JSON Parser
- * Handles comments, unquoted keys, trailing commas, and markdown.
+ * Military-grade JSON Parser 2.0
+ * Handles comments, missing commas, unquoted keys, and aggressive LLM artifacts.
  */
 const robustParse = (text: string): any => {
   if (!text) return {};
   let clean = text.trim();
   
   // 1. Strip Markdown Code Blocks
-  clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
+  clean = clean.replace(/^```[a-z]*\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
   
-  // 2. Strip Comments (Aggressive)
-  clean = clean.replace(/(?<!:) \/\/.*$/gm, ''); 
-  clean = clean.replace(/\/\*[\s\S]*?\*\//g, ''); // Multi line
-
-  // 3. Basic Cleanups
-  clean = clean.replace(/(\d+)\.0{5,}\d*/g, '$1'); // Fix floating point precision artifacts
-  clean = clean.replace(/[\u201C\u201D]/g, '"'); // Chinese quotes
-  
-  // 4. Find JSON boundaries
+  // 2. Locate JSON boundaries (Do this FIRST to avoid cleaning non-JSON parts)
   const firstBrace = clean.search(/[{[]/);
   const lastCurly = clean.lastIndexOf('}');
   const lastSquare = clean.lastIndexOf(']');
   const lastIndex = Math.max(lastCurly, lastSquare);
+  
   if (firstBrace !== -1 && lastIndex !== -1 && lastIndex > firstBrace) {
     clean = clean.substring(firstBrace, lastIndex + 1);
   }
 
+  // 3. First Attempt: Optimistic Parse
   try {
     return JSON.parse(clean);
   } catch (e) {
-    // --- Aggressive Regex Fixes (Fallback) ---
-    clean = clean.replace(/}\s*{/g, '}, {');
-    clean = clean.replace(/]\s*\[/g, '], [');
-    clean = clean.replace(/,\s*}/g, '}');
-    clean = clean.replace(/,\s*]/g, ']');
-    clean = clean.replace(/"\s+"/g, '", "');
-    clean = clean.replace(/：/g, ':').replace(/，/g, ',');
-    clean = clean.replace(/([{,]\s*)([a-zA-Z0-9_]+?)\s*:/g, '$1"$2":');
+    // Proceed to repairs
+  }
 
-    try {
-      return JSON.parse(clean);
-    } catch (finalError) {
-      console.error("Robust parse failed completely. Raw:", text);
-      throw new Error("JSON 解析严重失败 (Syntax Error)。模型返回了非法格式。");
-    }
+  // 4. Aggressive Fixes
+
+  // Fix: Strip Comments safely (avoid stripping http://)
+  // Remove block comments
+  clean = clean.replace(/\/\*[\s\S]*?\*\//g, '');
+  // Remove line comments that start at line beginning or after structural chars
+  clean = clean.replace(/(^|[{,\[\]])\s*\/\/.*$/gm, '$1'); 
+
+  // Fix: Quote normalization
+  clean = clean.replace(/[\u201C\u201D]/g, '"'); 
+  
+  // Fix: Floating point artifacts (Gemini sometimes outputs 1.000000001)
+  clean = clean.replace(/(\d+)\.0{5,}\d*/g, '$1');
+
+  // Fix: Missing commas between objects/arrays } { -> }, {
+  clean = clean.replace(/}\s*{/g, '}, {');
+  clean = clean.replace(/]\s*\[/g, '], [');
+  
+  // Fix: Missing commas between string array items "A" "B" -> "A", "B"
+  // Safer regex: look for Quote-Space-Quote
+  clean = clean.replace(/"\s+(?=")/g, '", ');
+
+  // Fix: Trailing Commas
+  clean = clean.replace(/,\s*}/g, '}');
+  clean = clean.replace(/,\s*]/g, ']');
+
+  // Fix: Chinese Punctuation
+  clean = clean.replace(/：/g, ':').replace(/，/g, ',');
+
+  // Fix: Unquoted keys
+  clean = clean.replace(/([{,]\s*)([a-zA-Z0-9_]+?)\s*:/g, '$1"$2":');
+  
+  // Fix: NaN/Infinity
+  clean = clean.replace(/\bNaN\b/g, 'null');
+  clean = clean.replace(/\bInfinity\b/g, 'null');
+
+  try {
+    return JSON.parse(clean);
+  } catch (finalError) {
+    console.error("Robust parse failed completely.", finalError);
+    // console.log("Failed JSON text:", clean);
+    throw new Error("JSON 解析严重失败 (Syntax Error)。模型返回了非法格式。");
   }
 };
 
