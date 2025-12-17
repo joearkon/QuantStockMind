@@ -160,12 +160,12 @@ const tradingPlanSchema: Schema = {
           symbol: { type: Type.STRING, description: "Stock Name or Code" },
           action: { type: Type.STRING, enum: ['buy', 'sell', 'hold', 'monitor', 't_trade'] },
           price_target: { type: Type.STRING, description: "Target Price or Range, e.g. >15.5 or 10-10.5" },
-          reason: { type: Type.STRING, description: "Short rationale" }
+          reason: { type: Type.STRING, description: "Short rationale in Chinese" }
         },
         required: ["symbol", "action", "price_target", "reason"]
       }
     },
-    strategy_summary: { type: Type.STRING, description: "Overall strategy for the day, e.g. 'Defensive', 'Attack'" }
+    strategy_summary: { type: Type.STRING, description: "Overall strategy for the day in Chinese" }
   },
   required: ["items", "strategy_summary"]
 };
@@ -456,7 +456,7 @@ export const extractTradingPlan = async (
   // We'll pass the full content for better context.
   
   const prompt = `
-    You are a professional trading assistant.
+    Role: Professional Trading Assistant.
     Extract specific, actionable trading instructions from the following analysis report into a structured JSON checklist for the next trading day.
 
     SOURCE ANALYSIS:
@@ -469,6 +469,9 @@ export const extractTradingPlan = async (
     2. Extract target prices (Stop Profit/Stop Loss) if mentioned.
     3. Summarize the logic briefly.
     4. Provide an overall strategy summary.
+
+    IMPORTANT: OUTPUT IN SIMPLIFIED CHINESE (简体中文). 
+    Ensure 'reason' and 'strategy_summary' are in Chinese.
 
     OUTPUT JSON ONLY. NO COMMENTS.
   `;

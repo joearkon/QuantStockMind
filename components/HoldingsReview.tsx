@@ -3,7 +3,7 @@ import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapsh
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { parseBrokerageScreenshot, fetchPeriodicReview, extractTradingPlan } from '../services/geminiService';
 import { analyzeImageWithExternal } from '../services/externalLlmService';
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 
@@ -352,6 +352,43 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     if (confirm("确定删除该交易计划？")) {
        setTradingPlans(prev => prev.filter(p => p.id !== planId));
     }
+  };
+
+  // --- Handlers: Export ---
+  const downloadFile = (content: string, filename: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPlanMD = () => {
+     let md = "# 我的交易计划归档\n\n";
+     tradingPlans.forEach(plan => {
+        md += `## ${plan.target_date} (策略: ${plan.strategy_summary})\n`;
+        plan.items.forEach(item => {
+           const statusMark = item.status === 'completed' ? '[x]' : '[ ]';
+           md += `- ${statusMark} **${item.symbol}** (${item.action}): 目标 ${item.price_target} | ${item.reason}\n`;
+        });
+        md += "\n";
+     });
+     downloadFile(md, `TradingPlans_${new Date().toISOString().split('T')[0]}.md`, 'text/markdown');
+  };
+
+  const handleExportPlanCSV = () => {
+     // BOM for Excel Chinese support
+     let csv = "\uFEFF日期,股票,操作,目标价,逻辑,状态\n";
+     tradingPlans.forEach(plan => {
+        plan.items.forEach(item => {
+           csv += `${plan.target_date},"${item.symbol}","${item.action}","${item.price_target}","${item.reason.replace(/"/g, '""')}","${item.status}"\n`;
+        });
+     });
+     downloadFile(csv, `TradingPlans_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
   };
 
   // --- Handlers: Periodic Review ---
@@ -870,84 +907,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           </div>
         </div>
 
-        {/* --- TRADING PLAN DRAWER --- */}
-        {isPlanOpen && (
-           <div className="mb-6 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden animate-slide-down shadow-inner">
-              <div className="px-6 py-4 bg-white border-b border-slate-200 flex justify-between items-center">
-                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                   <ListTodo className="w-5 h-5 text-emerald-600"/>
-                   我的交易计划 (Trading Plans)
-                 </h3>
-                 <span className="text-xs text-slate-400">勾选以确认完成情况</span>
-              </div>
-              <div className="p-4 space-y-6 max-h-[500px] overflow-y-auto">
-                 {tradingPlans.length === 0 ? (
-                    <div className="text-center py-8 text-slate-400">暂无交易计划，请在分析报告中生成。</div>
-                 ) : (
-                    tradingPlans.map((plan) => (
-                       <div key={plan.id} className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-                          <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
-                             <span className="font-bold text-slate-700 text-sm">{plan.target_date} (计划)</span>
-                             <button onClick={() => deletePlan(plan.id)} className="text-slate-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5"/></button>
-                          </div>
-                          <div className="p-4">
-                             <div className="mb-3 text-xs text-slate-500 bg-slate-50 p-2 rounded italic">
-                                策略总纲: {plan.strategy_summary}
-                             </div>
-                             <div className="space-y-2">
-                                {plan.items.map((item) => {
-                                   const isCompleted = item.status === 'completed';
-                                   const isSkipped = item.status === 'skipped';
-                                   const isFailed = item.status === 'failed';
-                                   
-                                   let statusColor = "bg-white border-slate-200";
-                                   if (isCompleted) statusColor = "bg-emerald-50 border-emerald-200";
-                                   if (isSkipped) statusColor = "bg-slate-50 border-slate-200 opacity-60";
-                                   if (isFailed) statusColor = "bg-rose-50 border-rose-200";
-
-                                   return (
-                                      <div key={item.id} className={`flex items-start gap-3 p-3 rounded border ${statusColor} transition-all`}>
-                                         <button 
-                                            onClick={() => togglePlanItemStatus(plan.id, item.id)}
-                                            className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                                               isCompleted ? 'bg-emerald-500 border-emerald-600 text-white' : 
-                                               isFailed ? 'bg-rose-500 border-rose-600 text-white' :
-                                               isSkipped ? 'bg-slate-300 border-slate-400 text-slate-500' :
-                                               'bg-white border-slate-300 hover:border-emerald-400'
-                                            }`}
-                                         >
-                                            {isCompleted && <Check className="w-3.5 h-3.5" />}
-                                            {isFailed && <X className="w-3.5 h-3.5" />}
-                                            {isSkipped && <MoreHorizontal className="w-3.5 h-3.5" />}
-                                         </button>
-                                         <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                               <span className={`text-sm font-bold ${isCompleted ? 'text-emerald-800' : isFailed ? 'text-rose-800' : 'text-slate-800'}`}>{item.symbol}</span>
-                                               <span className={`text-xs px-1.5 rounded uppercase font-medium border ${
-                                                  item.action === 'buy' ? 'bg-rose-100 text-rose-700 border-rose-200' :
-                                                  item.action === 'sell' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                                                  'bg-slate-100 text-slate-700 border-slate-200'
-                                               }`}>{item.action === 't_trade' ? '做T' : item.action}</span>
-                                            </div>
-                                            <div className="text-xs text-slate-600">
-                                               <span className="font-medium">目标:</span> {item.price_target} <span className="text-slate-300 mx-1">|</span> {item.reason}
-                                            </div>
-                                         </div>
-                                         <div className="text-[10px] text-slate-400 uppercase font-medium self-center">
-                                            {item.status}
-                                         </div>
-                                      </div>
-                                   );
-                                })}
-                             </div>
-                          </div>
-                       </div>
-                    ))
-                 )}
-              </div>
-           </div>
-        )}
-
         {/* --- History Drawer --- */}
         {isHistoryOpen && (
           <div className="mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200 animate-slide-down">
@@ -1332,6 +1291,92 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
            )}
         </div>
       )}
+
+      {/* --- TRADING PLAN DRAWER (Moved to Bottom) --- */}
+        {isPlanOpen && (
+           <div className="mt-8 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden animate-slide-up shadow-inner" id="trading-plan-section">
+              <div className="px-6 py-4 bg-white border-b border-slate-200 flex justify-between items-center">
+                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                   <ListTodo className="w-5 h-5 text-emerald-600"/>
+                   我的交易计划 (Trading Plans)
+                 </h3>
+                 <div className="flex items-center gap-2">
+                   <button onClick={handleExportPlanMD} className="text-xs flex items-center gap-1 text-slate-500 hover:text-indigo-600 border border-slate-200 rounded px-2 py-1 bg-white">
+                      <FileText className="w-3 h-3"/> 导出MD
+                   </button>
+                   <button onClick={handleExportPlanCSV} className="text-xs flex items-center gap-1 text-slate-500 hover:text-green-600 border border-slate-200 rounded px-2 py-1 bg-white">
+                      <FileSpreadsheet className="w-3 h-3"/> 导出Excel
+                   </button>
+                   <span className="text-xs text-slate-400 ml-2 border-l border-slate-200 pl-2">勾选以确认完成情况</span>
+                 </div>
+              </div>
+              <div className="p-4 space-y-6 max-h-[600px] overflow-y-auto">
+                 {tradingPlans.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400">暂无交易计划，请在分析报告中生成。</div>
+                 ) : (
+                    tradingPlans.map((plan) => (
+                       <div key={plan.id} className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
+                             <span className="font-bold text-slate-700 text-sm">{plan.target_date} (计划)</span>
+                             <button onClick={() => deletePlan(plan.id)} className="text-slate-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5"/></button>
+                          </div>
+                          <div className="p-4">
+                             <div className="mb-3 text-xs text-slate-500 bg-slate-50 p-2 rounded italic">
+                                策略总纲: {plan.strategy_summary}
+                             </div>
+                             <div className="space-y-2">
+                                {plan.items.map((item) => {
+                                   const isCompleted = item.status === 'completed';
+                                   const isSkipped = item.status === 'skipped';
+                                   const isFailed = item.status === 'failed';
+                                   
+                                   let statusColor = "bg-white border-slate-200";
+                                   if (isCompleted) statusColor = "bg-emerald-50 border-emerald-200";
+                                   if (isSkipped) statusColor = "bg-slate-50 border-slate-200 opacity-60";
+                                   if (isFailed) statusColor = "bg-rose-50 border-rose-200";
+
+                                   return (
+                                      <div key={item.id} className={`flex items-start gap-3 p-3 rounded border ${statusColor} transition-all`}>
+                                         <button 
+                                            onClick={() => togglePlanItemStatus(plan.id, item.id)}
+                                            className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                                               isCompleted ? 'bg-emerald-500 border-emerald-600 text-white' : 
+                                               isFailed ? 'bg-rose-500 border-rose-600 text-white' :
+                                               isSkipped ? 'bg-slate-300 border-slate-400 text-slate-500' :
+                                               'bg-white border-slate-300 hover:border-emerald-400'
+                                            }`}
+                                         >
+                                            {isCompleted && <Check className="w-3.5 h-3.5" />}
+                                            {isFailed && <X className="w-3.5 h-3.5" />}
+                                            {isSkipped && <MoreHorizontal className="w-3.5 h-3.5" />}
+                                         </button>
+                                         <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                               <span className={`text-sm font-bold ${isCompleted ? 'text-emerald-800' : isFailed ? 'text-rose-800' : 'text-slate-800'}`}>{item.symbol}</span>
+                                               <span className={`text-xs px-1.5 rounded uppercase font-medium border ${
+                                                  item.action === 'buy' ? 'bg-rose-100 text-rose-700 border-rose-200' :
+                                                  item.action === 'sell' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                                                  'bg-slate-100 text-slate-700 border-slate-200'
+                                               }`}>{item.action === 't_trade' ? '做T' : item.action}</span>
+                                            </div>
+                                            <div className="text-xs text-slate-600">
+                                               <span className="font-medium">目标:</span> {item.price_target} <span className="text-slate-300 mx-1">|</span> {item.reason}
+                                            </div>
+                                         </div>
+                                         <div className="text-[10px] text-slate-400 uppercase font-medium self-center">
+                                            {item.status}
+                                         </div>
+                                      </div>
+                                   );
+                                })}
+                             </div>
+                          </div>
+                       </div>
+                    ))
+                 )}
+              </div>
+           </div>
+        )}
     </div>
   );
 };
