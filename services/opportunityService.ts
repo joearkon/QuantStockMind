@@ -142,14 +142,11 @@ export const fetchOpportunityMining = async (
 
   // 1. Gemini Implementation
   if (provider === ModelProvider.GEMINI_INTL) {
-    const apiKey = settings?.geminiKey || process.env.API_KEY;
-    if (!apiKey) throw new Error("Gemini API Key missing");
-
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     try {
-      // Use runGeminiSafe for failover capability
-      const response = await runGeminiSafe(ai, {
+      // Fix: Added 'gemini-3-pro-preview' as the second argument for runGeminiSafe
+      const response = await runGeminiSafe(ai, 'gemini-3-pro-preview', {
         contents: systemPrompt + "\n" + userPrompt + `\n\nReturn strict JSON matching this schema: ${JSON.stringify(opportunitySchema)}`,
         config: {
           tools: [{ googleSearch: {} }],

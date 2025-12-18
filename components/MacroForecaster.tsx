@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, MacroDeductionData } from '../types';
 import { fetchMacroForecaster } from '../services/geminiService';
@@ -39,7 +38,8 @@ export const MacroForecaster: React.FC<MacroForecasterProps> = ({
     setError(null);
     setResult(null);
     try {
-      const data = await fetchMacroForecaster(inputData, currentMarket, settings.geminiKey);
+      // Fix: Removed settings.geminiKey as fetchMacroForecaster only accepts inputData and market
+      const data = await fetchMacroForecaster(inputData, currentMarket);
       setResult(data);
     } catch (err: any) {
       setError(err.message || "推演失败，请稍后重试");
