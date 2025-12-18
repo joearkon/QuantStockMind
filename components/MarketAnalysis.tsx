@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, HistoricalYearData } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
@@ -66,16 +67,12 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
   };
 
   const handleHistoryFetch = async () => {
-    if (!settings.geminiKey) {
-       setError("历史复盘需要 Gemini API Key，请先配置。");
-       onOpenSettings?.();
-       return;
-    }
     setLoading(true);
     setError(null);
     setHistoryData(null);
     try {
-      const res = await fetchSectorHistory(historyYear, historyMonth, currentMarket, settings.geminiKey);
+      // Fix: API key is now handled internally via process.env.API_KEY, so it is removed from the service call
+      const res = await fetchSectorHistory(historyYear, historyMonth, currentMarket);
       if (res.historyData) {
         setHistoryData(res.historyData);
       }
@@ -446,9 +443,9 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                          <span key={i} className="text-sm font-bold text-slate-800 border-b-2 border-emerald-400 pb-0.5">{s}</span>
                        )) || <span className="text-sm text-slate-400">无数据</span>}
                     </div>
-                    <p className="text-xs text-slate-500 leading-normal">
+                    <div className="text-xs text-slate-500 leading-normal">
                       {capitalRotation.inflow_reason || "暂无数据"}
-                    </p>
+                    </div>
                   </div>
                   <div className="border-t border-slate-100"></div>
                   <div>
@@ -461,9 +458,9 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                          <span key={i} className="text-sm font-bold text-slate-800 border-b-2 border-rose-400 pb-0.5">{s}</span>
                        )) || <span className="text-sm text-slate-400">无数据</span>}
                     </div>
-                    <p className="text-xs text-slate-500 leading-normal">
+                    <div className="text-xs text-slate-500 leading-normal">
                       {capitalRotation.outflow_reason || "暂无数据"}
-                    </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -594,7 +591,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                         {allocationModel[allocationType].action_plan?.map((step, idx) => (
                           <div key={idx} className="flex gap-3 text-sm text-slate-700">
                              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-xs font-bold border border-slate-200">{idx + 1}</span>
-                             <p className="pt-0.5">{step}</p>
+                             <div className="pt-0.5">{step}</div>
                           </div>
                         ))}
                       </div>
@@ -646,9 +643,9 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                       allocationType === 'aggressive' ? 'bg-rose-50 border-rose-500 text-rose-900' : 'bg-emerald-50 border-emerald-500 text-emerald-900'
                    }`}>
                       <h4 className="text-xs font-bold uppercase tracking-wider mb-1 opacity-70">Core Advantage</h4>
-                      <p className="text-sm font-medium leading-relaxed">
+                      <div className="text-sm font-medium leading-relaxed">
                          {allocationModel[allocationType].core_advantage}
-                      </p>
+                      </div>
                    </div>
                 </div>
               </div>
@@ -658,9 +655,9 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
             {d?.strategist_verdict && (
               <div className="lg:col-span-3 bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl p-6 border-l-4 border-blue-500 shadow-xl text-white">
                  <h3 className="text-blue-400 font-bold uppercase text-xs tracking-wider mb-2">Final Verdict</h3>
-                 <p className="text-lg font-medium leading-relaxed opacity-90">
+                 <div className="text-lg font-medium leading-relaxed opacity-90">
                    {d.strategist_verdict}
-                 </p>
+                 </div>
               </div>
             )}
 

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
@@ -52,10 +53,8 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
 
       if (selectedImage && currentModel === ModelProvider.GEMINI_INTL) {
          // --- Multimodal Analysis (Image + Text) ---
-         if (!settings.geminiKey) {
-            throw new Error("图片分析需要 Gemini API Key，请先在设置中配置。");
-         }
-         data = await fetchStockDetailWithImage(selectedImage, query, currentMarket, settings.geminiKey);
+         // Fix: API key is handled internally via process.env.API_KEY, removed from fetchStockDetailWithImage call
+         data = await fetchStockDetailWithImage(selectedImage, query, currentMarket);
       } else {
          // --- Text Only Analysis ---
          const prompt = `
@@ -185,14 +184,14 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
                      return (
                         <div key={i} className="flex gap-2 items-start bg-blue-50/50 p-2 rounded-lg">
                            <BarChart2 className="w-4 h-4 text-blue-500 mt-1 shrink-0" />
-                           <p className="text-sm text-slate-700" dangerouslySetInnerHTML={{__html: formatText(line.replace(/^[-*]\s*/, ''))}}></p>
+                           <div className="text-sm text-slate-700" dangerouslySetInnerHTML={{__html: formatText(line.replace(/^[-*]\s*/, ''))}}></div>
                         </div>
                      )
                   }
                   return (
                      <div key={i} className="flex gap-2 items-start">
                         <span className="mt-2 w-1.5 h-1.5 bg-slate-300 rounded-full shrink-0"></span>
-                        <p className="text-sm text-slate-600 leading-relaxed" dangerouslySetInnerHTML={{__html: formatText(line.replace(/^[-*]\s*/, ''))}}></p>
+                        <div className="text-sm text-slate-600 leading-relaxed" dangerouslySetInnerHTML={{__html: formatText(line.replace(/^[-*]\s*/, ''))}}></div>
                      </div>
                   );
                })}
@@ -218,7 +217,7 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
                return (
                   <div key={i} className={`p-3 rounded-r-lg ${styleClass} flex items-start gap-3`}>
                      <Icon className="w-4 h-4 mt-0.5 opacity-70" />
-                     <p className="text-sm text-slate-800" dangerouslySetInnerHTML={{__html: formatText(cleanLine)}}></p>
+                     <div className="text-sm text-slate-800" dangerouslySetInnerHTML={{__html: formatText(cleanLine)}}></div>
                   </div>
                );
             })}
@@ -238,7 +237,7 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
                       {line.replace(/###\s*/, '')}
                    </h4>
                 ) : (
-                   <p className="text-sm text-slate-600 leading-relaxed" dangerouslySetInnerHTML={{__html: formatText(line.replace(/^[-*]\s*/, ''))}}></p>
+                   <div className="text-sm text-slate-600 leading-relaxed" dangerouslySetInnerHTML={{__html: formatText(line.replace(/^[-*]\s*/, ''))}}></div>
                 )}
              </div>
           ))}
@@ -323,141 +322,4 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
               value={savedQuery}
               onChange={(e) => onQueryUpdate(e.target.value)}
               placeholder={`输入${marketLabel}代码或名称...`}
-              className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-lg shadow-inner font-bold text-slate-800 placeholder:font-normal"
-            />
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-6 h-6" />
-            
-            {/* Camera / Image Upload Button */}
-            <input 
-              type="file" 
-              accept="image/*" 
-              ref={fileInputRef} 
-              className="hidden" 
-              onChange={handleImageSelect} 
-            />
-            <button 
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-colors ${selectedImage ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-100'}`}
-              title="上传同花顺/东财K线截图以增强分析"
-            >
-              <Camera className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Image Preview Area */}
-          {selectedImage && (
-             <div className="flex items-center gap-3 p-3 bg-indigo-50 border border-indigo-100 rounded-lg animate-fade-in">
-                <div className="relative w-16 h-16 shrink-0 rounded overflow-hidden border border-indigo-200">
-                   <img src={`data:image/jpeg;base64,${selectedImage}`} alt="Preview" className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1">
-                   <p className="text-sm font-bold text-indigo-900 flex items-center gap-1">
-                     <ImageIcon className="w-3 h-3" /> 已启用视觉增强分析
-                   </p>
-                   <p className="text-xs text-indigo-700 mt-0.5">
-                     AI 将自动提取图中的换手率、量比及K线形态。
-                   </p>
-                </div>
-                <button 
-                  type="button" 
-                  onClick={clearImage}
-                  className="p-1.5 text-indigo-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                >
-                   <X className="w-4 h-4" />
-                </button>
-             </div>
-          )}
-          
-          <div className="flex gap-4">
-             <div className="relative flex-1">
-                <input 
-                  type="text"
-                  placeholder="当前价格 (可选)"
-                  value={currentPrice}
-                  onChange={(e) => setCurrentPrice(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
-                   防止数据延迟
-                </div>
-             </div>
-             <button
-              type="submit"
-              disabled={loading || !savedQuery}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md shadow-blue-200"
-            >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : '开始深度诊断'}
-            </button>
-          </div>
-          <p className="text-sm text-slate-500 text-center pt-2">
-             {selectedImage 
-               ? "⚡️ 多模态分析模式已开启：Gemini 将同时阅读文字与K线截图。" 
-               : `AI将结合最新互联网信息对 ${marketLabel} 标的进行分析。`}
-          </p>
-        </form>
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-100 rounded-lg flex items-center justify-between text-red-700">
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="w-5 h-5" />
-            <div className="text-sm">
-               <span className="font-semibold block">分析中断</span>
-               {error}
-            </div>
-          </div>
-          {onOpenSettings && (error.includes('Key') || error.includes('余额')) && (
-            <button onClick={onOpenSettings} className="px-3 py-1 bg-white border border-red-200 text-red-600 text-sm rounded hover:bg-red-50 flex items-center gap-1">
-              <Settings className="w-3 h-3" />
-              检查配置
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Results Display */}
-      {savedResult && (
-        <div className="bg-slate-50 rounded-xl overflow-hidden animate-slide-up border border-slate-200 shadow-sm">
-          {/* Result Header */}
-          <div className="flex justify-between items-center px-6 py-4 bg-white border-b border-slate-200">
-             <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                   {savedQuery}
-                   <span className="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-500 font-normal border border-slate-200">
-                      {selectedImage ? '视觉增强诊断' : '个股诊断'}
-                   </span>
-                </h3>
-                <p className="text-xs text-slate-400 mt-1">
-                   生成时间: {new Date(savedResult.timestamp).toLocaleString()}
-                </p>
-             </div>
-             <button onClick={() => window.print()} className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded text-xs font-medium hover:bg-slate-100">
-               导出
-             </button>
-          </div>
-
-          {/* Result Body */}
-          <div className="p-6 bg-slate-50/50">
-             {renderAnalysisContent(savedResult.content)}
-          </div>
-
-          {/* Sources Footer */}
-          {savedResult.groundingSource && savedResult.groundingSource.length > 0 && (
-             <div className="px-6 py-4 bg-slate-100/50 border-t border-slate-200 text-xs text-slate-500">
-                <strong className="block mb-2 text-slate-700">参考数据来源：</strong>
-                <div className="flex flex-wrap gap-2">
-                   {savedResult.groundingSource.map((s, i) => (
-                     <a key={i} href={s.uri} target="_blank" rel="noreferrer" className="inline-flex items-center px-2 py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded text-blue-600 transition-colors">
-                        {s.title || "网页来源"} <ChevronRight className="w-3 h-3 ml-1" />
-                     </a>
-                   ))}
-                </div>
-             </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
+              className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-5
