@@ -546,6 +546,7 @@ export const fetchPeriodicReview = async (
     ${journalSummary}
 
     Task: Generate a structured "Periodic Performance Review" in JSON.
+    Output JSON strictly matching this structure: ${JSON.stringify(periodicReviewSchema)}.
     
     REQUIREMENTS:
     1. Score: 0-100 based on asset growth and discipline.
@@ -563,8 +564,7 @@ export const fetchPeriodicReview = async (
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-        responseSchema: periodicReviewSchema
+        // CRITICAL: Do NOT use responseMimeType when using googleSearch tool as it causes 400 error.
       }
     }, "Periodic Review");
 
@@ -735,14 +735,15 @@ export const fetchSectorHistory = async (
   const ai = new GoogleGenAI({ apiKey: effectiveKey });
 
   try {
-    const prompt = `Review ${market} market for ${year} ${month === 'all' ? 'Full Year' : month + ' Month'}. Output JSON with winners, losers, summary, key events in Chinese. NO COMMENTS.`;
+    const prompt = `Review ${market} market for ${year} ${month === 'all' ? 'Full Year' : month + ' Month'}. 
+    Search for major sector winners and losers.
+    Output JSON strictly matching this schema: ${JSON.stringify(historicalYearSchema)} with winners, losers, summary, key events in Chinese. NO COMMENTS.`;
     
     const response = await runGeminiSafe(ai, {
       contents: prompt,
       config: { 
         tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-        responseSchema: historicalYearSchema
+        // CRITICAL: Do NOT use responseMimeType when using googleSearch tool as it causes 400 error.
       }
     }, "History Review");
 
@@ -822,11 +823,11 @@ export const fetchMarketDashboard = async (
          - **Strictly No '600xxx'**.
       
       IMPORTANT: Output RAW JSON ONLY. NO COMMENTS (//). NO MARKDOWN.
-      Output STRICT JSON matching schema.
+      Output STRICT JSON matching schema: ${JSON.stringify(marketDashboardSchema)}.
     `;
 
     const response = await runGeminiSafe(ai, {
-      contents: prompt + `\n\nReturn JSON strictly matching this schema: ${JSON.stringify(marketDashboardSchema)}`,
+      contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
       }
