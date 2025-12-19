@@ -1,5 +1,4 @@
 
-
 export enum ModelProvider {
   GEMINI_INTL = 'Gemini 3 (海外版)',
   HUNYUAN_CN = '混元大模型 (国内版)',
@@ -25,11 +24,17 @@ export interface MarketDashboardData {
     inflow_reason: string;
     outflow_sectors: string[];
     outflow_reason: string;
-    top_inflow_stocks?: string[]; // 增加流入前5个股
+    rotation_logic: string; // 增加板块切换深度解读
+    top_inflow_stocks?: string[]; 
+  };
+  national_macro_logic?: { // 增加国家全局消息面
+    policy_focus: string;
+    macro_event: string;
+    impact_level: 'High' | 'Medium' | 'Low';
   };
   institutional_signals?: {
     dragon_tiger_summary: string;
-    lh_top_10?: { name: string; net_buy: string; logic: string }[]; // 龙虎榜 Top 10
+    lh_top_10?: { name: string; net_buy: string; logic: string }[]; 
     block_trade_activity: string;
     active_money_flow_trend: string;
   };
@@ -68,7 +73,6 @@ export interface AnalysisResult {
   market?: MarketType;
   periodicData?: any;
   historyData?: any;
-  // Added domain specific data properties to fix TS errors
   opportunityData?: any;
   foresightData?: any;
   institutionalData?: any;
@@ -116,7 +120,6 @@ export interface HoldingsSnapshot {
   holdings: any[];
 }
 
-// Fixed missing exports reported in errors
 export interface HistoricalYearData {
   year: number;
   performance: string;

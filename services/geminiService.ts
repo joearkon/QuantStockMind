@@ -41,6 +41,15 @@ const marketDashboardSchema: Schema = {
       },
       required: ["score", "summary", "trend"]
     },
+    national_macro_logic: {
+      type: Type.OBJECT,
+      properties: {
+        policy_focus: { type: Type.STRING, description: "国家层面的核心政策聚焦（如中央经济工作会议等）" },
+        macro_event: { type: Type.STRING, description: "当日或近期全局性大事" },
+        impact_level: { type: Type.STRING, enum: ["High", "Medium", "Low"] }
+      },
+      required: ["policy_focus", "macro_event", "impact_level"]
+    },
     capital_rotation: {
       type: Type.OBJECT,
       properties: {
@@ -48,9 +57,10 @@ const marketDashboardSchema: Schema = {
         inflow_reason: { type: Type.STRING },
         outflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } },
         outflow_reason: { type: Type.STRING },
+        rotation_logic: { type: Type.STRING, description: "资金为何从A板块切换到B板块的深度原因" },
         top_inflow_stocks: { type: Type.ARRAY, items: { type: Type.STRING } }
       },
-      required: ["inflow_sectors", "inflow_reason", "outflow_sectors", "outflow_reason", "top_inflow_stocks"]
+      required: ["inflow_sectors", "inflow_reason", "outflow_sectors", "outflow_reason", "rotation_logic", "top_inflow_stocks"]
     },
     institutional_signals: {
       type: Type.OBJECT,
@@ -58,13 +68,12 @@ const marketDashboardSchema: Schema = {
         dragon_tiger_summary: { type: Type.STRING },
         lh_top_10: {
           type: Type.ARRAY,
-          description: "龙虎榜净买入排名前10位个股",
           items: {
             type: Type.OBJECT,
             properties: {
               name: { type: Type.STRING },
-              net_buy: { type: Type.STRING, description: "净买入金额 (如: 1.25亿)" },
-              logic: { type: Type.STRING, description: "上榜理由或核心席位动向" }
+              net_buy: { type: Type.STRING },
+              logic: { type: Type.STRING }
             }
           }
         },
@@ -74,10 +83,10 @@ const marketDashboardSchema: Schema = {
       required: ["dragon_tiger_summary", "lh_top_10", "block_trade_activity", "active_money_flow_trend"]
     }
   },
-  required: ["data_date", "market_sentiment", "market_volume", "institutional_signals", "capital_rotation"]
+  required: ["data_date", "market_sentiment", "market_volume", "institutional_signals", "capital_rotation", "national_macro_logic"]
 };
 
-// Defined missing schemas for structured AI outputs
+// ... (Other schemas and helpers from previous content)
 const snapshotSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -215,7 +224,6 @@ export async function runGeminiSafe(
   }), 5, 2000);
 }
 
-// Implemented missing export fetchGeminiAnalysis
 export const fetchGeminiAnalysis = async (
   prompt: string,
   isComplex: boolean = false,
@@ -249,7 +257,6 @@ export const fetchGeminiAnalysis = async (
   }
 };
 
-// Implemented missing export fetchStockDetailWithImage
 export const fetchStockDetailWithImage = async (
   base64Image: string,
   query: string,
@@ -280,7 +287,6 @@ export const fetchStockDetailWithImage = async (
   };
 };
 
-// Implemented missing export parseBrokerageScreenshot
 export const parseBrokerageScreenshot = async (
   base64Image: string,
   apiKey?: string
@@ -306,7 +312,6 @@ export const parseBrokerageScreenshot = async (
   return robustParse(response.text || "{}");
 };
 
-// Implemented missing export fetchPeriodicReview
 export const fetchPeriodicReview = async (
   journals: JournalEntry[],
   label: string,
@@ -339,7 +344,6 @@ export const fetchPeriodicReview = async (
   };
 };
 
-// Implemented missing export extractTradingPlan
 export const extractTradingPlan = async (
   analysisContent: string,
   apiKey?: string
@@ -371,16 +375,17 @@ export const fetchMarketDashboard = async (
   
   try {
     const prompt = `
-      【任务】生成 ${market} 深度量化分析看板。
-      【日期要求】当前 ${new Date().toLocaleDateString()}。
-      【强制检索项】
-      1. 各大指数数值与成交额。
-      2. 龙虎榜 (LH List)：检索今日净买入排名前 10 的个股名称、净额及上榜理由。若今日暂无，则展示最近一个交易日的数据。
-      3. 资金流向：分析全场主力资金流入/流出的核心板块，及流入前 5 名标的。
-      4. 情绪评分：结合涨跌家数比、封板率及炸板率给出评分。
+      【任务】生成 ${market} 深度量化推演看板。
+      【日期】${new Date().toLocaleDateString()}。
+      【核心检索与推演要求】
+      1. **国家全局战略消息面 (National Macro)**：检索今日中央、部委发布的最新产业政策或全局性经济数据。必须提供核心影响推演。
+      2. **板块切换深度解读 (Rotation Logic)**：分析今日资金流动的“底层动机”。例如：资金为何从AI硬件流向低空经济？是利好出尽还是高低切换？
+      3. **龙虎榜前10**：检索今日真实净买入Top 10个股及理由。
+      4. **成交额与流动性**：市场是否缩量？主动买卖差如何？
       
       【规则】
-      - 必须全中文输出。
+      - 必须全中文输出，禁止夹杂英文。
+      - 严禁模拟，必须搜索真实行情。
       - 输出必须严格符合 JSON Schema: ${JSON.stringify(marketDashboardSchema)}。
     `;
     

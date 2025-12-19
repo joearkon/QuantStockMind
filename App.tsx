@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { HashRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { Disclaimer } from './components/Disclaimer';
@@ -16,16 +17,12 @@ const App: React.FC = () => {
   const [selectedMarket, setSelectedMarket] = useState<MarketType>(MarketType.CN);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
-  // -- Global State for Persistence --
-  // Market Analysis State
   const [marketResult, setMarketResult] = useState<AnalysisResult | null>(null);
   const [marketPeriod, setMarketPeriod] = useState<'day' | 'month'>('day');
 
-  // Stock Analysis State
   const [stockResult, setStockResult] = useState<AnalysisResult | null>(null);
   const [stockQuery, setStockQuery] = useState('');
 
-  // Initialize settings with environment variables or local storage
   const [userSettings, setUserSettings] = useState<UserSettings>(() => {
     const saved = localStorage.getItem('quantmind_settings');
     let parsed: UserSettings = {};
@@ -37,10 +34,8 @@ const App: React.FC = () => {
       }
     }
 
-    // Cloudflare Worker Injected Variables
     const injectedEnv = (window as any).__ENV__ || {};
 
-    // Check Hunyuan Env Vars
     const hunyuanKey = 
       injectedEnv.VITE_HUNYUAN_API_KEY ||
       // @ts-ignore
@@ -50,7 +45,6 @@ const App: React.FC = () => {
       process.env.VITE_HUNYUAN_API_KEY || 
       process.env.HUNYUAN_API_KEY;
 
-    // Check Gemini Env Vars
     const geminiKey = 
       injectedEnv.VITE_GEMINI_API_KEY ||
       // @ts-ignore
@@ -77,7 +71,6 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-        {/* Header */}
         <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
@@ -91,10 +84,7 @@ const App: React.FC = () => {
                 <span className="text-xl font-bold text-blue-700 sm:hidden">QM</span>
               </div>
               
-              {/* Controls */}
               <div className="flex items-center gap-3">
-                
-                {/* Market Selector */}
                 <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
                    {MARKET_OPTIONS.map((m) => (
                       <button
@@ -113,7 +103,6 @@ const App: React.FC = () => {
 
                 <div className="h-6 w-px bg-slate-300 mx-1 hidden md:block"></div>
 
-                {/* Model Selector */}
                 <select 
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value as ModelProvider)}
@@ -138,11 +127,8 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        {/* Main Layout */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
-            {/* Sidebar Navigation */}
             <aside className="lg:col-span-3">
               <nav className="space-y-2 sticky top-24">
                 {NAV_ITEMS.map((item) => (
@@ -175,14 +161,13 @@ const App: React.FC = () => {
                    <div className="h-px bg-slate-200 my-2"></div>
                    <p>
                      {selectedModel === ModelProvider.GEMINI_INTL 
-                       ? "Gemini 2.5 具备全球联网能力，适合所有市场分析。"
+                       ? "Gemini 3 具备全球联网能力，适合所有市场分析。"
                        : "混元模型对国内市场(A/H)理解较深。"}
                    </p>
                 </div>
               </nav>
             </aside>
 
-            {/* Content Area */}
             <div className="lg:col-span-9">
               <Disclaimer />
               <div className="min-h-[500px]">
@@ -258,7 +243,7 @@ const App: React.FC = () => {
                  <p className="mb-2 flex items-center justify-center gap-2">
                    <span>&copy; {new Date().getFullYear()} QuantMind</span>
                    <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-mono">{APP_VERSION}</span>
-                   <span>Powered by Google Gemini 2.5 & Multi-LLM.</span>
+                   <span>Powered by Google Gemini 3 & Multi-LLM.</span>
                  </p>
                  <div className="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-4">
                     <div className="flex items-center gap-2 group cursor-default">
