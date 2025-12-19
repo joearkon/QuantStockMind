@@ -72,11 +72,23 @@ const marketDashboardSchema = {
   type: Type.OBJECT,
   properties: {
     data_date: { type: Type.STRING },
-    market_indices: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, value: { type: Type.STRING }, change: { type: Type.STRING }, direction: { type: Type.STRING, enum: ["up", "down"] } } } },
+    market_indices: { 
+      type: Type.ARRAY, 
+      items: { 
+        type: Type.OBJECT, 
+        properties: { 
+          name: { type: Type.STRING, description: "指数名称，如'上证指数'" }, 
+          value: { type: Type.STRING, description: "指数当前数值字符串，必须纯数字或带两位小数。严禁包含任何推导过程或括号说明文字。" }, 
+          change: { type: Type.STRING, description: "涨跌幅，如'+0.41%'。严禁包含任何文字说明。" }, 
+          direction: { type: Type.STRING, enum: ["up", "down"] } 
+        },
+        required: ["name", "value", "change", "direction"]
+      } 
+    },
     market_volume: { type: Type.OBJECT, properties: { total_volume: { type: Type.STRING }, volume_delta: { type: Type.STRING }, volume_trend: { type: Type.STRING, enum: ["expansion", "contraction", "flat"] }, net_inflow: { type: Type.STRING }, capital_mood: { type: Type.STRING } }, required: ["total_volume", "volume_delta", "volume_trend", "net_inflow", "capital_mood"] },
     market_sentiment: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, summary: { type: Type.STRING }, trend: { type: Type.STRING, enum: ["bullish", "bearish", "neutral"] } }, required: ["score", "summary", "trend"] },
     capital_rotation: { type: Type.OBJECT, properties: { inflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, inflow_reason: { type: Type.STRING }, outflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, outflow_reason: { type: Type.STRING } }, required: ["inflow_sectors", "inflow_reason", "outflow_sectors", "outflow_reason"] },
-    deep_logic: { type: Type.OBJECT, properties: { policy_driver: { type: Type.STRING }, external_environment: { type: Type.STRING }, market_valuation: { type: Type.STRING } }, required: ["policy_driver", "external_environment", "market_valuation"] },
+    deep_logic: { type: Type.OBJECT, properties: { policy_driver: { type: Type.STRING, description: "宏观驱动力，所有关于数值的详细推演过程请写在这里。" }, external_environment: { type: Type.STRING }, market_valuation: { type: Type.STRING } }, required: ["policy_driver", "external_environment", "market_valuation"] },
     hot_topics: { type: Type.ARRAY, items: { type: Type.STRING } },
     opportunity_analysis: { type: Type.OBJECT, properties: { defensive_value: { type: Type.OBJECT, properties: { logic: { type: Type.STRING }, sectors: { type: Type.ARRAY, items: { type: Type.STRING } } } }, tech_growth: { type: Type.OBJECT, properties: { logic: { type: Type.STRING }, sectors: { type: Type.ARRAY, items: { type: Type.STRING } } } } }, required: ["defensive_value", "tech_growth"] },
     strategist_verdict: { type: Type.STRING },
@@ -204,7 +216,15 @@ export const fetchMacroForecaster = async (inputData: string, market: MarketType
 export const fetchMarketDashboard = async (period: 'day' | 'month', market = MarketType.CN): Promise<AnalysisResult> => {
   const apiKey = getApiKey();
   const ai = new GoogleGenAI({ apiKey });
-  const prompt = `生成 ${market} 市场 ${period} 分析报告。强制简体中文，严禁英文。`;
+  const prompt = `
+    任务：生成 ${market} 市场 ${period === 'day' ? '当日' : '本月'} 深度分析报告。
+    
+    【格式要求】：
+    - 严格使用简体中文。
+    - 指数数值 (value 字段) 必须为纯数字字符串，例如 "3889.35"。禁止在此字段中加入任何括号说明、动态推演描述、实时数据修正文字。
+    - 涨跌幅 (change 字段) 必须为百分比字符串，例如 "+0.41%"。
+    - 所有关于指数点位的动态推演逻辑、修正理由、或者是针对 JSON 格式的备注，必须全部放入 deep_logic 下的 policy_driver 字段中。
+  `;
   try {
     const response = await runGeminiSafe(ai, GEMINI_MODEL_COMPLEX, {
       contents: prompt,
