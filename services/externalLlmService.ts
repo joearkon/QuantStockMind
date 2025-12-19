@@ -1,13 +1,10 @@
+
 import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot } from "../types";
 
-// Configuration for external providers
 const PROVIDER_CONFIG = {
   [ModelProvider.HUNYUAN_CN]: {
-    // Tencent Hunyuan OpenAI-compatible endpoint
     baseUrl: "https://api.hunyuan.cloud.tencent.com/v1", 
-    // Chat model
     model: "hunyuan-pro", 
-    // Vision model
     visionModel: "hunyuan-vision",
     name: "Tencent Hunyuan"
   }
@@ -19,119 +16,37 @@ interface OpenAIChatMessage {
 }
 
 interface OpenAICompletionResponse {
-  choices: {
-    message: {
-      content: string;
-    };
-    finish_reason?: string;
-  }[];
-  error?: {
-    message: string;
-    type: string;
-    code: string;
-  }
+  choices: { message: { content: string; }; }[];
 }
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * Robust JSON Parser 2.0
- * Aggressively fixes common LLM JSON syntax errors.
- */
 function robustJsonParse(text: string): any {
   if (!text) throw new Error("Empty response text");
-
   let clean = text.trim();
-
-  // 1. Strip Markdown Code Blocks
   clean = clean.replace(/^```[a-z]*\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
-
-  // 2. Locate JSON boundaries (Do this FIRST to avoid cleaning non-JSON parts)
   const firstBrace = clean.search(/[{[]/);
-  const lastCurly = clean.lastIndexOf('}');
-  const lastSquare = clean.lastIndexOf(']');
-  const lastIndex = Math.max(lastCurly, lastSquare);
-
+  const lastIndex = Math.max(clean.lastIndexOf('}'), clean.lastIndexOf(']'));
   if (firstBrace !== -1 && lastIndex !== -1 && lastIndex > firstBrace) {
     clean = clean.substring(firstBrace, lastIndex + 1);
   }
-
-  // 3. First Attempt: Optimistic Parse
-  try {
+  try { return JSON.parse(clean); } catch (e) {
+    clean = clean.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']').replace(/：/g, ':').replace(/，/g, ',');
     return JSON.parse(clean);
-  } catch (e) {
-    // Proceed to repairs
-  }
-
-  // 4. Aggressive Fixes
-
-  // Fix: Strip Comments safely (avoid stripping http://)
-  // Remove block comments
-  clean = clean.replace(/\/\*[\s\S]*?\*\//g, '');
-  // Remove line comments that start at line beginning or after structural chars
-  clean = clean.replace(/(^|[{,\[\]])\s*\/\/.*$/gm, '$1'); 
-
-  // Fix: Quote normalization
-  clean = clean.replace(/[\u201C\u201D]/g, '"'); 
-  
-  // Fix: Floating point artifacts (Gemini sometimes outputs 1.000000001)
-  clean = clean.replace(/(\d+)\.0{5,}\d*/g, '$1');
-
-  // Fix: Missing commas between objects/arrays } { -> }, {
-  clean = clean.replace(/}\s*{/g, '}, {');
-  clean = clean.replace(/]\s*\[/g, '], [');
-  
-  // Fix: Missing commas between string array items "A" "B" -> "A", "B"
-  // Safer regex: look for Quote-Space-Quote
-  clean = clean.replace(/"\s+(?=")/g, '", ');
-
-  // Fix: Trailing Commas
-  clean = clean.replace(/,\s*}/g, '}');
-  clean = clean.replace(/,\s*]/g, ']');
-
-  // Fix: Chinese Punctuation
-  clean = clean.replace(/：/g, ':').replace(/，/g, ',');
-
-  // Fix: Unquoted keys
-  clean = clean.replace(/([{,]\s*)([a-zA-Z0-9_]+?)\s*:/g, '$1"$2":');
-
-  // Fix: NaN/Infinity
-  clean = clean.replace(/\bNaN\b/g, 'null');
-  clean = clean.replace(/\bInfinity\b/g, 'null');
-
-  try {
-    return JSON.parse(clean);
-  } catch (finalError) {
-    console.error("Robust parse failed completely.", finalError);
-    // console.log("Failed JSON text:", clean);
-    throw new Error("JSON 解析失败: 模型返回的数据结构不完整或有误 (Syntax Error)。");
   }
 }
 
-/**
- * Generic fetch with exponential backoff retry
- */
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, baseDelay = 1000): Promise<Response> {
   let lastError: any;
-  
   for (let i = 0; i < retries; i++) {
-    try {
-      const res = await fetch(url, options);
-      return res;
-    } catch (err: any) {
+    try { return await fetch(url, options); } catch (err: any) {
       lastError = err;
-      console.warn(`Fetch attempt ${i + 1} failed: ${err.message}. Retrying...`);
-      if (i < retries - 1) {
-        await wait(baseDelay * Math.pow(2, i));
-      }
+      if (i < retries - 1) await wait(baseDelay * Math.pow(2, i));
     }
   }
   throw lastError;
 }
 
-/**
- * Generic fetcher for OpenAI-compatible APIs (Hunyuan)
- */
 export const fetchExternalAI = async (
   provider: ModelProvider,
   apiKey: string,
@@ -143,263 +58,115 @@ export const fetchExternalAI = async (
 ): Promise<AnalysisResult> => {
   
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
-  if (!config) {
-    throw new Error(`Configuration for ${provider} not found.`);
-  }
+  if (!config) throw new Error(`Configuration for ${provider} not found.`);
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN');
 
-  let indicesExample = "";
-  if (market === MarketType.CN) {
-    indicesExample = `{ "name": "上证指数", "value": "3000.00", "change": "+0.00%", "direction": "up" }`;
-  } else if (market === MarketType.HK) {
-    indicesExample = `{ "name": "恒生指数", "value": "17000.00", "change": "-0.00%", "direction": "down" }`;
-  } else if (market === MarketType.US) {
-    indicesExample = `{ "name": "纳斯达克", "value": "15000.00", "change": "+0.00%", "direction": "up" }`;
-  }
-
-  // JSON Schema Instruction
+  // JSON Schema Instruction - 汉化示例
   const jsonInstruction = `
-    [FORMAT INSTRUCTION]
-    1. Return VALID JSON only. 
-    2. Do NOT use Markdown code blocks (no \`\`\`json).
-    3. Use standard quotes (") and commas (,). No Chinese punctuation.
-    4. Ensure Arrays are comma-separated: [ {...}, {...} ] (Do not miss commas!)
+    [输出规范]
+    1. 必须返回合法的 JSON。禁止 Markdown 代码块。
+    2. **所有文本内容（包括指数名、板块名、逻辑描述）必须严格使用简体中文。禁止出现英文。**
     
-    JSON Structure:
+    JSON 结构示例:
     {
-      "data_date": "YYYY-MM-DD",  // <--- IMPORTANT: The actual date of the data found.
-      "market_indices": [ ${indicesExample} ],
+      "data_date": "${dateStr}",
+      "market_indices": [ { "name": "上证指数", "value": "3000.00", "change": "+0.10%", "direction": "up" } ],
       "market_volume": {
-        "total_volume": "1.5万亿",
+        "total_volume": "1.2万亿",
         "volume_delta": "放量2000亿",
         "volume_trend": "expansion",
-        "net_inflow": "主力净流入+50亿",
-        "capital_mood": "增量资金进场"
+        "net_inflow": "主力资金流入",
+        "capital_mood": "情绪亢奋"
       },
-      "market_sentiment": { "score": 60, "summary": "...", "trend": "bullish" },
+      "market_sentiment": { "score": 65, "summary": "情绪温和修复", "trend": "bullish" },
       "capital_rotation": {
-        "inflow_sectors": ["..."], "inflow_reason": "...",
-        "outflow_sectors": ["..."], "outflow_reason": "..."
+        "inflow_sectors": ["半导体", "低空经济"], "inflow_reason": "政策催化",
+        "outflow_sectors": ["房地产"], "outflow_reason": "资金流出"
       },
-      "deep_logic": { "policy_driver": "...", "external_environment": "...", "market_valuation": "..." },
-      "hot_topics": ["..."],
+      "deep_logic": { "policy_driver": "降准预期", "external_environment": "外盘稳定", "market_valuation": "估值低位" },
+      "hot_topics": ["商业航天", "合成生物"],
       "opportunity_analysis": {
-        "defensive_value": { "logic": "...", "sectors": ["..."] },
-        "tech_growth": { "logic": "...", "sectors": ["..."] }
+        "defensive_value": { "logic": "高股息资产", "sectors": ["银行"] },
+        "tech_growth": { "logic": "AI产业爆发", "sectors": ["服务器"] }
       },
-      "strategist_verdict": "...",
+      "strategist_verdict": "看好科技成长...",
       "allocation_model": {
-        "aggressive": { "strategy_name": "...", "description": "...", "action_plan": ["..."], "portfolio_table": [], "core_advantage": "..." },
-        "balanced": { "strategy_name": "...", "description": "...", "action_plan": ["..."], "portfolio_table": [], "core_advantage": "..." }
+        "aggressive": { "strategy_name": "龙头战法", "description": "核心聚焦热点", "action_plan": ["买入龙头"], "portfolio_table": [], "core_advantage": "高爆发" },
+        "balanced": { "strategy_name": "中性配置", "description": "均衡风险", "action_plan": ["持有蓝筹"], "portfolio_table": [], "core_advantage": "稳健" }
       }
     }
   `;
 
-  let systemContent = `You are a Senior Quantitative Financial Analyst. Today is ${dateStr}. Focus on the ${market} market. 
-  STRICT JSON MODE: Enabled. output strictly valid JSON.
-  INTERNET SEARCH: Enabled.
+  let systemContent = `你是一位资深金融分析师。今天是 ${dateStr}。当前分析市场为 ${market}。
+  【核心准则】:
+  1. 必须严格使用简体中文回答。
+  2. 严禁在回答中夹杂英文。
+  3. 联网搜索实时数据。
   `;
   
-  let userContent = prompt;
-
-  if (isDashboard) {
-    const searchQueries = `
-    [Tasks]
-    Search real-time data for ${dateStr}:
-    1. ${market} Indices values and change.
-    2. Total Trading Volume & Volume Delta (成交额与增量).
-    3. Main Force / Institutional Fund Flow (主力资金/北向资金).
-    4. Market Sentiment.
-    5. Top performing individual stocks for Aggressive/Balanced strategies.
-
-    [CRITICAL DATA RULE]
-    - **IF TODAY'S DATA IS NOT AVAILABLE (e.g. market closed, or morning pre-market), YOU MUST SEARCH FOR THE PREVIOUS TRADING DAY'S CLOSING DATA.**
-    - **YOU MUST FILL 'data_date' WITH THE ACTUAL DATE OF THE DATA.**
-    - Do NOT return empty or zero values if old data exists.
-    
-    [CRITICAL RULE For Portfolio Table]
-    - **MANDATORY**: You MUST provide specific **INDIVIDUAL STOCKS (个股)**. Do not list only ETFs.
-    - **Aggressive**: Focus on Leaders (龙头). **Balanced**: Focus on Blue Chips (蓝筹).
-    - **NO MASKED CODES**: You MUST provide REAL, SPECIFIC stock codes (e.g. "600519", "AAPL", "00700").
-    - DO NOT output "600xxx", "300xxx", etc.
-    `;
-    userContent = `${prompt}\n\n${searchQueries}\n\n${jsonInstruction}`;
-  } else {
-    if (forceJson) {
-      systemContent += " Return strictly valid JSON. No markdown.";
-    } else {
-      systemContent += " Use Markdown formatting.";
-    }
-  }
-
-  const messages: OpenAIChatMessage[] = [
-    { role: 'system', content: systemContent },
-    { role: 'user', content: userContent }
-  ];
+  let userContent = isDashboard ? `${prompt}\n\n${jsonInstruction}` : `${prompt}\n\n【请严格使用简体中文回答，禁止返回英文内容】`;
 
   const requestBody: any = {
     model: config.model,
-    messages: messages,
-    temperature: 0.5, 
+    messages: [{ role: 'system', content: systemContent }, { role: 'user', content: userContent }],
+    temperature: 0.3,
     max_tokens: 4000, 
+    enable_enhancement: true 
   };
-  
-  // Hunyuan specific enhancement
-  if (provider === ModelProvider.HUNYUAN_CN) {
-    requestBody.enable_enhancement = true; 
-  }
   
   try {
     const response = await fetchWithRetry(`${config.baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       body: JSON.stringify(requestBody)
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Model Error (${response.status}): ${errorText.substring(0, 100)}`);
-    }
-
+    if (!response.ok) throw new Error(`Model Error: ${response.status}`);
     const data = await response.json() as OpenAICompletionResponse;
     const content = data.choices[0]?.message?.content || "";
-
-    if (!content) throw new Error("API returned empty content.");
-
     let structuredData: MarketDashboardData | undefined;
-    
-    // Robust Parse for Dashboard or when JSON is forced
-    if (isDashboard || forceJson) {
-      try {
-        const parsed = robustJsonParse(content);
-        if (isDashboard) {
-           structuredData = parsed;
-        }
-      } catch (e) {
-        console.warn("Parsing failed", e);
-        throw e;
-      }
-    }
-
-    return {
-      content,
-      groundingSource: [], 
-      timestamp: Date.now(),
-      modelUsed: provider,
-      isStructured: !!structuredData,
-      structuredData,
-      market: market
-    };
-
-  } catch (error: any) {
-    console.error("External LLM Error:", error);
-    throw error;
-  }
+    if (isDashboard || forceJson) structuredData = robustJsonParse(content);
+    return { content, timestamp: Date.now(), modelUsed: provider, isStructured: !!structuredData, structuredData, market };
+  } catch (error: any) { throw error; }
 };
 
-/**
- * Analyzes an image using an external provider's Vision model (e.g., Hunyuan Vision)
- */
+// Fixed: Implemented analyzeImageWithExternal
 export const analyzeImageWithExternal = async (
   provider: ModelProvider,
   base64Image: string,
   apiKey: string
 ): Promise<HoldingsSnapshot> => {
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
-  if (!config) {
-    throw new Error(`Configuration for ${provider} not found.`);
-  }
+  if (!config) throw new Error(`Configuration for ${provider} not found.`);
 
-  // Only Hunyuan supported for now in this path
-  if (provider !== ModelProvider.HUNYUAN_CN) {
-     throw new Error("Image analysis only supported for Hunyuan in external service.");
-  }
+  const prompt = `请从这张持仓截图中提取数据：总资产(number)、仓位占比(number)、日期(string)、持仓列表(数组，包含name, code, volume, costPrice, currentPrice, profit, profitRate, marketValue)。请严格使用简体中文，并以 JSON 格式返回。`;
 
-  const prompt = `
-    Analyze this brokerage screenshot to extract holdings information.
-    
-    Tasks:
-    1. Extract Total Assets (总资产).
-    2. Extract Position Ratio (仓位) as percentage 0-100. If not explicitly shown, estimate it or put 0.
-    3. Extract all Stocks in the list. For each stock: Name, Code, Volume (持仓数), Cost Price (成本), Current Price (现价), Profit (盈亏), Profit Rate (盈亏比).
-    
-    IMPORTANT RULES:
-    1. 'volume' must be an Integer (e.g. 100).
-    2. 'marketValue', 'costPrice', 'currentPrice' should have max 2 decimals.
-    3. Do not hallucinate. If data is unclear, do not invent.
-    4. Return strictly valid JSON matching the structure below.
-    
-    JSON Structure:
-    {
-      "totalAssets": 12345.67,
-      "positionRatio": 85.5,
-      "date": "${new Date().toISOString().split('T')[0]}",
-      "holdings": [
-        {
-          "name": "StockName",
-          "code": "StockCode",
-          "volume": 100,
-          "costPrice": 10.00,
-          "currentPrice": 12.00,
-          "profit": 200.00,
-          "profitRate": "+20%",
-          "marketValue": 1200.00
-        }
-      ]
-    }
-  `;
-
-  const messages: OpenAIChatMessage[] = [
-    {
-      role: 'user',
-      content: [
-        { type: 'text', text: prompt },
-        {
-          type: 'image_url',
-          image_url: {
-            url: `data:image/jpeg;base64,${base64Image}`
-          }
-        }
-      ]
-    }
-  ];
-
-  const requestBody: any = {
-    model: config.visionModel || config.model, // Use vision model if available
-    messages: messages,
-    temperature: 0.1,
-    max_tokens: 4000
+  const requestBody = {
+    model: config.visionModel || config.model,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: `data:image/png;base64,${base64Image}` } }
+        ]
+      }
+    ],
+    temperature: 0.2
   };
 
   try {
     const response = await fetchWithRetry(`${config.baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       body: JSON.stringify(requestBody)
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Vision Model Error (${response.status}): ${errorText.substring(0, 100)}`);
-    }
-
+    if (!response.ok) throw new Error(`Vision Error: ${response.status}`);
     const data = await response.json() as OpenAICompletionResponse;
     const content = data.choices[0]?.message?.content || "";
-
-    if (!content) throw new Error("API returned empty content.");
-
     return robustJsonParse(content);
-
   } catch (error: any) {
-    console.error("External Vision Error:", error);
-    throw error;
+    throw new Error(`外部模型识别失败: ${error.message}`);
   }
 };

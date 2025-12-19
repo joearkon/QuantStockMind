@@ -90,6 +90,12 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       return;
     }
     
+    if (currentModel === ModelProvider.GEMINI_INTL && !settings.geminiKey) {
+      setError("您当前选择了 Gemini 模型，请配置 Gemini API Key 以使用图片识别功能。");
+      onOpenSettings?.();
+      return;
+    }
+
     setParsing(true);
     setError(null);
 
@@ -106,8 +112,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
              parsedData = await analyzeImageWithExternal(ModelProvider.HUNYUAN_CN, base64String, settings.hunyuanKey!);
           } else {
              // Use Gemini Vision
-             // Fix: Removed settings.geminiKey as parseBrokerageScreenshot only accepts one argument
-             parsedData = await parseBrokerageScreenshot(base64String);
+             parsedData = await parseBrokerageScreenshot(base64String, settings.geminiKey);
           }
           
           // Merge logic: Don't overwrite if parsed data is empty/partial, but here we assume generic success
@@ -304,8 +309,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     
     try {
       // 1. Extract Plan from Analysis
-      // Fix: Removed settings.geminiKey as extractTradingPlan only accepts analysisContent
-      const { items, summary } = await extractTradingPlan(analysisResult.content);
+      const { items, summary } = await extractTradingPlan(analysisResult.content, settings.geminiKey);
       
       // 2. Create Plan Object
       const newPlan: DailyTradingPlan = {
@@ -434,8 +438,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     }
 
     try {
-      // Fix: Removed settings.geminiKey as fetchPeriodicReview only accepts three arguments
-      const result = await fetchPeriodicReview(reviewJournals, label, currentMarket);
+      const result = await fetchPeriodicReview(reviewJournals, label, currentMarket, settings.geminiKey);
       setPeriodicResult(result);
     } catch (err: any) {
       setError(err.message);
