@@ -1,99 +1,44 @@
+
 import { GoogleGenAI, Schema, Type } from "@google/genai";
-import { AnalysisResult, ModelProvider, MarketType, OpportunityResponse } from "../types";
+import { AnalysisResult, ModelProvider, MarketType, OpportunityResponse, ForesightReport } from "../types";
 import { fetchExternalAI } from "./externalLlmService";
-import { runGeminiSafe } from "./geminiService"; // Updated import
+import { runGeminiSafe } from "./geminiService";
 
-const GEMINI_MODEL = "gemini-2.5-flash"; // Still used for reference/validation if needed, but runGeminiSafe handles model selection
-
-// --- Schema: Chain Mining & Deployment ---
-const opportunitySchema: Schema = {
+// --- Foresight Schema ---
+const foresightSchema: Schema = {
   type: Type.OBJECT,
   properties: {
-    analysis_summary: { type: Type.STRING, description: "Analysis summary." },
-    policy_theme: { type: Type.STRING, description: "Current Theme." },
-    // Mode 1 fields
-    supply_chain_matrix: {
+    monthly_focus: { type: Type.STRING, description: "Monthly core theme summary. Must be concise and impactful." },
+    catalysts: {
       type: Type.ARRAY,
       items: {
         type: Type.OBJECT,
         properties: {
-          user_holding: { type: Type.STRING },
-          opportunities: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                stock_name: { type: Type.STRING },
-                stock_code: { type: Type.STRING },
-                relation_type: { type: Type.STRING },
-                logic_core: { type: Type.STRING },
-                policy_match: { type: Type.STRING }
-              }
-            }
-          }
-        }
-      }
-    },
-    rotation_strategy: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          current_sector: { type: Type.STRING },
-          next_sector: { type: Type.STRING },
-          reason: { type: Type.STRING },
-          catalyst: { type: Type.STRING }
-        }
-      }
-    },
-    // Mode 2 fields
-    deployment_plan: {
-      type: Type.OBJECT,
-      properties: {
-        market_environment: { type: Type.STRING, description: "Current market phase judgment." },
-        suggested_style: { type: Type.STRING, description: "e.g. Aggressive, Low-suction, or Balanced." },
-        focus_directions: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              sector: { type: Type.STRING },
-              logic: { type: Type.STRING },
-              inflow_status: { type: Type.STRING }
-            },
-            required: ["sector", "logic", "inflow_status"]
-          }
+          date_window: { type: Type.STRING },
+          event_name: { type: Type.STRING },
+          theme_label: { type: Type.STRING },
+          logic_chain: { type: Type.STRING },
+          opportunity_level: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
+          suggested_stocks: { type: Type.ARRAY, items: { type: Type.STRING } }
         },
-        top_picks: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING },
-              code: { type: Type.STRING },
-              sector: { type: Type.STRING },
-              reason: { type: Type.STRING },
-              buy_point: { type: Type.STRING },
-              risk_tag: { type: Type.STRING, enum: ["High", "Medium", "Low"] }
-            },
-            required: ["name", "code", "sector", "reason", "buy_point", "risk_tag"]
-          }
-        }
-      },
-      required: ["market_environment", "suggested_style", "focus_directions", "top_picks"]
-    }
-  }
+        required: ["date_window", "event_name", "theme_label", "logic_chain", "opportunity_level", "suggested_stocks"]
+      }
+    },
+    rotation_warning: { type: Type.STRING, description: "Warning about sector rotation risks." },
+    macro_policy_insight: { type: Type.STRING, description: "Deep insight into macro policies." }
+  },
+  required: ["monthly_focus", "catalysts", "rotation_warning", "macro_policy_insight"]
 };
 
 /**
- * Mining Logic: Supply Chain Resonance OR Capital Deployment
+ * Mining Logic: Supply Chain Resonance OR Capital Deployment OR Theme Foresight
  */
 export const fetchOpportunityMining = async (
   provider: ModelProvider,
   market: MarketType,
   settings: any,
-  inputData: string = "", // User Holdings OR Style Preference
-  mode: 'chain' | 'deploy' = 'chain'
+  inputData: string = "", 
+  mode: 'chain' | 'deploy' | 'foresight' = 'chain'
 ): Promise<AnalysisResult> => {
   
   const now = new Date();
@@ -103,99 +48,77 @@ export const fetchOpportunityMining = async (
   let userPrompt = "";
 
   if (mode === 'chain') {
-    // --- MODE 1: Supply Chain Mining ---
-    systemPrompt = `
-      你是一位精通 A 股产业链逻辑与国家宏观战略的资深基金经理。
-      【核心任务】
-      1. **产业链穿透**: 针对用户持有的核心标的，挖掘其上游或下游中，尚未被充分炒作的"隐形冠军"。
-      2. **战略对齐**: 推荐必须紧扣当前的国家宏观战略。
-      3. **板块搭配**: 结果中请务必包含主板标的 (60x/00x) 和科创/创业板标的 (688x/300x)。
-    `;
-    userPrompt = `
-      当前日期: ${dateStr}。
-      我的持仓/关注: 【${inputData || "热门科技"}】。
-      请生成【产业链协同与黑马挖掘报告】，找出上游/关联标的，并给出轮动策略。
-      **【重要规则】: 股票代码必须真实完整 (如 300059)，严禁使用 '300xxx' 等掩码。**
-    `;
+    systemPrompt = `你是一位精通 A 股产业链逻辑与国家宏观战略的资深基金经理。挖掘标的的上游/下游/侧向机会。`;
+    userPrompt = `当前日期: ${dateStr}。我的持仓/关注: 【${inputData || "热门科技"}】。找出产业链标的，提供真实股票代码。`;
+  } else if (mode === 'deploy') {
+    systemPrompt = `你是一位擅长捕捉【主力资金流向】与【题材热点】的实战型游资。根据现金风格偏好推荐进场方向。`;
+    userPrompt = `当前日期: ${dateStr}。我的资金风格: 【${inputData || "综合/稳健"}】。提供 3-5 只带逻辑的标的，提供真实完整代码。`;
   } else {
-    // --- MODE 2: Capital Deployment (Fresh Funds) ---
+    // --- MODE: Theme Foresight ---
     systemPrompt = `
-      你是一位擅长捕捉【主力资金流向】与【题材热点】的实战型游资/机构操盘手。
-      用户手握现金，希望进场。
+      你是一位顶级策略分析师，擅长预测【政策催化剂】与【题材轮动时间节点】。
       【核心任务】
-      1. **扫描热点**: 搜索今日/本周 A股市场最强的题材板块和主力净流入最多的方向。
-      2. **机构动向**: 重点关注有“机构席位买入”或“北向资金大幅加仓”的个股。
-      3. **选股策略**: 根据用户的风格偏好（${inputData}），推荐 3-5 只具体标的。
-         - 如果偏好激进：找龙头、打板客关注的票。
-         - 如果偏好稳健：找趋势中军、机构重仓票。
+      1. **未来扫描**: 深度检索接下来 60 天内可能对 ${market} 产生重大影响的政策窗口、行业会议、科技突破计划、重大工程节点（如火箭发射、峰会开幕）。
+      2. **逻辑穿透**: 像“12月长征十二号火箭发射带动商业航天”一样，预判下一个“具备确定性的潜在题材”。
+      3. **风险提示**: 识别哪些题材已经利好兑现，哪些正处于“预期差”极大的低位。
     `;
     userPrompt = `
-      当前日期: ${dateStr}。
-      我的资金风格偏好: 【${inputData || "综合/稳健"}】。
-      请生成【资金进场配置方案 (Capital Deployment Plan)】:
-      1. 判断当前市场环境适合什么策略？
-      2. 找出 2-3 个主力资金主攻方向。
-      3. 精选 3-5 只个股，注明买入逻辑（如：机构大买、图形突破、政策利好）和建议买点。
-      **【重要规则】: 股票代码必须真实完整 (如 600519)，严禁使用 '600xxx' 等掩码。**
+      当前日期: ${dateStr}。请重点扫描未来 1-2 个月（特别是 2025年1月及以后）的增量利好。
+      必须包含具体的时间窗口、事件名称、相关受益个股（真实代码）。
+      禁止返回空字段。
     `;
   }
 
   // 1. Gemini Implementation
   if (provider === ModelProvider.GEMINI_INTL) {
     const apiKey = settings?.geminiKey || process.env.API_KEY;
-    if (!apiKey) throw new Error("Gemini API Key missing");
-
     const ai = new GoogleGenAI({ apiKey });
     
     try {
-      // Use runGeminiSafe for failover capability
+      // 关键修复：显式应用 responseSchema
+      const config: any = {
+        tools: [{ googleSearch: {} }],
+      };
+
+      if (mode === 'foresight') {
+        config.responseMimeType = "application/json";
+        config.responseSchema = foresightSchema;
+      }
+
       const response = await runGeminiSafe(ai, {
-        contents: systemPrompt + "\n" + userPrompt + `\n\nReturn strict JSON matching this schema: ${JSON.stringify(opportunitySchema)}`,
-        config: {
-          tools: [{ googleSearch: {} }],
-        }
-      }, "Opportunity Mining");
+        contents: systemPrompt + "\n" + userPrompt,
+        config: config
+      }, "Opportunity/Foresight Mining");
 
       const text = response.text || "{}";
-      let structuredData: OpportunityResponse;
-
-      try {
-        let clean = text.trim();
-        clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
-        const firstBrace = clean.indexOf('{');
-        const lastBrace = clean.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace !== -1) {
-            clean = clean.substring(firstBrace, lastBrace + 1);
-        }
-        structuredData = JSON.parse(clean);
-      } catch (e) {
-        console.warn("JSON Parse Failed", e);
-        throw new Error("模型返回的数据格式无法解析，请重试。");
+      let clean = text.trim();
+      clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
+      const firstBrace = clean.indexOf('{');
+      const lastBrace = clean.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1) {
+          clean = clean.substring(firstBrace, lastBrace + 1);
       }
+      const parsed = JSON.parse(clean);
 
       return {
         content: text,
         timestamp: Date.now(),
         modelUsed: provider,
         isStructured: true,
-        opportunityData: structuredData,
+        opportunityData: mode !== 'foresight' ? parsed : undefined,
+        foresightData: mode === 'foresight' ? parsed : undefined,
         market
       };
-
     } catch (e: any) {
-      throw new Error(`Gemini Strategy Error: ${e.message}`);
+      throw new Error(`Gemini 分析错误: ${e.message}`);
     }
   }
 
   // 2. Hunyuan Implementation
   if (provider === ModelProvider.HUNYUAN_CN) {
     const apiKey = settings?.hunyuanKey;
-    if (!apiKey) throw new Error("Hunyuan API Key missing");
-
-    const finalPrompt = `${systemPrompt}\n${userPrompt}\n\nIMPORTANT: Return valid JSON only matching the schema requirements.`;
-    
-    const result = await fetchExternalAI(provider, apiKey, finalPrompt, false, undefined, market, true);
-    
+    // 混元模式下 forceJson=true 强制返回 JSON
+    const result = await fetchExternalAI(provider, apiKey, systemPrompt + "\n" + userPrompt, false, undefined, market, true);
     try {
       let clean = result.content.trim();
       clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
@@ -205,15 +128,17 @@ export const fetchOpportunityMining = async (
           clean = clean.substring(firstBrace, lastBrace + 1);
       }
       const parsed = JSON.parse(clean);
-      result.opportunityData = parsed;
+      if (mode === 'foresight') {
+        result.foresightData = parsed;
+      } else {
+        result.opportunityData = parsed;
+      }
       result.isStructured = true;
     } catch (e) {
-      console.warn("Hunyuan JSON parse failed for Strategy Mining", e);
-      throw new Error("腾讯混元模型返回的数据格式有误，未能生成有效的 JSON 报告。");
+      throw new Error("模型 JSON 解析失败，请重试。");
     }
-
     return result;
   }
 
-  throw new Error("Unsupported Provider");
+  throw new Error("不支持的 Provider");
 };
