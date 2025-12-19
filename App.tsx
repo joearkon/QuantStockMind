@@ -8,9 +8,19 @@ import { HoldingsReview } from './components/HoldingsReview';
 import { OpportunityMining } from './components/OpportunityMining';
 import { MacroForecaster } from './components/MacroForecaster'; 
 import { SettingsModal } from './components/SettingsModal';
-import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS, APP_VERSION } from './constants';
+import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
 import { Settings, BrainCircuit } from 'lucide-react';
+
+// 立即同步 API Key 的辅助函数
+const syncApiKey = (settings: UserSettings) => {
+  const geminiKey = settings.geminiKey || (window as any).__ENV__?.VITE_GEMINI_API_KEY;
+  if (geminiKey) {
+    if (!window.process) window.process = { env: {} };
+    else if (!window.process.env) window.process.env = {};
+    window.process.env.API_KEY = geminiKey;
+  }
+};
 
 const App: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<ModelProvider>(ModelProvider.GEMINI_INTL);
@@ -22,26 +32,18 @@ const App: React.FC = () => {
   const [stockResult, setStockResult] = useState<AnalysisResult | null>(null);
   const [stockQuery, setStockQuery] = useState('');
 
-  // 从本地存储初始化设置
+  // 1. 初始化时立即读取并挂载 Key
   const [userSettings, setUserSettings] = useState<UserSettings>(() => {
     const saved = localStorage.getItem('quantmind_settings');
-    return saved ? JSON.parse(saved) : {};
+    const settings = saved ? JSON.parse(saved) : {};
+    syncApiKey(settings); // 立即同步
+    return settings;
   });
 
-  // 关键修复逻辑：同步密钥到全局 process.env 供服务调用
+  // 2. 监听设置变化实时同步
   useEffect(() => {
-    // 优先级：用户手动设置的 Key > Cloudflare Worker 注入的 Key
-    const geminiKey = userSettings.geminiKey || window.__ENV__?.VITE_GEMINI_API_KEY;
-    
-    if (geminiKey) {
-      // 动态创建 process.env 对象
-      if (!window.process) window.process = { env: {} };
-      else if (!window.process.env) window.process.env = {};
-      
-      window.process.env.API_KEY = geminiKey;
-      console.log("QM: Gemini API Key has been dynamically mounted to process.env.API_KEY");
-    }
-  }, [userSettings.geminiKey]);
+    syncApiKey(userSettings);
+  }, [userSettings]);
 
   const handleSaveSettings = (newSettings: UserSettings) => {
     setUserSettings(newSettings);
