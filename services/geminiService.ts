@@ -1,9 +1,11 @@
 
-import { GoogleGenAI, GenerateContentResponse, Type, Schema } from "@google/genai";
-import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot, HistoricalYearData, JournalEntry, PeriodicReviewData, PlanItem, HoldingItemDetailed } from "../types";
+import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot, JournalEntry, PlanItem } from "../types";
 
 const GEMINI_MODEL_PRIMARY = "gemini-3-flash-preview"; 
+const GEMINI_MODEL_COMPLEX = "gemini-3-pro-preview";
 
+// Schema for Market Dashboard
 const marketDashboardSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -14,11 +16,12 @@ const marketDashboardSchema: Schema = {
         type: Type.OBJECT,
         properties: {
           name: { type: Type.STRING },
-          value: { type: Type.STRING, description: "点位数值" },
-          change: { type: Type.STRING, description: "涨跌额" },
-          percent: { type: Type.STRING, description: "涨跌幅百分比" },
+          value: { type: Type.STRING },
+          change: { type: Type.STRING },
+          percent: { type: Type.STRING },
           direction: { type: Type.STRING, enum: ["up", "down"] }
-        }
+        },
+        required: ["name", "value", "change", "percent", "direction"]
       }
     },
     market_volume: {
@@ -27,11 +30,9 @@ const marketDashboardSchema: Schema = {
         total_volume: { type: Type.STRING },
         volume_delta: { type: Type.STRING },
         volume_trend: { type: Type.STRING, enum: ["expansion", "contraction", "flat"] },
-        net_inflow: { type: Type.STRING },
-        capital_mood: { type: Type.STRING },
-        active_buy_spread: { type: Type.STRING }
+        capital_mood: { type: Type.STRING }
       },
-      required: ["total_volume", "volume_delta", "volume_trend", "net_inflow", "capital_mood", "active_buy_spread"]
+      required: ["total_volume", "volume_delta", "volume_trend", "capital_mood"]
     },
     market_sentiment: {
       type: Type.OBJECT,
@@ -47,90 +48,134 @@ const marketDashboardSchema: Schema = {
       properties: {
         inflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } },
         outflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } },
-        rotation_logic: { type: Type.STRING, description: "今日资金流动的实际路径描述" },
-        top_inflow_stocks: { type: Type.ARRAY, items: { type: Type.STRING } }
+        rotation_logic: { type: Type.STRING }
       },
-      required: ["inflow_sectors", "outflow_sectors", "rotation_logic", "top_inflow_stocks"]
+      required: ["inflow_sectors", "outflow_sectors", "rotation_logic"]
     },
-    institutional_signals: {
+    macro_logic: {
       type: Type.OBJECT,
       properties: {
-        lh_top_10: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING },
-              net_buy: { type: Type.STRING },
-              logic: { type: Type.STRING }
-            }
-          }
-        }
+        policy_focus: { type: Type.STRING },
+        external_impact: { type: Type.STRING },
+        core_verdict: { type: Type.STRING }
       },
-      required: ["lh_top_10"]
+      required: ["policy_focus", "external_impact", "core_verdict"]
     }
   },
-  required: ["data_date", "market_sentiment", "market_volume", "institutional_signals", "capital_rotation", "market_indices"]
+  required: ["data_date", "market_sentiment", "market_volume", "capital_rotation", "market_indices", "macro_logic"]
 };
 
-const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+// Schema for Holdings Snapshot (OCR/Parsing)
+const holdingsSnapshotSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    totalAssets: { type: Type.NUMBER },
+    positionRatio: { type: Type.NUMBER },
+    date: { type: Type.STRING },
+    holdings: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          code: { type: Type.STRING },
+          volume: { type: Type.NUMBER },
+          costPrice: { type: Type.NUMBER },
+          currentPrice: { type: Type.NUMBER },
+          profit: { type: Type.NUMBER },
+          profitRate: { type: Type.STRING },
+          marketValue: { type: Type.NUMBER },
+        },
+        required: ["name", "code", "volume", "costPrice", "currentPrice", "profit", "profitRate", "marketValue"]
+      }
+    }
+  },
+  required: ["totalAssets", "positionRatio", "date", "holdings"]
+};
+
+// Schema for Periodic Review
+const periodicReviewSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    score: { type: Type.NUMBER },
+    market_trend: { type: Type.STRING, enum: ["bull", "bear", "sideways"] },
+    market_summary: { type: Type.STRING },
+    highlight: {
+      type: Type.OBJECT,
+      properties: { title: { type: Type.STRING }, description: { type: Type.STRING } },
+      required: ["title", "description"]
+    },
+    lowlight: {
+      type: Type.OBJECT,
+      properties: { title: { type: Type.STRING }, description: { type: Type.STRING } },
+      required: ["title", "description"]
+    },
+    execution: {
+      type: Type.OBJECT,
+      properties: {
+        score: { type: Type.NUMBER },
+        details: { type: Type.STRING },
+        good_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } },
+        bad_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } }
+      },
+      required: ["score", "details", "good_behaviors", "bad_behaviors"]
+    },
+    next_period_focus: { type: Type.ARRAY, items: { type: Type.STRING } }
+  },
+  required: ["score", "market_trend", "market_summary", "highlight", "lowlight", "execution", "next_period_focus"]
+};
+
+// Schema for Trading Plan Extraction
+const tradingPlanSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    items: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          symbol: { type: Type.STRING },
+          action: { type: Type.STRING, enum: ["buy", "sell", "hold", "monitor", "t_trade"] },
+          price_target: { type: Type.STRING },
+          reason: { type: Type.STRING },
+          status: { type: Type.STRING, enum: ["pending", "completed", "skipped", "failed"] }
+        },
+        required: ["id", "symbol", "action", "price_target", "reason", "status"]
+      }
+    },
+    summary: { type: Type.STRING }
+  },
+  required: ["items", "summary"]
+};
 
 const robustParse = (text: string): any => {
-  if (!text) return {};
+  if (!text) return null;
   let clean = text.trim();
   clean = clean.replace(/^```[a-z]*\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
   const firstBrace = clean.search(/[{[]/);
-  const lastCurly = clean.lastIndexOf('}');
-  const lastSquare = clean.lastIndexOf(']');
-  const lastIndex = Math.max(lastCurly, lastSquare);
-  if (firstBrace !== -1 && lastIndex !== -1 && lastIndex > firstBrace) {
-    clean = clean.substring(firstBrace, lastIndex + 1);
-  }
+  const lastIndex = Math.max(clean.lastIndexOf('}'), clean.lastIndexOf(']'));
+  if (firstBrace !== -1 && lastIndex !== -1) clean = clean.substring(firstBrace, lastIndex + 1);
   try {
     return JSON.parse(clean);
   } catch (e) {
-    try {
-      // 尝试修复中文标点
-      return JSON.parse(clean.replace(/：/g, ':').replace(/，/g, ','));
-    } catch (finalError) {
-      console.error("JSON parse error:", text);
-      return {};
-    }
+    console.error("Parse error:", e);
+    return null;
   }
 };
 
-async function callGeminiWithRetry(
-  apiCall: () => Promise<GenerateContentResponse>,
-  retries: number = 5,
-  baseDelay: number = 2000
-): Promise<GenerateContentResponse> {
-  let lastError: any;
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await apiCall();
-    } catch (error: any) {
-      lastError = error;
-      const msg = (error.message || "").toLowerCase();
-      if ((msg.includes('503') || msg.includes('429')) && i < retries - 1) {
-        await wait(baseDelay * Math.pow(2, i) + Math.random() * 1000);
-        continue;
-      }
-      throw error;
-    }
+/**
+ * Executes a Gemini request with basic error handling wrapper
+ */
+export const runGeminiSafe = async (ai: any, params: any, label: string) => {
+  try {
+    const response = await ai.models.generateContent(params);
+    return response;
+  } catch (error: any) {
+    console.error(`Gemini Error [${label}]:`, error);
+    throw error;
   }
-  throw lastError;
-}
-
-export async function runGeminiSafe(
-  ai: GoogleGenAI,
-  params: { contents: any; config?: any },
-  description: string = "Request"
-): Promise<GenerateContentResponse> {
-  return await callGeminiWithRetry(() => ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
-    ...params
-  }), 5, 2000);
-}
+};
 
 export const fetchMarketDashboard = async (
   period: 'day' | 'month',
@@ -143,28 +188,32 @@ export const fetchMarketDashboard = async (
   
   try {
     const prompt = `
-      【任务】获取 ${market} 实时行情实况。
-      【日期】${new Date().toLocaleDateString()}。
-      【核心要求】
-      1. **指数数据（必须且精确）**：利用搜索工具获取 A 股五大核心指数：上证指数、深证成指、创业板指、北证50、科创50 的最新数值、涨跌额、涨跌幅。
-      2. **盘面实测**：全天成交额、相对于上一日的增量/减量、今日主力资金净买入 Top 10 板块及个股。
-      3. **严禁虚拟/推论**：所有数值必须来自真实搜索结果，严禁输出任何宏观大局、国家战略等推导文字。
+      【任务】作为资深策略分析师，利用 googleSearch 获取 ${market} 市场的最新收盘或盘中数据。
+      【核心字段】
+      1. 五大核心指数的具体数值与百分比。
+      2. 市场成交额及其增减量。
+      3. 资金轮动：明确指出今日领涨板块（流入）与领跌/获利回吐板块（流出）。
+      4. 宏观逻辑：分析今日市场背后的主要政策导向或外部环境（如美联储、汇率等）。
       
-      【规则】
-      - 全中文输出。
-      - 输出必须为合法 JSON，结构: ${JSON.stringify(marketDashboardSchema)}。
+      【要求】
+      - 严禁返回虚假或过时数据。
     `;
     
-    const response = await runGeminiSafe(ai, { 
+    const response = await ai.models.generateContent({ 
+      model: GEMINI_MODEL_PRIMARY,
       contents: prompt, 
       config: { 
         tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json"
+        responseMimeType: "application/json",
+        responseSchema: marketDashboardSchema
       } 
-    }, "Market Dashboard");
+    });
     
     const text = response.text || "{}";
     const parsedData = robustParse(text);
+    
+    if (!parsedData) throw new Error("无法解析模型返回的 JSON 数据。");
+
     return { 
       content: text, 
       timestamp: Date.now(), 
@@ -178,217 +227,124 @@ export const fetchMarketDashboard = async (
   }
 };
 
-// ...其余函数保持不变
 export const fetchGeminiAnalysis = async (
   prompt: string,
   isComplex: boolean = false,
   apiKey?: string
 ): Promise<AnalysisResult> => {
   const effectiveKey = apiKey || process.env.API_KEY;
-  if (!effectiveKey) throw new Error("API Key missing");
-  const ai = new GoogleGenAI({ apiKey: effectiveKey });
-  const modelName = isComplex ? 'gemini-3-pro-preview' : GEMINI_MODEL_PRIMARY;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }]
-      }
-    });
-
-    return {
-      content: response.text || "",
-      groundingSource: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
-        uri: chunk.web?.uri || "",
-        title: chunk.web?.title || ""
-      })).filter((s: any) => s.uri) || [],
-      timestamp: Date.now(),
-      modelUsed: ModelProvider.GEMINI_INTL
-    };
-  } catch (error) {
-    throw error;
-  }
+  const ai = new GoogleGenAI({ apiKey: effectiveKey! });
+  const response = await ai.models.generateContent({
+    model: isComplex ? GEMINI_MODEL_COMPLEX : GEMINI_MODEL_PRIMARY,
+    contents: prompt,
+    config: { tools: [{ googleSearch: {} }] }
+  });
+  return {
+    content: response.text || "",
+    groundingSource: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
+      uri: chunk.web?.uri || "",
+      title: chunk.web?.title || ""
+    })).filter((s: any) => s.uri) || [],
+    timestamp: Date.now(),
+    modelUsed: ModelProvider.GEMINI_INTL
+  };
 };
 
-export const fetchStockDetailWithImage = async (
-  base64Image: string,
-  query: string,
-  market: MarketType,
-  apiKey: string
-): Promise<AnalysisResult> => {
+export const fetchStockDetailWithImage = async (base64Image: string, query: string, market: MarketType, apiKey: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
-  const prompt = `分析这张股票图表并结合联网搜索对 "${query}" 在 ${market} 市场进行量化分析。`;
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL_PRIMARY,
+    contents: { parts: [{ inlineData: { mimeType: 'image/jpeg', data: base64Image } }, { text: `分析股票 "${query}" 的形态逻辑。` }] },
+    config: { tools: [{ googleSearch: {} }] }
+  });
+  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, market };
+};
+
+/**
+ * Parses a brokerage screenshot to extract holdings information using Gemini Vision
+ */
+export const parseBrokerageScreenshot = async (base64Image: string, apiKey?: string): Promise<HoldingsSnapshot> => {
+  const effectiveKey = apiKey || process.env.API_KEY;
+  if (!effectiveKey) throw new Error("API Key missing");
+  const ai = new GoogleGenAI({ apiKey: effectiveKey });
   
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
-    contents: {
-      parts: [
-        { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-        { text: prompt }
-      ]
-    },
-    config: {
-      tools: [{ googleSearch: {} }]
-    }
-  });
-
-  return {
-    content: response.text || "",
-    timestamp: Date.now(),
-    modelUsed: ModelProvider.GEMINI_INTL,
-    market
-  };
-};
-
-export const parseBrokerageScreenshot = async (
-  base64Image: string,
-  apiKey?: string
-): Promise<HoldingsSnapshot> => {
-  const effectiveKey = apiKey || process.env.API_KEY;
-  if (!effectiveKey) throw new Error("API Key missing");
-  const ai = new GoogleGenAI({ apiKey: effectiveKey });
-
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
-    contents: {
-      parts: [
-        { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-        { text: "提取持仓截图中的持仓数据，返回 JSON。" }
-      ]
-    },
+    contents: [
+      {
+        parts: [
+          { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+          { text: "Identify all stock holdings, total assets, and position ratio from this brokerage screenshot." }
+        ]
+      }
+    ],
     config: {
       responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          totalAssets: { type: Type.NUMBER },
-          positionRatio: { type: Type.NUMBER },
-          date: { type: Type.STRING },
-          holdings: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING },
-                code: { type: Type.STRING },
-                volume: { type: Type.NUMBER },
-                costPrice: { type: Type.NUMBER },
-                currentPrice: { type: Type.NUMBER },
-                profit: { type: Type.NUMBER },
-                profitRate: { type: Type.STRING },
-                marketValue: { type: Type.NUMBER }
-              }
-            }
-          }
-        },
-        required: ["totalAssets", "holdings"]
-      }
+      responseSchema: holdingsSnapshotSchema
     }
   });
-
-  return robustParse(response.text || "{}");
+  
+  const text = response.text || "{}";
+  return robustParse(text);
 };
 
-export const fetchPeriodicReview = async (
-  journals: JournalEntry[],
-  label: string,
-  market: MarketType,
-  apiKey?: string
-): Promise<AnalysisResult> => {
+/**
+ * Performs a periodic review based on a series of journal entries
+ */
+export const fetchPeriodicReview = async (journalEntries: JournalEntry[], label: string, market: MarketType, apiKey?: string): Promise<AnalysisResult> => {
   const effectiveKey = apiKey || process.env.API_KEY;
   if (!effectiveKey) throw new Error("API Key missing");
   const ai = new GoogleGenAI({ apiKey: effectiveKey });
-
-  const prompt = `基于历史交易日志进行 ${label} 的阶段性复盘分析，JSON 返回。数据：${JSON.stringify(journals)}`;
+  
+  const prompt = `Perform a periodic review for the ${label} period in the ${market} market. 
+    Analyze the following historical trading journal entries to find trends, execution quality, and next steps:
+    ${JSON.stringify(journalEntries)}`;
 
   const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
+    model: GEMINI_MODEL_COMPLEX,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          score: { type: Type.NUMBER },
-          market_trend: { type: Type.STRING, enum: ["bull", "bear", "sideways"] },
-          market_summary: { type: Type.STRING },
-          highlight: {
-            type: Type.OBJECT,
-            properties: { title: { type: Type.STRING }, description: { type: Type.STRING } },
-            required: ["title", "description"]
-          },
-          lowlight: {
-            type: Type.OBJECT,
-            properties: { title: { type: Type.STRING }, description: { type: Type.STRING } },
-            required: ["title", "description"]
-          },
-          execution: {
-            type: Type.OBJECT,
-            properties: {
-              score: { type: Type.NUMBER },
-              details: { type: Type.STRING },
-              good_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } },
-              bad_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } }
-            },
-            required: ["score", "details", "good_behaviors", "bad_behaviors"]
-          },
-          next_period_focus: { type: Type.ARRAY, items: { type: Type.STRING } }
-        },
-        required: ["score", "market_trend", "market_summary", "highlight", "lowlight", "execution", "next_period_focus"]
-      }
+      responseSchema: periodicReviewSchema
     }
   });
+  
+  const text = response.text || "{}";
+  const data = robustParse(text);
 
-  const parsed = robustParse(response.text || "{}");
   return {
-    content: response.text || "",
+    content: text,
     timestamp: Date.now(),
     modelUsed: ModelProvider.GEMINI_INTL,
     isStructured: true,
-    periodicData: parsed,
+    periodicData: data,
     market
   };
 };
 
-export const extractTradingPlan = async (
-  analysisContent: string,
-  apiKey?: string
-): Promise<{ items: PlanItem[]; summary: string }> => {
+/**
+ * Extracts a structured trading plan from analysis text
+ */
+export const extractTradingPlan = async (analysisText: string, apiKey?: string): Promise<{ items: PlanItem[], summary: string }> => {
   const effectiveKey = apiKey || process.env.API_KEY;
   if (!effectiveKey) throw new Error("API Key missing");
   const ai = new GoogleGenAI({ apiKey: effectiveKey });
-
+  
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
-    contents: `从以下分析内容中提取交易计划 JSON：\n\n${analysisContent}`,
+    contents: `Extract a structured daily trading plan from the following analysis text. Ensure unique IDs for each item.
+      Analysis: ${analysisText}`,
     config: {
       responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          summary: { type: Type.STRING },
-          items: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.STRING },
-                symbol: { type: Type.STRING },
-                action: { type: Type.STRING, enum: ["buy", "sell", "hold", "monitor", "t_trade"] },
-                price_target: { type: Type.STRING },
-                reason: { type: Type.STRING },
-                status: { type: Type.STRING, enum: ["pending", "completed", "skipped", "failed"] }
-              },
-              required: ["id", "symbol", "action", "reason", "status"]
-            }
-          }
-        },
-        required: ["summary", "items"]
-      }
+      responseSchema: tradingPlanSchema
     }
   });
+  
+  const text = response.text || "{}";
+  const data = robustParse(text);
 
-  return robustParse(response.text || "{}");
+  return {
+    items: data.items || [],
+    summary: data.summary || ""
+  };
 };
