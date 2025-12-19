@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Schema, Type } from "@google/genai";
 import { AnalysisResult, ModelProvider, MarketType, OpportunityResponse, ForesightReport } from "../types";
 import { fetchExternalAI } from "./externalLlmService";
@@ -30,6 +29,43 @@ const foresightSchema: Schema = {
   required: ["monthly_focus", "catalysts", "rotation_warning", "macro_policy_insight"]
 };
 
+// --- JSON Templates for Non-Gemini Models ---
+const CHAIN_JSON_TEMPLATE = `
+{
+  "policy_theme": "产业链逻辑主线名称",
+  "analysis_summary": "深度的产业背景分析总结",
+  "supply_chain_matrix": [
+    {
+      "user_holding": "输入的标的名称",
+      "opportunities": [
+        {
+          "stock_name": "关联股票名",
+          "stock_code": "股票代码",
+          "relation_type": "上游/下游/侧向竞争/技术外溢",
+          "logic_core": "核心关联逻辑描述",
+          "policy_match": "政策匹配度描述"
+        }
+      ]
+    }
+  ]
+}
+`;
+
+const DEPLOY_JSON_TEMPLATE = `
+{
+  "policy_theme": "资金选股逻辑名称",
+  "analysis_summary": "今日市场资金偏好深度分析",
+  "deployment_plan": {
+    "focus_directions": [
+      { "sector": "板块名", "inflow_status": "主力介入/高位获利/低吸潜伏", "logic": "介入逻辑" }
+    ],
+    "top_picks": [
+      { "name": "股票名", "code": "代码", "sector": "所属行业", "risk_tag": "High/Medium/Low", "reason": "推荐理由", "buy_point": "建议介入点位" }
+    ]
+  }
+}
+`;
+
 /**
  * Mining Logic: Supply Chain Resonance OR Capital Deployment OR Theme Foresight
  */
@@ -49,24 +85,13 @@ export const fetchOpportunityMining = async (
 
   if (mode === 'chain') {
     systemPrompt = `你是一位精通 A 股产业链逻辑与国家宏观战略的资深基金经理。挖掘标的的上游/下游/侧向机会。`;
-    userPrompt = `当前日期: ${dateStr}。我的持仓/关注: 【${inputData || "热门科技"}】。找出产业链标的，提供真实股票代码。`;
+    userPrompt = `当前日期: ${dateStr}。我的持仓/关注: 【${inputData || "热门科技"}】。请通过联网搜索识别其产业链位置，挖掘出具有潜力的关联标的。`;
   } else if (mode === 'deploy') {
     systemPrompt = `你是一位擅长捕捉【主力资金流向】与【题材热点】的实战型游资。根据现金风格偏好推荐进场方向。`;
-    userPrompt = `当前日期: ${dateStr}。我的资金风格: 【${inputData || "综合/稳健"}】。提供 3-5 只带逻辑的标的，提供真实完整代码。`;
+    userPrompt = `当前日期: ${dateStr}。我的资金风格: 【${inputData || "综合/稳健"}】。请联网扫描全市场资金流向、大宗交易和主力买卖情况，筛选相关标的。`;
   } else {
-    // --- MODE: Theme Foresight ---
-    systemPrompt = `
-      你是一位顶级策略分析师，擅长预测【政策催化剂】与【题材轮动时间节点】。
-      【核心任务】
-      1. **未来扫描**: 深度检索接下来 60 天内可能对 ${market} 产生重大影响的政策窗口、行业会议、科技突破计划、重大工程节点（如火箭发射、峰会开幕）。
-      2. **逻辑穿透**: 像“12月长征十二号火箭发射带动商业航天”一样，预判下一个“具备确定性的潜在题材”。
-      3. **风险提示**: 识别哪些题材已经利好兑现，哪些正处于“预期差”极大的低位。
-    `;
-    userPrompt = `
-      当前日期: ${dateStr}。请重点扫描未来 1-2 个月（特别是 2025年1月及以后）的增量利好。
-      必须包含具体的时间窗口、事件名称、相关受益个股（真实代码）。
-      禁止返回空字段。
-    `;
+    systemPrompt = `你是一位顶级策略分析师，擅长预测【政策催化剂】与【题材轮动时间节点】。`;
+    userPrompt = `当前日期: ${dateStr}。请重点扫描未来 1-2 个月（特别是 2025年1月及以后）的增量利好。必须包含具体的时间窗口、事件名称、相关受益个股（真实代码）。`;
   }
 
   // 1. Gemini Implementation
@@ -75,30 +100,23 @@ export const fetchOpportunityMining = async (
     const ai = new GoogleGenAI({ apiKey });
     
     try {
-      // 关键修复：显式应用 responseSchema
       const config: any = {
         tools: [{ googleSearch: {} }],
+        responseMimeType: "application/json",
       };
 
       if (mode === 'foresight') {
-        config.responseMimeType = "application/json";
         config.responseSchema = foresightSchema;
       }
 
-      const response = await runGeminiSafe(ai, {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
         contents: systemPrompt + "\n" + userPrompt,
         config: config
-      }, "Opportunity/Foresight Mining");
+      });
 
       const text = response.text || "{}";
-      let clean = text.trim();
-      clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
-      const firstBrace = clean.indexOf('{');
-      const lastBrace = clean.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1) {
-          clean = clean.substring(firstBrace, lastBrace + 1);
-      }
-      const parsed = JSON.parse(clean);
+      const parsed = JSON.parse(text);
 
       return {
         content: text,
@@ -117,8 +135,20 @@ export const fetchOpportunityMining = async (
   // 2. Hunyuan Implementation
   if (provider === ModelProvider.HUNYUAN_CN) {
     const apiKey = settings?.hunyuanKey;
-    // 混元模式下 forceJson=true 强制返回 JSON
-    const result = await fetchExternalAI(provider, apiKey, systemPrompt + "\n" + userPrompt, false, undefined, market, true);
+    
+    // 显式添加输出模板到 Prompt，解决混元在 mining 模式下不知道 JSON 结构的问题
+    let finalPrompt = systemPrompt + "\n" + userPrompt;
+    if (mode === 'chain') {
+      finalPrompt += `\n[重要要求]: 请输出以下结构的有效 JSON 字符串：\n${CHAIN_JSON_TEMPLATE}`;
+    } else if (mode === 'deploy') {
+      finalPrompt += `\n[重要要求]: 请输出以下结构的有效 JSON 字符串：\n${DEPLOY_JSON_TEMPLATE}`;
+    } else {
+      // Foresight 使用 foresightSchema 的结构
+      finalPrompt += `\n[重要要求]: 请输出符合“月度前瞻”格式的 JSON。包含 monthly_focus, catalysts (数组, 包含 event_name, logic_chain, suggested_stocks 等), rotation_warning, macro_policy_insight 字段。`;
+    }
+
+    const result = await fetchExternalAI(provider, apiKey, finalPrompt, false, undefined, market, true);
+    
     try {
       let clean = result.content.trim();
       clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
@@ -135,7 +165,8 @@ export const fetchOpportunityMining = async (
       }
       result.isStructured = true;
     } catch (e) {
-      throw new Error("模型 JSON 解析失败，请重试。");
+      console.error("Hunyuan JSON parse failed", e, result.content);
+      throw new Error("混元模型 JSON 结构解析失败。可能是因为模型未按预期格式返回数据，请尝试再次点击“扫描”。");
     }
     return result;
   }
