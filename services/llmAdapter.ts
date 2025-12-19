@@ -1,3 +1,4 @@
+
 import { AnalysisResult, ModelProvider, UserSettings, MarketType } from "../types";
 import { fetchGeminiAnalysis, fetchMarketDashboard } from "./geminiService";
 import { fetchExternalAI } from "./externalLlmService";
@@ -26,10 +27,9 @@ export const analyzeWithLLM = async (
 
   // 1. Google Gemini (Default)
   if (provider === ModelProvider.GEMINI_INTL) {
-    const geminiKey = settings?.geminiKey; // Get Key from UI settings
-
     if (isDashboard) {
-      return await fetchMarketDashboard(period, market, geminiKey);
+      // API Key is handled internally via getApiKey()
+      return await fetchMarketDashboard(period, market);
     }
     let datedPrompt = `[Context: Analyzing ${marketName} market at ${fullTimeContext}] ${prompt}`;
     if (currentPrice) {
@@ -40,7 +40,8 @@ export const analyzeWithLLM = async (
       datedPrompt += `\n[MANDATORY]: You MUST search for and analyze 'Main Force/Institutional Money' (主力/机构) flows and 'Institutional Ratings' (机构评级) for this target.`;
       datedPrompt += `\n[MANDATORY]: You MUST analyze the 'Trading Volume Trend' (成交量趋势) - is it Expanding (放量) or Contracting (缩量)? Explain the implication.`;
     }
-    return await fetchGeminiAnalysis(datedPrompt, isComplex, geminiKey);
+    // API Key is handled internally via getApiKey()
+    return await fetchGeminiAnalysis(datedPrompt, isComplex);
   }
 
   // 2. Domestic Models (Hunyuan)
@@ -61,7 +62,7 @@ export const analyzeWithLLM = async (
       今天是 ${fullTimeContext}。
       请根据你所掌握的 ${marketName} 市场知识（如有联网能力请优先使用，如无请基于近期市场趋势进行合理且专业的逻辑推演），生成一份"${period === 'day' ? '当日' : '本月'}"的 ${marketName} 市场深度分析报告。
       
-      请务必提供具体的数据和观点，严禁使用"模拟数据"。
+      请务必 provide 具体的数据和观点，严禁使用"模拟数据"。
       
       重点关注：
       1. 该市场主要指数数值与涨跌（例如${market === MarketType.US ? '道指/纳指/标普' : market === MarketType.HK ? '恒指/恒生科技' : '上证/深证/创业板'}）。

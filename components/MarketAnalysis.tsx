@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, HistoricalYearData } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
@@ -75,7 +76,8 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
     setError(null);
     setHistoryData(null);
     try {
-      const res = await fetchSectorHistory(historyYear, historyMonth, currentMarket, settings.geminiKey);
+      // Fix: API Key is handled internally via getApiKey() in geminiService
+      const res = await fetchSectorHistory(historyYear, historyMonth, currentMarket);
       if (res.historyData) {
         setHistoryData(res.historyData);
       }
