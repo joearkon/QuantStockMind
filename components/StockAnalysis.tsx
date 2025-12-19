@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
@@ -56,8 +55,7 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
          if (!settings.geminiKey) {
             throw new Error("图片分析需要 Gemini API Key，请先在设置中配置。");
          }
-         // Fix: API Key is handled internally via getApiKey() in geminiService
-         data = await fetchStockDetailWithImage(selectedImage, query, currentMarket);
+         data = await fetchStockDetailWithImage(selectedImage, query, currentMarket, settings.geminiKey);
       } else {
          // --- Text Only Analysis ---
          const prompt = `

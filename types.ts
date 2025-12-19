@@ -21,32 +21,6 @@ export interface GroundingSource {
   title: string;
 }
 
-// --- New: Macro Deduction Types ---
-export interface MacroDeductionData {
-  summary: string;
-  short_term_outlook: {
-    period: string;
-    top_sectors: {
-      name: string;
-      logic: string;
-      catalysts: string[];
-      heat_index: number;
-    }[];
-  };
-  strategic_planning_15th: {
-    theme: string;
-    vision: string;
-    potential_winners: string[];
-    key_policy_indicators: string[];
-  };
-  logic_chain: {
-    event: string;
-    impact: string;
-    result: string;
-  }[];
-  risk_warning: string;
-}
-
 export interface PeriodicReviewData {
   score: number; // 0-100
   market_summary: string;
@@ -97,7 +71,6 @@ export interface AnalysisResult {
   institutionalData?: InstitutionalInsight; 
   historyData?: HistoricalYearData; 
   periodicData?: PeriodicReviewData; // New Field for Periodic Review
-  macroData?: MacroDeductionData; // New Field for Macro Forecaster
   market?: MarketType;
 }
 
