@@ -1,11 +1,9 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry, PeriodicReviewData, DailyTradingPlan, PlanItem } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { parseBrokerageScreenshot, fetchPeriodicReview, extractTradingPlan } from '../services/geminiService';
 import { analyzeImageWithExternal } from '../services/externalLlmService';
-// Fix: Added missing 'Zap' import from lucide-react to resolve the reference error on line 365.
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, FileText, FileSpreadsheet, Printer, Share2, Zap } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 
@@ -18,9 +16,9 @@ interface HoldingsReviewProps {
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 const HORIZON_COLORS = {
-  'short': '#f59e0b',
-  'medium': '#3b82f6',
-  'long': '#8b5cf6',
+  'short': '#f59e0b', // Amber
+  'medium': '#3b82f6', // Blue
+  'long': '#8b5cf6', // Violet
 };
 
 export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
@@ -32,7 +30,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   // --- State ---
   const [snapshot, setSnapshot] = useState<HoldingsSnapshot>({
     totalAssets: 0,
-    positionRatio: 0,
+    positionRatio: 0, // Initialize
     date: new Date().toISOString().split('T')[0],
     holdings: []
   });
@@ -52,20 +50,26 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Drawers
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isPlanOpen, setIsPlanOpen] = useState(false);
+  
   const [activeTab, setActiveTab] = useState<'report' | 'charts' | 'periodic'>('report');
   
+  // Periodic Review State
   const [periodicResult, setPeriodicResult] = useState<AnalysisResult | null>(null);
-  const [periodicRange, setPeriodicRange] = useState<{start: string, end: string, label: string} | null>(null);
   
+  // Editing State
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<HoldingItemDetailed | null>(null);
+
+  // Plan Generation State
   const [generatingPlan, setGeneratingPlan] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
+  // --- Effects ---
   useEffect(() => {
     localStorage.setItem('qm_journal', JSON.stringify(journal));
   }, [journal]);
@@ -74,220 +78,742 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     localStorage.setItem('qm_trading_plans', JSON.stringify(tradingPlans));
   }, [tradingPlans]);
 
-  // --- Handlers ---
+  // --- Handlers: Screenshot ---
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Validation Check based on Provider
+    if (currentModel === ModelProvider.HUNYUAN_CN && !settings.hunyuanKey) {
+      setError("您当前选择了腾讯混元模型，请配置 Hunyuan API Key 以使用图片识别功能。");
+      onOpenSettings?.();
+      return;
+    }
+    
+    if (currentModel === ModelProvider.GEMINI_INTL && !settings.geminiKey) {
+      setError("您当前选择了 Gemini 模型，请配置 Gemini API Key 以使用图片识别功能。");
+      onOpenSettings?.();
+      return;
+    }
+
     setParsing(true);
     setError(null);
+
     try {
+      // Convert to Base64
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64String = (reader.result as string).split(',')[1];
         try {
           let parsedData: HoldingsSnapshot;
+
           if (currentModel === ModelProvider.HUNYUAN_CN) {
+             // Use Hunyuan Vision
              parsedData = await analyzeImageWithExternal(ModelProvider.HUNYUAN_CN, base64String, settings.hunyuanKey!);
           } else {
+             // Use Gemini Vision
              parsedData = await parseBrokerageScreenshot(base64String, settings.geminiKey);
           }
+          
+          // Merge logic: Don't overwrite if parsed data is empty/partial, but here we assume generic success
+          // Default to 'medium' horizon for new imports
           const holdingsWithHorizon = parsedData.holdings.map(h => ({ ...h, horizon: 'medium' as const }));
+          
           setSnapshot({
             ...parsedData,
-            positionRatio: parsedData.positionRatio || 0,
+            positionRatio: parsedData.positionRatio || 0, // Capture parsed ratio
             holdings: holdingsWithHorizon,
-            date: new Date().toISOString().split('T')[0]
+            date: new Date().toISOString().split('T')[0] // Reset date to today
           });
-        } catch (err: any) { setError(err.message || "识别失败"); }
-        finally { setParsing(false); }
+        } catch (err: any) {
+          setError(err.message || "识别失败，请重试或手动输入");
+        } finally {
+          setParsing(false);
+        }
       };
       reader.readAsDataURL(file);
-    } catch (err) { setParsing(false); setError("文件读取失败"); }
+    } catch (err) {
+      setParsing(false);
+      setError("文件读取失败");
+    }
   };
 
+  // --- Handlers: Editing ---
+  const startEdit = (index: number, item: HoldingItemDetailed) => {
+    setEditingIndex(index);
+    setEditForm({ ...item, horizon: item.horizon || 'medium' });
+  };
+
+  const saveEdit = () => {
+    if (editForm && editingIndex !== null) {
+      const newHoldings = [...snapshot.holdings];
+      // Auto calc market value if missing
+      if (!editForm.marketValue || editForm.marketValue === 0) {
+        editForm.marketValue = editForm.volume * editForm.currentPrice;
+      }
+      newHoldings[editingIndex] = editForm;
+      setSnapshot(prev => ({ ...prev, holdings: newHoldings }));
+      setEditingIndex(null);
+      setEditForm(null);
+    }
+  };
+
+  const deleteHolding = (index: number) => {
+    const newHoldings = [...snapshot.holdings];
+    newHoldings.splice(index, 1);
+    setSnapshot(prev => ({ ...prev, holdings: newHoldings }));
+  };
+
+  const addEmptyHolding = () => {
+    setSnapshot(prev => ({
+      ...prev,
+      holdings: [...prev.holdings, {
+        name: "新标的",
+        code: "",
+        volume: 0,
+        costPrice: 0,
+        currentPrice: 0,
+        profit: 0,
+        profitRate: "0%",
+        marketValue: 0,
+        horizon: 'short'
+      }]
+    }));
+    setEditingIndex(snapshot.holdings.length); // Start editing the new one immediately
+    setEditForm({
+        name: "新标的",
+        code: "",
+        volume: 0,
+        costPrice: 0,
+        currentPrice: 0,
+        profit: 0,
+        profitRate: "0%",
+        marketValue: 0,
+        horizon: 'short'
+    });
+  };
+
+  // --- Handlers: Analysis ---
   const handleAnalyze = async () => {
-    if (snapshot.holdings.length === 0) { setError("持仓列表为空"); return; }
+    if (snapshot.holdings.length === 0) {
+      setError("持仓列表为空，请先添加持仓");
+      return;
+    }
+
     setLoading(true);
     setAnalysisResult(null);
     setPeriodicResult(null);
     setError(null);
-    setActiveTab('report');
-    try {
-      const result = await analyzeWithLLM(currentModel, "请深度分析我的持仓...", true, settings, false, 'day', undefined, currentMarket);
-      setAnalysisResult(result);
-    } catch (err: any) { setError(err.message); }
-    finally { setLoading(false); }
-  };
+    setActiveTab('report'); // Switch to report tab on new analysis
 
-  const handlePeriodicReview = async (period: 'week' | 'month' | 'all') => {
-    if (journal.length < 1) { setError("历史记录不足，无法复盘。"); return; }
-    setLoading(true);
-    setError(null);
-    setActiveTab('periodic');
-    const now = Date.now();
-    let startTs = 0;
-    let label = "";
-    if (period === 'week') { startTs = now - 7 * 24 * 60 * 60 * 1000; label = "最近一周"; }
-    else if (period === 'month') { startTs = now - 30 * 24 * 60 * 60 * 1000; label = "最近一月"; }
-    else { startTs = 0; label = "全历史记录"; }
-    const filtered = journal.filter(j => j.timestamp >= startTs);
-    const startDate = filtered.length > 0 ? new Date(filtered[filtered.length-1].timestamp).toLocaleDateString() : '起初';
-    const endDate = new Date().toLocaleDateString();
-    setPeriodicRange({ start: startDate, end: endDate, label });
-    try {
-      const result = await fetchPeriodicReview([...filtered, {id:'cur', timestamp:now, snapshot, analysis:null}], label, currentMarket, settings.geminiKey);
-      setPeriodicResult(result);
-    } catch (err: any) { setError(err.message); }
-    finally { setLoading(false); }
-  };
-
-  const handleExportPeriodicMD = () => {
-    if (!periodicResult?.periodicData || !periodicRange) return;
-    const d = periodicResult.periodicData as PeriodicReviewData;
-    let md = `# QuantMind 阶段性复盘报告 - ${periodicRange.label}\n\n`;
-    md += `> **复盘区间**: ${periodicRange.start} 至 ${periodicRange.end}\n`;
-    md += `> **综合评分**: ${d.score}/100\n`;
-    md += `> **市场定调**: ${d.market_trend.toUpperCase()}\n\n`;
-    md += `## 1. 市场阶段总结\n${d.market_summary}\n\n`;
-    md += `## 2. 核心表现\n`;
-    md += `### 🌟 高光时刻: ${d.highlight.title}\n${d.highlight.description}\n\n`;
-    md += `### ⚠️ 至暗时刻: ${d.lowlight.title}\n${d.lowlight.description}\n\n`;
-    md += `## 3. 知行合一审计 (执行力评分: ${d.execution.score})\n`;
-    md += `> ${d.execution.details}\n\n`;
-    md += `### ✅ 优秀行为\n${d.execution.good_behaviors.map(b => `- ${b}`).join('\n')}\n\n`;
-    md += `### ❌ 待改进项\n${d.execution.bad_behaviors.map(b => `- ${b}`).join('\n')}\n\n`;
-    md += `## 4. 下阶段战略重心\n${d.next_period_focus.map((f, i) => `${i+1}. ${f}`).join('\n')}\n\n`;
-    md += `---\n*报告由 QuantMind AI 自动生成*`;
+    const marketLabel = MARKET_OPTIONS.find(m => m.value === currentMarket)?.label || currentMarket;
     
-    const blob = new Blob([md], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Periodic_Review_${periodicRange.start.replace(/\//g, '-')}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+    // 1. Prepare Current Context with Horizon
+    const getHorizonLabel = (h: string | undefined) => {
+      if (h === 'short') return '短线(1月内)';
+      if (h === 'long') return '长线(3月+)';
+      return '中线(1-3月)';
+    };
+
+    const currentHoldingsText = snapshot.holdings.map((h, i) => 
+      `${i+1}. ${h.name} (${h.code}) [${getHorizonLabel(h.horizon)}]: 持仓${h.volume}股, 成本${h.costPrice}, 现价${h.currentPrice}, 浮动盈亏 ${h.profit} (${h.profitRate})`
+    ).join('\n');
+
+    // 2. Prepare Historical Context
+    const previousEntry = journal.length > 0 ? journal[0] : null;
+    let historyContext = "这是该账户的首次复盘分析。";
+
+    if (previousEntry) {
+      const prevDate = new Date(previousEntry.timestamp).toLocaleDateString();
+      const prevHoldingsText = previousEntry.snapshot.holdings.map(h => 
+        `- ${h.name} (${h.code}): Vol:${h.volume}, PnL:${h.profitRate}`
+      ).join('\n');
+      
+      const prevAdvice = previousEntry.analysis?.content 
+        ? previousEntry.analysis.content.substring(0, 1500) // Limit tokens
+        : "无历史建议";
+
+      historyContext = `
+      【历史复盘上下文 (上一交易日: ${prevDate})】
+      1. 上期总资产: ${previousEntry.snapshot.totalAssets} (当前变动: ${(snapshot.totalAssets - previousEntry.snapshot.totalAssets).toFixed(2)})
+      2. 上期持仓快照:
+      ${prevHoldingsText}
+      3. 上期AI核心建议回顾:
+      """
+      ${prevAdvice}
+      """
+      `;
+    }
+
+    const prompt = `
+      请作为一位【专属私人基金经理】对我当前的 ${marketLabel} 账户进行【连续性】复盘分析。
+      
+      你不只是分析今天，更要结合历史上下文，跟踪策略的执行情况和市场验证情况。
+
+      === 历史档案 ===
+      ${historyContext}
+
+      === 今日账户概况 ===
+      - 总资产: ${snapshot.totalAssets} 元
+      - 真实仓位占比: ${snapshot.positionRatio || '未知'}% (请以此数值为准评估风险，不要只看持仓市值)
+      - 交易日期: ${snapshot.date}
+      - 详细持仓 (注意每只股票的【周期标记】):
+      ${currentHoldingsText}
+      
+      【核心任务】
+      请结合联网搜索（获取最新行情、公告、舆情），输出 Markdown 报告 (严格遵守 H2 标题结构):
+
+      ## 1. 昨策回顾与执行验证 (Review)
+      - **对比分析**: 对比"上期持仓"与"今日持仓"，判断我是否执行了上期的建议？(例如：上期建议减仓某股，我是否减了？)
+      - **评分**: 对我的操作执行力打分 (0-10分)。
+
+      ## 2. 盈亏诊断与心理按摩 (Diagnosis)
+      - 基于成本价和现价，判断当前是获利回吐、深套、还是刚刚起涨？
+      - 针对当前的盈亏比例和**仓位占比 (${snapshot.positionRatio}%)**，给出风险评估和心理建议。
+      
+      ## 3. K线与量能形态 (Technical)
+      - **K线形态**: 识别今日收盘后的最新形态。
+      - **成交量分析 (Volume)**: 【必须】指出当前是“放量” (Volume Surge) 还是“缩量” (Volume Contraction)，并解读其含义（如：缩量下跌暗示抛压衰竭）。
+      - **动态调整**: 必须更新每一只持仓的【止盈价 (Target Sell)】和【止损价 (Stop Loss)】。
+
+      ## 4. 实战操作建议 (Action)
+      - **策略区分**: 请严格根据每只股票的【周期标记】给出建议：
+         - **短线**: 重点关注技术面破位和情绪，止损要窄，不恋战。
+         - **中线**: 关注波段趋势和资金流向。
+         - **长线**: 忽略短期噪音，重点评估基本面逻辑是否改变，止损可适当放宽。
+      - 给出明确指令：【加仓 / 减仓 / 做T / 清仓 / 锁仓】。
+      - 如果我上期没听建议导致亏损扩大，请给出补救措施。
+
+      ## 5. 账户总方针 (Strategy)
+      - 评估整体仓位的风险敞口。
+      - 结合昨天的策略，更新今天的总方针。
+
+      请语言简练、犀利，具有连贯性，像一个长期陪伴的导师。
+    `;
+
+    try {
+      const result = await analyzeWithLLM(currentModel, prompt, true, settings, false, 'day', undefined, currentMarket);
+      setAnalysisResult(result);
+    } catch (err: any) {
+      console.error("Analyze Error", err);
+      setError(err.message || "分析请求未能完成，请检查网络设置或稍后重试。");
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // --- Handlers: Plan Generation ---
   const handleGeneratePlan = async () => {
     if (!analysisResult) return;
     setGeneratingPlan(true);
+    
     try {
+      // 1. Extract Plan from Analysis
       const { items, summary } = await extractTradingPlan(analysisResult.content, settings.geminiKey);
-      setTradingPlans(prev => [{ id: crypto.randomUUID(), target_date: new Date(Date.now() + 86400000).toISOString().split('T')[0], created_at: Date.now(), items, strategy_summary: summary }, ...prev]);
+      
+      // 2. Create Plan Object
+      const newPlan: DailyTradingPlan = {
+        id: crypto.randomUUID(),
+        target_date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Default to tomorrow
+        created_at: Date.now(),
+        items: items,
+        strategy_summary: summary
+      };
+
+      // 3. Save
+      setTradingPlans(prev => [newPlan, ...prev]);
+      
+      // 4. Open Drawer
       setIsPlanOpen(true);
-    } catch (err: any) { setError("生成失败: " + err.message); }
-    finally { setGeneratingPlan(false); }
+    } catch (err: any) {
+      setError("生成交易计划失败: " + err.message);
+    } finally {
+      setGeneratingPlan(false);
+    }
   };
 
-  // --- Rendering Helpers ---
+  const togglePlanItemStatus = (planId: string, itemId: string) => {
+    setTradingPlans(prev => prev.map(p => {
+       if (p.id !== planId) return p;
+       return {
+         ...p,
+         items: p.items.map(item => {
+           if (item.id !== itemId) return item;
+           // Cycle: pending -> completed -> skipped -> failed -> pending
+           const states = ['pending', 'completed', 'skipped', 'failed'];
+           const nextIndex = (states.indexOf(item.status) + 1) % states.length;
+           return { ...item, status: states[nextIndex] as any };
+         })
+       };
+    }));
+  };
+  
+  const deletePlan = (planId: string) => {
+    if (confirm("确定删除该交易计划？")) {
+       setTradingPlans(prev => prev.filter(p => p.id !== planId));
+    }
+  };
+
+  // --- Handlers: Export ---
+  const downloadFile = (content: string, filename: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPlanMD = () => {
+     let md = "# 我的交易计划归档\n\n";
+     tradingPlans.forEach(plan => {
+        md += `## ${plan.target_date} (策略: ${plan.strategy_summary})\n`;
+        plan.items.forEach(item => {
+           const statusMark = item.status === 'completed' ? '[x]' : '[ ]';
+           md += `- ${statusMark} **${item.symbol}** (${item.action}): 目标 ${item.price_target} | ${item.reason}\n`;
+        });
+        md += "\n";
+     });
+     downloadFile(md, `TradingPlans_${new Date().toISOString().split('T')[0]}.md`, 'text/markdown');
+  };
+
+  const handleExportPlanCSV = () => {
+     // BOM for Excel Chinese support
+     let csv = "\uFEFF日期,股票,操作,目标价,逻辑,状态\n";
+     tradingPlans.forEach(plan => {
+        plan.items.forEach(item => {
+           csv += `${plan.target_date},"${item.symbol}","${item.action}","${item.price_target}","${item.reason.replace(/"/g, '""')}","${item.status}"\n`;
+        });
+     });
+     downloadFile(csv, `TradingPlans_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
+  };
+
+  // --- Handlers: Periodic Review ---
+  const handlePeriodicReview = async (period: 'week' | 'month' | 'all') => {
+    if (journal.length < 1) {
+      setError("历史记录不足，无法进行阶段性复盘。请先积累至少两条交易日志。");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setAnalysisResult(null); // Clear daily analysis
+    setPeriodicResult(null);
+    setActiveTab('periodic');
+
+    const now = Date.now();
+    let startDate = 0;
+    let label = "";
+
+    if (period === 'week') {
+      startDate = now - 7 * 24 * 60 * 60 * 1000;
+      label = "近一周";
+    } else if (period === 'month') {
+      startDate = now - 30 * 24 * 60 * 60 * 1000;
+      label = "近一月";
+    } else {
+      startDate = 0;
+      label = "全历史";
+    }
+
+    const filteredJournals = journal.filter(j => j.timestamp >= startDate);
+    // Add current snapshot if it's new (not in journal yet)
+    // We construct a temporary entry for current snapshot to include it in review
+    const currentEntry: JournalEntry = {
+      id: 'current',
+      timestamp: Date.now(),
+      snapshot: snapshot,
+      analysis: null
+    };
+
+    const reviewJournals = [...filteredJournals, currentEntry];
+
+    if (reviewJournals.length < 2) {
+       setError(`【${label}】范围内数据点不足，无法形成趋势分析。请选择更长的时间段。`);
+       setLoading(false);
+       return;
+    }
+
+    try {
+      const result = await fetchPeriodicReview(reviewJournals, label, currentMarket, settings.geminiKey);
+      setPeriodicResult(result);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- Handlers: Journal ---
+  const saveToJournal = () => {
+    if (!analysisResult) return;
+    const newEntry: JournalEntry = {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      snapshot: { ...snapshot },
+      analysis: analysisResult,
+      note: ""
+    };
+    setJournal(prev => [newEntry, ...prev]);
+    alert("已保存到交易日志！");
+  };
+
+  const exportJournal = () => {
+    const dataStr = JSON.stringify(journal, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `QuantMind_Journal_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const importJournal = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const imported = JSON.parse(event.target?.result as string);
+        if (Array.isArray(imported)) {
+          setJournal(imported);
+          alert(`成功导入 ${imported.length} 条记录`);
+        }
+      } catch (e) {
+        alert("导入失败：文件格式错误");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const loadEntry = (entry: JournalEntry) => {
+    setSnapshot(entry.snapshot);
+    setAnalysisResult(entry.analysis);
+    setIsHistoryOpen(false);
+  };
+
+  // --- Helpers for Charts ---
+  const getTrendData = () => {
+    // Combine saved journal entries with current snapshot
+    const history = [...journal].sort((a, b) => a.timestamp - b.timestamp).map(entry => ({
+      date: new Date(entry.timestamp).toLocaleDateString('zh-CN', {month: '2-digit', day: '2-digit'}),
+      assets: entry.snapshot.totalAssets,
+      totalProfit: entry.snapshot.holdings.reduce((sum, h) => sum + h.profit, 0)
+    }));
+
+    // Add current snapshot
+    history.push({
+      date: 'Now',
+      assets: snapshot.totalAssets,
+      totalProfit: snapshot.holdings.reduce((sum, h) => sum + h.profit, 0)
+    });
+
+    return history;
+  };
+
+  const getHorizonData = () => {
+    const counts = { short: 0, medium: 0, long: 0 };
+    snapshot.holdings.forEach(h => {
+      const type = h.horizon || 'medium';
+      counts[type]++;
+    });
+    return [
+      { name: '短线 (Short)', value: counts.short, color: HORIZON_COLORS.short },
+      { name: '中线 (Medium)', value: counts.medium, color: HORIZON_COLORS.medium },
+      { name: '长线 (Long)', value: counts.long, color: HORIZON_COLORS.long },
+    ].filter(d => d.value > 0);
+  };
+
+  // --- Render Helper: Rich Periodic Review ---
   const renderPeriodicDashboard = (data: PeriodicReviewData) => {
     return (
-      <div className="p-6 space-y-8 animate-fade-in print:p-0">
-        {/* Header with Export Controls */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-6 print:border-none">
-           <div>
-              <div className="flex items-center gap-2 mb-1">
-                 <h3 className="text-2xl font-black text-slate-800 tracking-tight">阶段性复盘报告</h3>
-                 <span className="bg-indigo-100 text-indigo-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">{periodicRange?.label}</span>
-              </div>
-              <p className="text-sm font-bold text-slate-400 flex items-center gap-1">
-                 <Calendar className="w-3.5 h-3.5" />
-                 复盘区间: <span className="text-slate-600">{periodicRange?.start}</span> — <span className="text-slate-600">{periodicRange?.end}</span>
-              </p>
-           </div>
-           <div className="flex gap-2 print:hidden">
-              <button onClick={handleExportPeriodicMD} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 transition-all shadow-sm">
-                 <FileText className="w-3.5 h-3.5" /> 导出 MD
-              </button>
-              <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100">
-                 <Printer className="w-3.5 h-3.5" /> 打印 PDF 留档
-              </button>
-           </div>
-        </div>
-
+      <div className="p-6 space-y-8 animate-fade-in">
+        
         {/* Row 1: Score & Market Context */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-           <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-xl flex flex-col items-center justify-center">
-              <h3 className="text-slate-400 font-black uppercase tracking-widest text-[10px] mb-4">综合表现评分</h3>
-              <div className="relative w-28 h-28 flex items-center justify-center">
+           {/* Score Card */}
+           <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-xl p-6 text-white shadow-xl flex flex-col items-center justify-center relative overflow-hidden">
+              <div className="absolute inset-0 bg-white/5 opacity-10 blur-xl"></div>
+              <h3 className="text-slate-300 font-bold uppercase tracking-wider text-xs mb-2">综合表现评分</h3>
+              <div className="relative w-32 h-32 flex items-center justify-center mb-2">
                  <svg className="w-full h-full transform -rotate-90">
-                    <circle cx="56" cy="56" r="48" stroke="#1e293b" strokeWidth="8" fill="none" />
-                    <circle cx="56" cy="56" r="48" stroke={data.score >= 80 ? '#10b981' : data.score >= 60 ? '#f59e0b' : '#ef4444'} strokeWidth="8" fill="none" strokeDasharray="301.6" strokeDashoffset={301.6 * (1 - data.score / 100)} className="transition-all duration-1000" />
+                    <circle cx="64" cy="64" r="56" stroke="#334155" strokeWidth="8" fill="none" />
+                    <circle 
+                      cx="64" cy="64" r="56" 
+                      stroke={data.score >= 80 ? '#10b981' : data.score >= 60 ? '#f59e0b' : '#ef4444'} 
+                      strokeWidth="8" fill="none" 
+                      strokeDasharray="351.86" 
+                      strokeDashoffset={351.86 * (1 - data.score / 100)} 
+                      className="transition-all duration-1000 ease-out"
+                    />
                  </svg>
-                 <span className="absolute text-3xl font-black">{data.score}</span>
+                 <span className="absolute text-4xl font-bold">{data.score}</span>
               </div>
+              <p className="text-sm opacity-80 mt-1">
+                 {data.score >= 80 ? '表现优异' : data.score >= 60 ? '表现尚可' : '需反思改进'}
+              </p>
            </div>
-           <div className="md:col-span-2 bg-slate-50 border border-slate-200 rounded-2xl p-6">
-              <div className="flex items-center gap-2 mb-3">
-                 <span className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase border bg-white border-slate-200 text-slate-500">{data.market_trend}趋势</span>
-                 <h4 className="text-slate-800 font-black">市场阶段定调</h4>
+
+           {/* Market Context Banner */}
+           <div className="md:col-span-2 bg-slate-50 border border-slate-200 rounded-xl p-6 flex flex-col justify-center">
+              <div className="flex items-center gap-3 mb-3">
+                 <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${
+                    data.market_trend === 'bull' ? 'bg-red-50 text-red-600 border-red-100' :
+                    data.market_trend === 'bear' ? 'bg-green-50 text-green-600 border-green-100' :
+                    'bg-slate-100 text-slate-600 border-slate-200'
+                 }`}>
+                    {data.market_trend.toUpperCase()} MARKET
+                 </span>
+                 <h3 className="text-lg font-bold text-slate-800">阶段市场回顾</h3>
               </div>
-              <p className="text-slate-600 leading-relaxed text-sm font-medium">{data.market_summary}</p>
+              <p className="text-slate-600 leading-relaxed text-sm">
+                 {data.market_summary}
+              </p>
            </div>
         </div>
 
-        {/* Row 2: Highlights */}
+        {/* Row 2: Highs & Lows */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-           <div className="bg-emerald-50/50 border border-emerald-100 p-6 rounded-2xl">
-              <div className="text-emerald-700 font-black text-xs uppercase mb-3 flex items-center gap-2"><Trophy className="w-4 h-4"/> 高光时刻 (Highlight)</div>
-              <h5 className="font-black text-slate-800 mb-2">{data.highlight.title}</h5>
-              <p className="text-xs text-slate-600 font-medium leading-relaxed">{data.highlight.description}</p>
+           {/* Highlight */}
+           <div className="bg-emerald-50 rounded-xl border border-emerald-100 p-6 relative overflow-hidden group">
+              <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                 <Trophy className="w-24 h-24 text-emerald-600" />
+              </div>
+              <div className="relative z-10">
+                 <div className="flex items-center gap-2 mb-3 text-emerald-800 font-bold">
+                    <div className="p-1.5 bg-white rounded-lg shadow-sm"><Trophy className="w-5 h-5 text-emerald-600" /></div>
+                    高光时刻 (Highlight)
+                 </div>
+                 <h4 className="text-lg font-bold text-emerald-900 mb-2">{data.highlight.title}</h4>
+                 <p className="text-sm text-emerald-800 leading-relaxed opacity-90">{data.highlight.description}</p>
+              </div>
            </div>
-           <div className="bg-rose-50/50 border border-rose-100 p-6 rounded-2xl">
-              <div className="text-rose-700 font-black text-xs uppercase mb-3 flex items-center gap-2"><AlertOctagon className="w-4 h-4"/> 至暗时刻 (Lowlight)</div>
-              <h5 className="font-black text-slate-800 mb-2">{data.lowlight.title}</h5>
-              <p className="text-xs text-slate-600 font-medium leading-relaxed">{data.lowlight.description}</p>
+
+           {/* Lowlight */}
+           <div className="bg-rose-50 rounded-xl border border-rose-100 p-6 relative overflow-hidden group">
+              <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                 <AlertOctagon className="w-24 h-24 text-rose-600" />
+              </div>
+              <div className="relative z-10">
+                 <div className="flex items-center gap-2 mb-3 text-rose-800 font-bold">
+                    <div className="p-1.5 bg-white rounded-lg shadow-sm"><AlertOctagon className="w-5 h-5 text-rose-600" /></div>
+                    至暗时刻 (Lowlight)
+                 </div>
+                 <h4 className="text-lg font-bold text-rose-900 mb-2">{data.lowlight.title}</h4>
+                 <p className="text-sm text-rose-800 leading-relaxed opacity-90">{data.lowlight.description}</p>
+              </div>
            </div>
         </div>
 
-        {/* Row 3: Audit */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-           <h3 className="font-black text-slate-800 mb-4 flex items-center gap-2">知行合一审计</h3>
-           <p className="text-xs text-slate-500 italic mb-6">"{data.execution.details}"</p>
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                 <div className="text-[10px] font-black text-emerald-600 uppercase">优秀行为</div>
-                 {data.execution.good_behaviors.map((b, i) => <div key={i} className="p-2 bg-emerald-50 text-[11px] font-bold text-emerald-800 rounded-lg flex gap-2"><Check className="w-3 h-3 shrink-0"/>{b}</div>)}
+        {/* Row 3: Execution Audit */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+           <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                 <ClipboardList className="w-5 h-5 text-slate-500" />
+                 知行合一审计 (Execution Audit)
+              </h3>
+              <div className="flex items-center gap-2">
+                 <span className="text-sm text-slate-500 font-medium">执行力评分</span>
+                 <div className="w-24 h-3 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-500" style={{width: `${data.execution.score}%`}}></div>
+                 </div>
+                 <span className="text-sm font-bold text-indigo-600">{data.execution.score}/100</span>
               </div>
-              <div className="space-y-2">
-                 <div className="text-[10px] font-black text-rose-600 uppercase">待改进项</div>
-                 {data.execution.bad_behaviors.map((b, i) => <div key={i} className="p-2 bg-rose-50 text-[11px] font-bold text-rose-800 rounded-lg flex gap-2"><X className="w-3 h-3 shrink-0"/>{b}</div>)}
+           </div>
+           
+           <p className="text-sm text-slate-600 mb-6 bg-slate-50 p-3 rounded-lg border border-slate-100 italic">
+              "{data.execution.details}"
+           </p>
+
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div>
+                 <h4 className="text-xs font-bold uppercase text-emerald-600 mb-3 flex items-center gap-1">
+                    <CheckCircle2 className="w-4 h-4" /> Good Behaviors
+                 </h4>
+                 <ul className="space-y-2">
+                    {data.execution.good_behaviors.map((item, idx) => (
+                       <li key={idx} className="flex gap-2 text-sm text-slate-700 bg-emerald-50/50 p-2 rounded">
+                          <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                          <span>{item}</span>
+                       </li>
+                    ))}
+                    {data.execution.good_behaviors.length === 0 && <li className="text-sm text-slate-400">暂无明显亮点</li>}
+                 </ul>
+              </div>
+              <div>
+                 <h4 className="text-xs font-bold uppercase text-rose-600 mb-3 flex items-center gap-1">
+                    <XCircle className="w-4 h-4" /> Areas to Improve
+                 </h4>
+                 <ul className="space-y-2">
+                    {data.execution.bad_behaviors.map((item, idx) => (
+                       <li key={idx} className="flex gap-2 text-sm text-slate-700 bg-rose-50/50 p-2 rounded">
+                          <X className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                          <span>{item}</span>
+                       </li>
+                    ))}
+                     {data.execution.bad_behaviors.length === 0 && <li className="text-sm text-slate-400">暂无明显失误</li>}
+                 </ul>
               </div>
            </div>
         </div>
 
-        {/* Row 4: Focus */}
-        <div className="bg-indigo-600 rounded-3xl p-8 text-white">
-           <h3 className="font-black mb-6 flex items-center gap-2 text-lg"><ArrowRightCircle className="w-6 h-6"/> 下阶段战略重心</h3>
-           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {data.next_period_focus.map((f, i) => (
-                 <div key={i} className="bg-white/10 p-4 rounded-2xl border border-white/20 text-sm font-bold flex items-center gap-3">
-                    <span className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center text-[10px]">{i+1}</span>
-                    {f}
+        {/* Row 4: Next Focus */}
+        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6">
+           <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
+              <ArrowRightCircle className="w-5 h-5 text-indigo-600" />
+              下阶段战略重心 (Strategic Focus)
+           </h3>
+           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {data.next_period_focus.map((item, idx) => (
+                 <div key={idx} className="bg-white p-3 rounded-lg shadow-sm border border-indigo-100 flex items-start gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">{idx + 1}</span>
+                    <p className="text-sm text-slate-700 font-medium pt-0.5">{item}</p>
                  </div>
               ))}
            </div>
         </div>
+
       </div>
     );
   };
 
+  // --- Render Helper: Daily Report ---
   const renderReportContent = (content: string) => {
+    // Split by H2 headers
     const sections = content.split(/^##\s+/gm).filter(Boolean);
-    if (sections.length === 0) return <div className="prose max-w-none p-6" dangerouslySetInnerHTML={{ __html: content.replace(/\n/g, '<br/>') }} />;
+
+    if (sections.length === 0) {
+      // Fallback for raw text
+      return (
+        <div className="prose prose-slate max-w-none p-6" dangerouslySetInnerHTML={{ __html: content.replace(/\n/g, '<br/>') }} />
+      );
+    }
+
     return (
       <div className="grid grid-cols-1 gap-6 p-6">
         {sections.map((sec, idx) => {
           const lines = sec.trim().split('\n');
           const title = lines[0].trim();
           const body = lines.slice(1).join('\n').trim();
+          
+          let Icon = FileJson;
+          let headerColor = "text-slate-800";
+          let iconBg = "bg-slate-100";
+          let cardBorder = "border-slate-200";
+
+          // Theme based on title keywords
+          if (title.includes("回顾") || title.includes("验证")) {
+            Icon = GitCompare;
+            headerColor = "text-indigo-700";
+            iconBg = "bg-indigo-100";
+            cardBorder = "border-indigo-100";
+          } else if (title.includes("盈亏") || title.includes("心理")) {
+            Icon = PieChartIcon;
+            headerColor = "text-rose-700";
+            iconBg = "bg-rose-100";
+            cardBorder = "border-rose-100";
+          } else if (title.includes("K线") || title.includes("关键") || title.includes("波浪")) {
+            Icon = Activity;
+            headerColor = "text-blue-700";
+            iconBg = "bg-blue-100";
+            cardBorder = "border-blue-100";
+          } else if (title.includes("建议") || title.includes("操作")) {
+            Icon = Target;
+            headerColor = "text-emerald-700";
+            iconBg = "bg-emerald-100";
+            cardBorder = "border-emerald-100";
+          } else if (title.includes("总结") || title.includes("方针")) {
+            Icon = ClipboardList;
+            headerColor = "text-violet-700";
+            iconBg = "bg-violet-100";
+            cardBorder = "border-violet-100";
+          } else if (title.includes("大盘") || title.includes("Context")) {
+            Icon = TrendingUp;
+            headerColor = "text-amber-700";
+            iconBg = "bg-amber-100";
+            cardBorder = "border-amber-100";
+          } else if (title.includes("审计") || title.includes("Audit")) {
+            Icon = AlertTriangle;
+            headerColor = "text-red-700";
+            iconBg = "bg-red-100";
+            cardBorder = "border-red-100";
+          }
+
           return (
-            <div key={idx} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6">
-              <h3 className="text-lg font-black text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
-                 <div className="w-2 h-2 rounded-full bg-indigo-500"></div> {title}
-              </h3>
-              <div className="space-y-2 text-sm text-slate-600 leading-relaxed">
-                 {body.split('\n').map((l, i) => <p key={i}>{l}</p>)}
+            <div key={idx} className={`bg-white rounded-xl border ${cardBorder} shadow-sm overflow-hidden`}>
+              <div className={`px-6 py-4 border-b ${cardBorder} flex justify-between items-center bg-opacity-30 ${iconBg.replace('100', '50')}`}>
+                <div className="flex items-center gap-3">
+                   <div className={`p-2 rounded-lg ${iconBg}`}>
+                     <Icon className={`w-5 h-5 ${headerColor}`} />
+                   </div>
+                   <h3 className={`text-lg font-bold ${headerColor}`}>{title}</h3>
+                </div>
+                
+                {/* --- ADD PLAN BUTTON --- */}
+                {title.includes("建议") && (
+                   <button
+                     onClick={handleGeneratePlan}
+                     disabled={generatingPlan}
+                     className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all disabled:opacity-70"
+                   >
+                     {generatingPlan ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <ListTodo className="w-3.5 h-3.5"/>}
+                     生成明日计划
+                   </button>
+                )}
+              </div>
+              <div className="p-6">
+                {body.split('\n').map((line, i) => {
+                  const trimmed = line.trim();
+                  if (!trimmed) return <div key={i} className="h-2"></div>;
+
+                  // 1. Highlight Action Keywords
+                  const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有|补救|执行力|知行不一|放量|缩量)/g;
+                  let processedLine = trimmed.replace(
+                    highlightRegex, 
+                    '<span class="font-bold text-white bg-indigo-500 px-1 py-0.5 rounded text-xs mx-0.5 shadow-sm">$1</span>'
+                  );
+                  
+                  // 2. Highlight Prices (Stop Profit/Loss)
+                  if (title.includes("关键") || title.includes("K线")) {
+                      processedLine = processedLine.replace(
+                          /(止盈价|Target Sell)[:：]\s*(\d+\.?\d*)/g, 
+                          '<span class="inline-flex items-center gap-1 font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-100 mx-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg> 止盈 $2</span>'
+                      ).replace(
+                          /(止损价|Stop Loss)[:：]\s*(\d+\.?\d*)/g, 
+                          '<span class="inline-flex items-center gap-1 font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-100 mx-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg> 止损 $2</span>'
+                      );
+                  }
+
+                  // 3. Bold Markdown
+                  processedLine = processedLine.replace(
+                    /\*\*(.*?)\*\*/g, 
+                    '<strong class="font-bold text-slate-900 bg-slate-100 px-1 rounded">$1</strong>'
+                  );
+
+                  if (trimmed.startsWith('-') || trimmed.startsWith('* ')) {
+                     return (
+                       <div key={i} className="flex gap-3 mb-3 items-start group">
+                          <div className={`mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0 group-hover:scale-125 transition-transform ${title.includes("建议") ? 'bg-emerald-400' : 'bg-slate-400'}`}></div>
+                          <p className="flex-1 text-slate-700 leading-relaxed text-sm sm:text-base" dangerouslySetInnerHTML={{ __html: processedLine.replace(/^[-*]\s+/, '') }}></p>
+                       </div>
+                     );
+                  }
+                  
+                  if (trimmed.startsWith('###')) {
+                    return <h4 key={i} className="text-md font-bold text-slate-800 mt-4 mb-2 flex items-center gap-2">
+                       <Crosshair className="w-4 h-4 text-slate-400" />
+                       {trimmed.replace(/###\s*/, '')}
+                    </h4>;
+                  }
+
+                  return <p key={i} className="mb-2 text-slate-600 leading-relaxed text-sm sm:text-base" dangerouslySetInnerHTML={{ __html: processedLine }}></p>;
+                })}
               </div>
             </div>
           );
@@ -296,95 +822,561 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     );
   };
 
+  // Helper to render Horizon Badge
+  const renderHorizonBadge = (horizon: string | undefined) => {
+    switch (horizon) {
+      case 'short':
+        return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-700 font-medium border border-amber-200">短线</span>;
+      case 'long':
+        return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-violet-100 text-violet-700 font-medium border border-violet-200">长线</span>;
+      default:
+        return <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-700 font-medium border border-blue-200">中线</span>;
+    }
+  };
+
+  // Safe Error Parsing
+  const getFriendlyErrorMessage = (errMsg: string | null) => {
+    if (!errMsg) return null;
+    
+    // Check if it's the specific "TypeError: Failed to fetch" string
+    if (errMsg.includes("TypeError: Failed to fetch") || errMsg.includes("NetworkError")) {
+       return "网络连接失败。请检查您的网络连接。若使用混元模型，可能存在浏览器跨域限制，请尝试使用 Gemini 模型。";
+    }
+
+    if (errMsg.trim().startsWith('{')) {
+      try {
+        const json = JSON.parse(errMsg);
+        // Handle various JSON error shapes
+        if (json.error) {
+           return json.error.message || json.error.status || `Error Code: ${json.error.code}`;
+        }
+        if (json.message) return json.message;
+      } catch (e) {
+        // failed to parse, use original
+      }
+    }
+    return errMsg;
+  };
+
+  const displayError = getFriendlyErrorMessage(error);
+
   return (
-    <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-20">
-      {/* 持仓卡片 */}
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 print:hidden">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
+    <div className="space-y-6 animate-fade-in">
+      {/* Header Area */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
-            <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
-              <div className="bg-indigo-600 p-2 rounded-xl text-white"><Activity className="w-6 h-6"/></div>
-              智能持仓分析系统
+            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              <UploadCloud className="w-6 h-6 text-indigo-600" />
+              智能持仓复盘 (Portfolio Review)
             </h2>
-            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-2">Portfolio Intelligence & Review</p>
+            <p className="text-sm text-slate-500 mt-1">
+              上传交易软件截图 (如同花顺、东方财富) 或手动录入，AI 结合成本为您诊断止盈止损点位。
+            </p>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => setIsPlanOpen(!isPlanOpen)} className="p-3 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 transition-all" title="查看计划"><ListTodo className="w-5 h-5"/></button>
-            <button onClick={() => setIsHistoryOpen(!isHistoryOpen)} className="p-3 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 transition-all" title="历史日志"><History className="w-5 h-5"/></button>
-            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black transition-all shadow-lg active:scale-95">
-              <Camera className="w-4 h-4"/> 识别截图
+            <button 
+              onClick={() => setIsPlanOpen(!isPlanOpen)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200"
+            >
+              <ListTodo className="w-4 h-4" />
+              交易计划
             </button>
-            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+            <button 
+              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200"
+            >
+              <History className="w-4 h-4" />
+              历史日志
+            </button>
+            <input 
+               type="file" 
+               accept="image/*" 
+               ref={fileInputRef} 
+               className="hidden" 
+               onChange={handleImageUpload} 
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={parsing}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors disabled:opacity-70"
+            >
+              {parsing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+              {parsing ? '识别中...' : '上传持仓截图'}
+            </button>
           </div>
         </div>
 
-        {/* 历史记录/错误信息略... */}
-        {error && <div className="mb-6 p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 text-sm font-bold flex gap-2"><AlertTriangle className="w-5 h-5 shrink-0"/>{error}</div>}
+        {/* --- History Drawer --- */}
+        {isHistoryOpen && (
+          <div className="mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200 animate-slide-down">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-slate-700">交易日志归档</h3>
+              <div className="flex gap-2">
+                 <input type="file" ref={importInputRef} className="hidden" accept=".json" onChange={importJournal} />
+                 <button onClick={() => importInputRef.current?.click()} className="text-xs flex items-center gap-1 text-slate-600 hover:text-indigo-600 px-2 py-1 bg-white border rounded">
+                   <Upload className="w-3 h-3" /> 导入
+                 </button>
+                 <button onClick={exportJournal} className="text-xs flex items-center gap-1 text-slate-600 hover:text-indigo-600 px-2 py-1 bg-white border rounded">
+                   <Download className="w-3 h-3" /> 导出备份
+                 </button>
+              </div>
+            </div>
+            {journal.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-4">暂无记录</p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                {journal.map((entry) => (
+                   <div key={entry.id} onClick={() => loadEntry(entry)} className="p-3 bg-white rounded border border-slate-200 hover:border-indigo-300 cursor-pointer transition-all flex justify-between items-center group">
+                      <div>
+                        <div className="text-sm font-bold text-slate-800">{new Date(entry.timestamp).toLocaleString()}</div>
+                        <div className="text-xs text-slate-500">资产: {entry.snapshot.totalAssets.toLocaleString()} | 持仓: {entry.snapshot.holdings.length}只</div>
+                      </div>
+                      <div className="opacity-0 group-hover:opacity-100 text-indigo-600 text-xs font-medium">查看</div>
+                   </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
-        <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 mb-8 overflow-x-auto">
-           <table className="w-full text-sm">
-              <thead className="text-slate-400 font-black text-[10px] uppercase tracking-widest">
+        {/* --- Error --- */}
+        {displayError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-lg flex items-center text-red-700 gap-2 animate-fade-in">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <span className="text-sm font-medium">{displayError}</span>
+          </div>
+        )}
+
+        {/* --- Holdings Table --- */}
+        <div className="overflow-x-auto rounded-lg border border-slate-200 mb-6">
+           <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex flex-wrap gap-4 justify-between items-center">
+              <div className="flex items-center gap-4 flex-wrap">
+                 {/* Total Assets Input */}
+                 <div className="flex flex-col">
+                   <span className="text-xs text-slate-500 uppercase font-bold">总资产 (Assets)</span>
+                   <div className="flex items-baseline gap-2">
+                      <span className="text-lg font-bold text-slate-800">¥</span>
+                      <input 
+                        type="number" 
+                        value={snapshot.totalAssets} 
+                        onChange={(e) => setSnapshot({...snapshot, totalAssets: parseFloat(e.target.value) || 0})}
+                        className="bg-transparent border-b border-dashed border-slate-400 w-28 font-bold text-lg text-slate-900 focus:outline-none focus:border-indigo-500"
+                      />
+                   </div>
+                 </div>
+                 
+                 <div className="h-8 w-px bg-slate-300 mx-2 hidden sm:block"></div>
+
+                 {/* Position Ratio Input */}
+                 <div className="flex flex-col">
+                   <span className="text-xs text-slate-500 uppercase font-bold flex items-center gap-1">
+                      仓位占比 (Pos %)
+                      <AlertTriangle className="w-3 h-3 text-amber-500" title="如果识别不准请手动修改" />
+                   </span>
+                   <div className="flex items-baseline gap-2">
+                      <input 
+                        type="number" 
+                        value={snapshot.positionRatio || 0} 
+                        onChange={(e) => setSnapshot({...snapshot, positionRatio: parseFloat(e.target.value) || 0})}
+                        className="bg-transparent border-b border-dashed border-slate-400 w-16 font-bold text-lg text-slate-900 focus:outline-none focus:border-indigo-500"
+                      />
+                      <span className="text-lg font-bold text-slate-800">%</span>
+                   </div>
+                 </div>
+
+                 <div className="h-8 w-px bg-slate-300 mx-2 hidden sm:block"></div>
+                 
+                 <div className="text-xs text-slate-500">
+                    日期: {snapshot.date}
+                 </div>
+              </div>
+              <button onClick={addEmptyHolding} className="text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded transition-colors">
+                 + 添加标的
+              </button>
+           </div>
+           
+           <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 text-slate-500 font-medium">
                  <tr>
-                    <th className="pb-4 text-left">标的明细</th>
-                    <th className="pb-4">持仓</th>
-                    <th className="pb-4">成本</th>
-                    <th className="pb-4">现价</th>
-                    <th className="pb-4">浮动盈亏</th>
-                    <th className="pb-4 text-right">管理</th>
+                    <th className="px-4 py-3">标的名称 (代码)</th>
+                    <th className="px-4 py-3">持仓量</th>
+                    <th className="px-4 py-3">成本价</th>
+                    <th className="px-4 py-3">现价</th>
+                    <th className="px-4 py-3">浮动盈亏</th>
+                    <th className="px-4 py-3 text-right">操作</th>
                  </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                 {snapshot.holdings.map((h, i) => (
-                    <tr key={i} className="group">
-                       <td className="py-4">
-                          <div className="font-black text-slate-800">{h.name}</div>
-                          <div className="text-[10px] font-bold text-slate-400 uppercase">{h.code}</div>
-                       </td>
-                       <td className="py-4 text-center font-bold">{h.volume}</td>
-                       <td className="py-4 text-center font-bold text-slate-500">{h.costPrice}</td>
-                       <td className="py-4 text-center font-black text-slate-900">{h.currentPrice}</td>
-                       <td className="py-4 text-center">
-                          <div className={`font-black ${h.profit >= 0 ? 'text-rose-500' : 'text-emerald-500'}`}>{h.profit > 0 ? '+' : ''}{h.profit}</div>
-                       </td>
-                       <td className="py-4 text-right">
-                          <button className="p-2 text-slate-300 hover:text-rose-500"><Trash2 className="w-4 h-4"/></button>
-                       </td>
+                 {snapshot.holdings.length === 0 && (
+                   <tr>
+                     <td colSpan={6} className="text-center py-8 text-slate-400">
+                       请上传截图或手动添加持仓
+                     </td>
+                   </tr>
+                 )}
+                 {snapshot.holdings.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                       {editingIndex === idx && editForm ? (
+                          // Edit Mode
+                          <>
+                            <td className="px-4 py-2">
+                              <input 
+                                className="w-24 p-1 border rounded text-xs mb-1 block" 
+                                value={editForm.name} 
+                                onChange={e => setEditForm({...editForm, name: e.target.value})} 
+                                placeholder="名称"
+                              />
+                              <input 
+                                className="w-24 p-1 border rounded text-xs font-mono mb-1" 
+                                value={editForm.code} 
+                                onChange={e => setEditForm({...editForm, code: e.target.value})} 
+                                placeholder="代码"
+                              />
+                              <select 
+                                value={editForm.horizon} 
+                                onChange={e => setEditForm({...editForm, horizon: e.target.value as any})}
+                                className="w-24 p-1 border rounded text-xs bg-slate-50"
+                              >
+                                <option value="short">短线 (1月)</option>
+                                <option value="medium">中线 (1-3月)</option>
+                                <option value="long">长线 (3月+)</option>
+                              </select>
+                            </td>
+                            <td className="px-4 py-2"><input type="number" className="w-20 p-1 border rounded" value={editForm.volume} onChange={e => setEditForm({...editForm, volume: parseFloat(e.target.value)})} /></td>
+                            <td className="px-4 py-2"><input type="number" className="w-20 p-1 border rounded" value={editForm.costPrice} onChange={e => setEditForm({...editForm, costPrice: parseFloat(e.target.value)})} /></td>
+                            <td className="px-4 py-2"><input type="number" className="w-20 p-1 border rounded" value={editForm.currentPrice} onChange={e => setEditForm({...editForm, currentPrice: parseFloat(e.target.value)})} /></td>
+                            <td className="px-4 py-2 text-slate-400 text-xs">自动计算</td>
+                            <td className="px-4 py-2 text-right">
+                               <button onClick={saveEdit} className="p-1 text-green-600 hover:bg-green-50 rounded"><Check className="w-4 h-4"/></button>
+                               <button onClick={() => setEditingIndex(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><X className="w-4 h-4"/></button>
+                            </td>
+                          </>
+                       ) : (
+                          // View Mode
+                          <>
+                            <td className="px-4 py-3">
+                               <div className="flex items-center gap-2">
+                                  <div className="font-bold text-slate-800">{item.name}</div>
+                                  {renderHorizonBadge(item.horizon)}
+                               </div>
+                               <div className="text-xs font-mono text-slate-400 mt-0.5">{item.code}</div>
+                            </td>
+                            <td className="px-4 py-3 text-slate-600">{item.volume}</td>
+                            <td className="px-4 py-3 text-slate-600">{item.costPrice}</td>
+                            <td className="px-4 py-3 font-medium text-slate-800">{item.currentPrice}</td>
+                            <td className="px-4 py-3">
+                               <div className={`font-bold ${item.profit >= 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                  {item.profit > 0 ? '+' : ''}{item.profit}
+                                </div>
+                               <div className={`text-xs ${item.profit >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                  {item.profitRate}
+                                </div>
+                            </td>
+                            <td className="px-4 py-3 text-right flex justify-end gap-2">
+                               <button onClick={() => startEdit(idx, item)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors">
+                                  <Edit2 className="w-4 h-4" />
+                               </button>
+                               <button onClick={() => deleteHolding(idx)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
+                                  <Trash2 className="w-4 h-4" />
+                               </button>
+                            </td>
+                          </>
+                       )}
                     </tr>
                  ))}
               </tbody>
            </table>
-           <button onClick={() => setSnapshot({...snapshot, holdings: [...snapshot.holdings, {name:'新标的', code:'', volume:0, costPrice:0, currentPrice:0, profit:0, profitRate:'0%', marketValue:0}]})} className="w-full mt-4 py-3 border border-dashed border-slate-300 rounded-xl text-slate-400 text-xs font-bold hover:bg-white transition-all">+ 手动新增持仓</button>
         </div>
 
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-           <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200">
-              <span className="text-[10px] font-black text-slate-400 px-3 uppercase">阶段复盘</span>
-              <button onClick={() => handlePeriodicReview('week')} className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-white rounded-lg transition-all">周总结</button>
-              <button onClick={() => handlePeriodicReview('month')} className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-white rounded-lg transition-all">月总结</button>
+        {/* Action Bar */}
+        <div className="flex flex-col sm:flex-row justify-end items-center gap-4 border-t border-slate-100 pt-6">
+           {/* Periodic Review Actions */}
+           <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
+              <span className="text-xs font-bold text-slate-500 px-2 uppercase flex items-center gap-1">
+                 <Calendar className="w-3 h-3" /> 阶段复盘
+              </span>
+              <button 
+                onClick={() => handlePeriodicReview('week')}
+                disabled={loading || journal.length < 1}
+                className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded transition-all disabled:opacity-50"
+              >
+                近一周
+              </button>
+              <div className="w-px h-4 bg-slate-300"></div>
+              <button 
+                onClick={() => handlePeriodicReview('month')}
+                disabled={loading || journal.length < 1}
+                className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded transition-all disabled:opacity-50"
+              >
+                近一月
+              </button>
            </div>
-           <button onClick={handleAnalyze} disabled={loading} className="px-8 py-3 bg-slate-900 text-white rounded-xl font-black shadow-lg hover:bg-slate-800 transition-all flex items-center gap-2">
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5 text-amber-400" />} 深度 AI 诊断
+           
+           <button
+             onClick={handleAnalyze}
+             disabled={loading || snapshot.holdings.length === 0}
+             className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
+           >
+             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <TrendingUp className="w-5 h-5" />}
+             {loading ? 'AI 复盘中...' : '开始连续性复盘 (昨日 vs 今日)'}
            </button>
         </div>
       </div>
 
-      {/* 报告展示区 */}
+      {/* --- Analysis Result --- */}
       {(analysisResult || periodicResult) && (
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden min-h-[600px] animate-slide-up">
-           <div className="flex bg-slate-100 p-1 m-4 rounded-2xl w-fit print:hidden">
-              <button onClick={() => setActiveTab('report')} className={`px-6 py-2 text-xs font-black rounded-xl transition-all ${activeTab === 'report' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>分析报告</button>
-              <button onClick={() => setActiveTab('charts')} className={`px-6 py-2 text-xs font-black rounded-xl transition-all ${activeTab === 'charts' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>分布图表</button>
-              {periodicResult && <button onClick={() => setActiveTab('periodic')} className={`px-6 py-2 text-xs font-black rounded-xl transition-all ${activeTab === 'periodic' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500'}`}>阶段性总结 (New)</button>}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-slide-up">
+           <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-wrap justify-between items-center gap-4">
+              <div className="flex gap-4">
+                <button
+                   onClick={() => setActiveTab('report')}
+                   className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'report' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                   <FileJson className="w-4 h-4" />
+                   AI 诊断报告
+                </button>
+                <button
+                   onClick={() => setActiveTab('charts')}
+                   className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'charts' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                   <BarChart3 className="w-4 h-4" />
+                   深度图表
+                </button>
+                {periodicResult && (
+                  <button
+                     onClick={() => setActiveTab('periodic')}
+                     className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'periodic' ? 'bg-indigo-600 text-white shadow-sm border border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                     <Calendar className="w-4 h-4" />
+                     阶段性总结 (New)
+                  </button>
+                )}
+              </div>
+              <button 
+                 onClick={saveToJournal}
+                 className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium bg-white border border-indigo-200 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"
+              >
+                 <Save className="w-4 h-4" />
+                 保存日志
+              </button>
            </div>
            
-           <div className="bg-slate-50/30">
-             {activeTab === 'report' && analysisResult && renderReportContent(analysisResult.content)}
-             {activeTab === 'periodic' && periodicResult?.periodicData && renderPeriodicDashboard(periodicResult.periodicData)}
+           {/* Custom Rendered Content */}
+           <div className="bg-slate-50/50 min-h-[400px]">
+             {activeTab === 'report' && analysisResult ? (
+                renderReportContent(analysisResult.content)
+             ) : activeTab === 'periodic' && periodicResult?.periodicData ? (
+                renderPeriodicDashboard(periodicResult.periodicData)
+             ) : (
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                   
+                   {/* 1. Historical Asset Trend (Full Width) */}
+                   <div className="md:col-span-2 lg:col-span-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                      <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
+                        <LineChartIcon className="w-4 h-4 text-indigo-500"/> 资金净值与盈亏走势 (Trend Analysis)
+                      </h4>
+                      <div className="h-72 w-full">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={getTrendData()}>
+                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                               <XAxis dataKey="date" tick={{fontSize: 12}} />
+                               <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" />
+                               <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" />
+                               <Tooltip 
+                                  contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                                  formatter={(value: any, name: string) => [
+                                    name === 'assets' ? `¥${value.toLocaleString()}` : `¥${value.toLocaleString()}`,
+                                    name === 'assets' ? '总资产' : '累计盈亏'
+                                  ]}
+                               />
+                               <Legend />
+                               <Line yAxisId="left" type="monotone" dataKey="assets" name="总资产" stroke="#3b82f6" strokeWidth={2} dot={{r: 4}} activeDot={{r: 6}} />
+                               <Line yAxisId="right" type="monotone" dataKey="totalProfit" name="累计盈亏" stroke="#f59e0b" strokeWidth={2} dot={{r: 4}} />
+                            </LineChart>
+                         </ResponsiveContainer>
+                      </div>
+                   </div>
+
+                   {/* 2. Horizon Allocation */}
+                   <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                      <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-violet-500"/> 投资周期分布 (Time Horizon)
+                      </h4>
+                      <div className="h-64">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                               <Pie
+                                  data={getHorizonData()}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={60}
+                                  outerRadius={80}
+                                  paddingAngle={5}
+                                  dataKey="value"
+                               >
+                                  {getHorizonData().map((entry, index) => (
+                                     <Cell key={`cell-${index}`} fill={entry.color} />
+                                  ))}
+                               </Pie>
+                               <Tooltip />
+                               <Legend />
+                            </PieChart>
+                         </ResponsiveContainer>
+                      </div>
+                   </div>
+
+                   {/* 3. Market Value Allocation */}
+                   <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                      <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
+                        <PieChartIcon className="w-4 h-4 text-blue-500"/> 仓位分布 (Market Value)
+                      </h4>
+                      <div className="h-64">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                               <Pie
+                                  data={snapshot.holdings.map(h => ({ 
+                                    name: h.name, 
+                                    value: h.marketValue || (h.volume * h.currentPrice) 
+                                  }))}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={60}
+                                  outerRadius={80}
+                                  paddingAngle={5}
+                                  dataKey="value"
+                               >
+                                  {snapshot.holdings.map((entry, index) => (
+                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                  ))}
+                               </Pie>
+                               <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
+                               <Legend />
+                            </PieChart>
+                         </ResponsiveContainer>
+                      </div>
+                   </div>
+
+                   {/* 4. Profit/Loss Distribution */}
+                   <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                      <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4 text-emerald-500"/> 单标的盈亏分布 (Profit/Loss)
+                      </h4>
+                      <div className="h-64">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={snapshot.holdings}>
+                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                               <XAxis dataKey="name" tick={{fontSize: 10}} interval={0} />
+                               <YAxis />
+                               <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
+                               <ReferenceLine y={0} stroke="#94a3b8" />
+                               <Bar dataKey="profit" name="盈亏金额" radius={[4, 4, 0, 0]}>
+                                 {snapshot.holdings.map((entry, index) => (
+                                   <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? '#ef4444' : '#10b981'} />
+                                 ))}
+                               </Bar>
+                            </BarChart>
+                         </ResponsiveContainer>
+                      </div>
+                   </div>
+
+                </div>
+             )}
            </div>
+
+           {(analysisResult?.groundingSource || periodicResult?.groundingSource) && (
+             <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500">
+               参考来源: {(analysisResult?.groundingSource || periodicResult?.groundingSource || []).map(s => s.title).join(', ')}
+             </div>
+           )}
         </div>
       )}
 
-      {/* 交易计划 Drawer 略... */}
+      {/* --- TRADING PLAN DRAWER (Moved to Bottom) --- */}
+        {isPlanOpen && (
+           <div className="mt-8 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden animate-slide-up shadow-inner" id="trading-plan-section">
+              <div className="px-6 py-4 bg-white border-b border-slate-200 flex justify-between items-center">
+                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                   <ListTodo className="w-5 h-5 text-emerald-600"/>
+                   我的交易计划 (Trading Plans)
+                 </h3>
+                 <div className="flex items-center gap-2">
+                   <button onClick={handleExportPlanMD} className="text-xs flex items-center gap-1 text-slate-500 hover:text-indigo-600 border border-slate-200 rounded px-2 py-1 bg-white">
+                      <FileText className="w-3 h-3"/> 导出MD
+                   </button>
+                   <button onClick={handleExportPlanCSV} className="text-xs flex items-center gap-1 text-slate-500 hover:text-green-600 border border-slate-200 rounded px-2 py-1 bg-white">
+                      <FileSpreadsheet className="w-3 h-3"/> 导出Excel
+                   </button>
+                   <span className="text-xs text-slate-400 ml-2 border-l border-slate-200 pl-2">勾选以确认完成情况</span>
+                 </div>
+              </div>
+              <div className="p-4 space-y-6 max-h-[600px] overflow-y-auto">
+                 {tradingPlans.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400">暂无交易计划，请在分析报告中生成。</div>
+                 ) : (
+                    tradingPlans.map((plan) => (
+                       <div key={plan.id} className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
+                             <span className="font-bold text-slate-700 text-sm">{plan.target_date} (计划)</span>
+                             <button onClick={() => deletePlan(plan.id)} className="text-slate-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5"/></button>
+                          </div>
+                          <div className="p-4">
+                             <div className="mb-3 text-xs text-slate-500 bg-slate-50 p-2 rounded italic">
+                                策略总纲: {plan.strategy_summary}
+                             </div>
+                             <div className="space-y-2">
+                                {plan.items.map((item) => {
+                                   const isCompleted = item.status === 'completed';
+                                   const isSkipped = item.status === 'skipped';
+                                   const isFailed = item.status === 'failed';
+                                   
+                                   let statusColor = "bg-white border-slate-200";
+                                   if (isCompleted) statusColor = "bg-emerald-50 border-emerald-200";
+                                   if (isSkipped) statusColor = "bg-slate-50 border-slate-200 opacity-60";
+                                   if (isFailed) statusColor = "bg-rose-50 border-rose-200";
+
+                                   return (
+                                      <div key={item.id} className={`flex items-start gap-3 p-3 rounded border ${statusColor} transition-all`}>
+                                         <button 
+                                            onClick={() => togglePlanItemStatus(plan.id, item.id)}
+                                            className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                                               isCompleted ? 'bg-emerald-500 border-emerald-600 text-white' : 
+                                               isFailed ? 'bg-rose-500 border-rose-600 text-white' :
+                                               isSkipped ? 'bg-slate-300 border-slate-400 text-slate-500' :
+                                               'bg-white border-slate-300 hover:border-emerald-400'
+                                            }`}
+                                         >
+                                            {isCompleted && <Check className="w-3.5 h-3.5" />}
+                                            {isFailed && <X className="w-3.5 h-3.5" />}
+                                            {isSkipped && <MoreHorizontal className="w-3.5 h-3.5" />}
+                                         </button>
+                                         <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                               <span className={`text-sm font-bold ${isCompleted ? 'text-emerald-800' : isFailed ? 'text-rose-800' : 'text-slate-800'}`}>{item.symbol}</span>
+                                               <span className={`text-xs px-1.5 rounded uppercase font-medium border ${
+                                                  item.action === 'buy' ? 'bg-rose-100 text-rose-700 border-rose-200' :
+                                                  item.action === 'sell' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                                                  'bg-slate-100 text-slate-700 border-slate-200'
+                                               }`}>{item.action === 't_trade' ? '做T' : item.action}</span>
+                                            </div>
+                                            <div className="text-xs text-slate-600">
+                                               <span className="font-medium">目标:</span> {item.price_target} <span className="text-slate-300 mx-1">|</span> {item.reason}
+                                            </div>
+                                         </div>
+                                         <div className="text-[10px] text-slate-400 uppercase font-medium self-center">
+                                            {item.status}
+                                         </div>
+                                      </div>
+                                   );
+                                })}
+                             </div>
+                          </div>
+                       </div>
+                    ))
+                 )}
+              </div>
+           </div>
+        )}
     </div>
   );
 };
