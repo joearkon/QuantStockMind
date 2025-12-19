@@ -1,12 +1,11 @@
-
 import React, { useState } from 'react';
 import { HashRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { Disclaimer } from './components/Disclaimer';
 import { MarketAnalysis } from './components/MarketAnalysis';
 import { StockAnalysis } from './components/StockAnalysis';
+import { InstitutionalHotlist } from './components/InstitutionalHotlist';
 import { HoldingsReview } from './components/HoldingsReview';
 import { OpportunityMining } from './components/OpportunityMining';
-import { InstitutionalMonitor } from './components/InstitutionalMonitor';
 import { SettingsModal } from './components/SettingsModal';
 import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS, APP_VERSION } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
@@ -33,33 +32,10 @@ const App: React.FC = () => {
         console.error("Failed to parse settings", e);
       }
     }
-
     const injectedEnv = (window as any).__ENV__ || {};
-
-    const hunyuanKey = 
-      injectedEnv.VITE_HUNYUAN_API_KEY ||
-      // @ts-ignore
-      import.meta.env?.VITE_HUNYUAN_API_KEY || 
-      // @ts-ignore
-      import.meta.env?.HUNYUAN_API_KEY ||
-      process.env.VITE_HUNYUAN_API_KEY || 
-      process.env.HUNYUAN_API_KEY;
-
-    const geminiKey = 
-      injectedEnv.VITE_GEMINI_API_KEY ||
-      // @ts-ignore
-      import.meta.env?.VITE_GEMINI_API_KEY ||
-      // @ts-ignore
-      import.meta.env?.VITE_API_KEY || 
-      // @ts-ignore
-      import.meta.env?.API_KEY ||
-      process.env.VITE_GEMINI_API_KEY ||
-      process.env.VITE_API_KEY ||
-      process.env.API_KEY;
-
     return {
-      hunyuanKey: parsed.hunyuanKey || hunyuanKey,
-      geminiKey: parsed.geminiKey || geminiKey,
+      hunyuanKey: parsed.hunyuanKey || injectedEnv.VITE_HUNYUAN_API_KEY || "",
+      geminiKey: parsed.geminiKey || injectedEnv.VITE_GEMINI_API_KEY || "",
     };
   });
 
@@ -81,7 +57,6 @@ const App: React.FC = () => {
                 <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-600 hidden sm:block">
                   {APP_NAME}
                 </span>
-                <span className="text-xl font-bold text-blue-700 sm:hidden">QM</span>
               </div>
               
               <div className="flex items-center gap-3">
@@ -101,25 +76,17 @@ const App: React.FC = () => {
                    ))}
                 </div>
 
-                <div className="h-6 w-px bg-slate-300 mx-1 hidden md:block"></div>
-
                 <select 
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value as ModelProvider)}
-                  className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none max-w-[120px] sm:max-w-none"
+                  className="bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-lg p-2 outline-none"
                 >
                   {MODEL_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
                 
-                <button 
-                  onClick={() => setIsSettingsOpen(true)}
-                  className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
-                  title="API Key 设置"
-                >
+                <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors">
                   <Settings className="w-5 h-5" />
                 </button>
               </div>
@@ -136,10 +103,8 @@ const App: React.FC = () => {
                     key={item.id}
                     to={`/${item.id}`}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
-                        isActive
-                          ? 'bg-white text-blue-600 shadow-md border border-slate-100'
-                          : 'text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm'
+                      `flex items-center gap-3 px-4 py-3 text-sm font-black rounded-xl transition-all duration-200 ${
+                        isActive ? 'bg-white text-indigo-600 shadow-md border border-slate-100 scale-105' : 'text-slate-500 hover:bg-white hover:text-slate-900'
                       }`
                     }
                   >
@@ -147,127 +112,37 @@ const App: React.FC = () => {
                     {item.label}
                   </NavLink>
                 ))}
-                
-                <div className="mt-8 p-4 bg-slate-100 rounded-xl text-xs text-slate-500 leading-relaxed">
-                   <div className="flex items-center gap-2 mb-2 font-semibold text-slate-700">
-                      <Globe className="w-3 h-3" />
-                      当前市场: {MARKET_OPTIONS.find(m => m.value === selectedMarket)?.label}
-                   </div>
-                   <p className="mb-2">
-                     {selectedMarket === MarketType.CN && "聚焦沪深京A股市场，包含科创板与创业板。"}
-                     {selectedMarket === MarketType.HK && "覆盖港股主板、恒生科技指数及南向资金动向。"}
-                     {selectedMarket === MarketType.US && "覆盖美股三大指数(道指/纳指/标普)及中概股。"}
-                   </p>
-                   <div className="h-px bg-slate-200 my-2"></div>
-                   <p>
-                     {selectedModel === ModelProvider.GEMINI_INTL 
-                       ? "Gemini 3 具备全球联网能力，适合所有市场分析。"
-                       : "混元模型对国内市场(A/H)理解较深。"}
-                   </p>
-                </div>
               </nav>
             </aside>
 
             <div className="lg:col-span-9">
               <Disclaimer />
-              <div className="min-h-[500px]">
-                <Routes>
-                  <Route path="/" element={<Navigate to="/market" replace />} />
-                  <Route 
-                    path="/market" 
-                    element={
-                      <MarketAnalysis 
-                        currentModel={selectedModel} 
-                        currentMarket={selectedMarket}
-                        settings={userSettings} 
-                        onOpenSettings={() => setIsSettingsOpen(true)}
-                        savedResult={marketResult}
-                        onResultUpdate={setMarketResult}
-                        savedPeriod={marketPeriod}
-                        onPeriodUpdate={setMarketPeriod}
-                      />
-                    } 
-                  />
-                  <Route 
-                    path="/stock" 
-                    element={
-                      <StockAnalysis 
-                        currentModel={selectedModel} 
-                        currentMarket={selectedMarket}
-                        settings={userSettings}
-                        onOpenSettings={() => setIsSettingsOpen(true)}
-                        savedResult={stockResult}
-                        onResultUpdate={setStockResult}
-                        savedQuery={stockQuery}
-                        onQueryUpdate={setStockQuery}
-                      />
-                    } 
-                  />
-                  <Route 
-                    path="/mining" 
-                    element={
-                      <OpportunityMining 
-                        currentModel={selectedModel} 
-                        currentMarket={selectedMarket}
-                        settings={userSettings}
-                        onOpenSettings={() => setIsSettingsOpen(true)}
-                      />
-                    } 
-                  />
-                  <Route 
-                    path="/holdings" 
-                    element={
-                      <HoldingsReview 
-                        currentModel={selectedModel} 
-                        currentMarket={selectedMarket}
-                        settings={userSettings}
-                        onOpenSettings={() => setIsSettingsOpen(true)}
-                      />
-                    } 
-                  />
-                  <Route 
-                    path="/institution" 
-                    element={
-                      <InstitutionalMonitor
-                        currentModel={selectedModel} 
-                        currentMarket={selectedMarket}
-                        settings={userSettings}
-                        onOpenSettings={() => setIsSettingsOpen(true)}
-                      />
-                    } 
-                  />
-                </Routes>
-              </div>
+              <Routes>
+                <Route path="/" element={<Navigate to="/market" replace />} />
+                <Route path="/market" element={<MarketAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} savedResult={marketResult} onResultUpdate={setMarketResult} savedPeriod={marketPeriod} onPeriodUpdate={setMarketPeriod} />} />
+                <Route path="/holdings" element={<HoldingsReview currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
+                <Route path="/stock" element={<StockAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} savedResult={stockResult} onResultUpdate={setStockResult} savedQuery={stockQuery} onQueryUpdate={setStockQuery} />} />
+                <Route path="/vane" element={<InstitutionalHotlist currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} />} />
+                <Route path="/mining" element={<OpportunityMining currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} />} />
+              </Routes>
               
               <footer className="mt-12 border-t border-slate-200 pt-6 text-center text-slate-400 text-sm pb-8">
-                 <p className="mb-2 flex items-center justify-center gap-2">
+                 <p className="flex items-center justify-center gap-2">
                    <span>&copy; {new Date().getFullYear()} QuantMind</span>
                    <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-mono">{APP_VERSION}</span>
-                   <span>Powered by Google Gemini 3 & Multi-LLM.</span>
                  </p>
-                 <div className="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-4">
-                    <div className="flex items-center gap-2 group cursor-default">
-                       <div className="p-1 bg-indigo-50 rounded-full border border-indigo-100 group-hover:bg-indigo-100 transition-colors">
-                         <FlaskConical className="w-3.5 h-3.5 text-indigo-600" />
-                       </div>
-                       <span className="font-medium text-slate-500 group-hover:text-indigo-700 transition-colors">陈子卓野 实验室</span>
-                    </div>
-                    <span className="hidden sm:inline text-slate-300">|</span>
-                    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer" className="hover:text-slate-600 transition-colors">
-                      沪ICP备2025153381号
-                    </a>
+                 <div className="flex items-center justify-center gap-2 mt-2">
+                    <FlaskConical className="w-3.5 h-3.5 text-indigo-600" />
+                    <span className="font-medium text-slate-500">陈子卓野 实验室</span>
+                    <span className="text-slate-300">|</span>
+                    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer" className="hover:text-slate-600">沪ICP备2025153381号</a>
                  </div>
               </footer>
             </div>
           </div>
         </main>
         
-        <SettingsModal 
-          isOpen={isSettingsOpen} 
-          onClose={() => setIsSettingsOpen(false)}
-          settings={userSettings}
-          onSave={handleSaveSettings}
-        />
+        <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={userSettings} onSave={handleSaveSettings} />
       </div>
     </HashRouter>
   );

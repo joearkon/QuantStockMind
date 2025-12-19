@@ -24,10 +24,10 @@ export interface MarketDashboardData {
     inflow_reason: string;
     outflow_sectors: string[];
     outflow_reason: string;
-    rotation_logic: string; // 增加板块切换深度解读
+    rotation_logic: string; 
     top_inflow_stocks?: string[]; 
   };
-  national_macro_logic?: { // 增加国家全局消息面
+  macro_logic?: {
     policy_focus: string;
     macro_event: string;
     impact_level: 'High' | 'Medium' | 'Low';
@@ -63,6 +63,95 @@ export interface MarketVolumeData {
   active_buy_spread?: string; 
 }
 
+// Added missing PeriodicReviewData interface to fix import error in HoldingsReview.tsx
+export interface PeriodicReviewData {
+  score: number;
+  market_trend: 'bull' | 'bear' | 'sideways';
+  market_summary: string;
+  highlight: { title: string; description: string };
+  lowlight: { title: string; description: string };
+  execution: {
+    score: number;
+    details: string;
+    good_behaviors: string[];
+    bad_behaviors: string[];
+  };
+  next_period_focus: string[];
+}
+
+// Added missing OpportunityResponse interface to fix import error in opportunityService.ts
+export interface OpportunityResponse {
+  policy_theme?: string;
+  analysis_summary?: string;
+  supply_chain_matrix?: {
+    user_holding: string;
+    opportunities: {
+      stock_name: string;
+      stock_code: string;
+      relation_type: string;
+      logic_core: string;
+      policy_match: string;
+    }[];
+  }[];
+  deployment_plan?: {
+    focus_directions: {
+      sector: string;
+      inflow_status: string;
+      logic: string;
+    }[];
+    top_picks: {
+      name: string;
+      code: string;
+      sector: string;
+      risk_tag: string;
+      reason: string;
+      buy_point: string;
+    }[];
+  };
+}
+
+// Added missing ForesightReport interface to fix import error in opportunityService.ts
+export interface ForesightReport {
+  monthly_focus: string;
+  catalysts: {
+    date_window: string;
+    event_name: string;
+    theme_label: string;
+    logic_chain: string;
+    opportunity_level: 'High' | 'Medium' | 'Low';
+    suggested_stocks: string[];
+  }[];
+  rotation_warning: string;
+  macro_policy_insight: string;
+}
+
+// Added missing InstitutionalInsightData interface for InstitutionalMonitor.tsx
+export interface InstitutionalInsightData {
+  detailed_signals: {
+    lh_list: string;
+    block_trades: string;
+    spread_trend: string;
+  };
+  top_surveyed_sectors: {
+    sector_name: string;
+    intensity: number;
+    top_stocks: string[];
+    reason: string;
+  }[];
+  key_institution_views: {
+    institution_name: string;
+    sentiment: 'bullish' | 'bearish' | 'neutral';
+    viewpoint: string;
+    target_sector: string;
+  }[];
+  smart_money_trends: {
+    signal_type: string;
+    concept_name: string;
+    flow_status: 'net_inflow' | 'net_outflow';
+    key_driver: string;
+  }[];
+}
+
 export interface AnalysisResult {
   content: string; 
   groundingSource?: GroundingSource[];
@@ -71,11 +160,36 @@ export interface AnalysisResult {
   isStructured?: boolean;
   structuredData?: MarketDashboardData;
   market?: MarketType;
-  periodicData?: any;
+  periodicData?: PeriodicReviewData;
   historyData?: any;
-  opportunityData?: any;
-  foresightData?: any;
-  institutionalData?: any;
+  opportunityData?: OpportunityResponse;
+  foresightData?: ForesightReport;
+  institutionalData?: InstitutionalInsightData;
+  timingData?: TimingEvaluation; // 择时数据
+  hotlistData?: InstitutionalHotlist; // 高频调研榜单
+}
+
+export interface TimingEvaluation {
+  action: 'Buy' | 'Wait' | 'Sell' | 'Reduce';
+  position_score: number; // 0-100 位置评分
+  entry_logic: string;
+  entry_price_window: string;
+  stop_loss: string;
+  target_profit: string;
+  kline_analysis: string; // K线形态解读
+}
+
+export interface InstitutionalHotlist {
+  summary: string;
+  ranking: {
+    name: string;
+    code: string;
+    visit_frequency: string; // 调研频次描述
+    institution_count: number;
+    core_logic: string;
+    potential_rating: 'High' | 'Medium';
+  }[];
+  sector_heat: { name: string; value: number }[];
 }
 
 export interface GroundingSource {
@@ -120,26 +234,6 @@ export interface HoldingsSnapshot {
   holdings: any[];
 }
 
-export interface HistoricalYearData {
-  year: number;
-  performance: string;
-}
-
-export interface PeriodicReviewData {
-  score: number;
-  market_trend: 'bull' | 'bear' | 'sideways';
-  market_summary: string;
-  highlight: { title: string; description: string };
-  lowlight: { title: string; description: string };
-  execution: {
-    score: number;
-    details: string;
-    good_behaviors: string[];
-    bad_behaviors: string[];
-  };
-  next_period_focus: string[];
-}
-
 export interface HoldingItemDetailed {
   name: string;
   code: string;
@@ -150,30 +244,4 @@ export interface HoldingItemDetailed {
   profitRate: string;
   marketValue: number;
   horizon?: 'short' | 'medium' | 'long';
-}
-
-export interface OpportunityResponse {
-  policy_theme: string;
-  analysis_summary: string;
-  supply_chain_matrix?: any[];
-  deployment_plan?: any;
-}
-
-export interface ForesightReport {
-  monthly_focus: string;
-  catalysts: any[];
-  rotation_warning: string;
-  macro_policy_insight: string;
-}
-
-export interface InstitutionalInsight {
-  market_heat_summary: string;
-  top_surveyed_sectors: any[];
-  key_institution_views: any[];
-  smart_money_trends: any[];
-  detailed_signals?: {
-    lh_list: string;
-    block_trades: string;
-    spread_trend: string;
-  };
 }

@@ -1,159 +1,179 @@
+
 import { GoogleGenAI, Schema, Type } from "@google/genai";
-import { AnalysisResult, ModelProvider, MarketType, InstitutionalInsight } from "../types";
-import { fetchExternalAI } from "./externalLlmService";
-import { runGeminiSafe } from "./geminiService"; // Updated import
+import { AnalysisResult, ModelProvider, MarketType, UserSettings } from "../types";
 
-const GEMINI_MODEL = "gemini-2.5-flash"; // Reference only
-
-// --- Schema for Institutional Data ---
-const institutionSchema: Schema = {
+const hotlistSchema: Schema = {
   type: Type.OBJECT,
   properties: {
-    market_heat_summary: { type: Type.STRING, description: "Brief summary of overall institutional activity intensity." },
+    summary: { type: Type.STRING },
+    ranking: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          code: { type: Type.STRING },
+          visit_frequency: { type: Type.STRING },
+          institution_count: { type: Type.NUMBER },
+          core_logic: { type: Type.STRING },
+          potential_rating: { type: Type.STRING, enum: ["High", "Medium"] }
+        },
+        required: ["name", "code", "visit_frequency", "institution_count", "core_logic", "potential_rating"]
+      }
+    },
+    sector_heat: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: { name: { type: Type.STRING }, value: { type: Type.NUMBER } }
+      }
+    }
+  },
+  required: ["summary", "ranking", "sector_heat"]
+};
+
+// Added institutionalInsightsSchema for structured data extraction
+const institutionalInsightsSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    detailed_signals: {
+      type: Type.OBJECT,
+      properties: {
+        lh_list: { type: Type.STRING },
+        block_trades: { type: Type.STRING },
+        spread_trend: { type: Type.STRING }
+      },
+      required: ["lh_list", "block_trades", "spread_trend"]
+    },
     top_surveyed_sectors: {
       type: Type.ARRAY,
-      description: "List of sectors with high visit frequency from institutions.",
       items: {
         type: Type.OBJECT,
         properties: {
           sector_name: { type: Type.STRING },
-          intensity: { type: Type.NUMBER, description: "0-100 score of survey intensity" },
-          top_stocks: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Specific stocks visited" },
-          reason: { type: Type.STRING, description: "Why are they interested?" }
+          intensity: { type: Type.NUMBER },
+          top_stocks: { type: Type.ARRAY, items: { type: Type.STRING } },
+          reason: { type: Type.STRING }
         },
         required: ["sector_name", "intensity", "top_stocks", "reason"]
       }
     },
     key_institution_views: {
       type: Type.ARRAY,
-      description: "Specific viewpoints from major banks/brokers.",
       items: {
         type: Type.OBJECT,
         properties: {
-          institution_name: { type: Type.STRING, description: "e.g. Morgan Stanley, CITIC" },
-          type: { type: Type.STRING, enum: ["foreign", "domestic"] },
-          viewpoint: { type: Type.STRING, description: "Core argument/outlook" },
-          target_sector: { type: Type.STRING },
-          sentiment: { type: Type.STRING, enum: ["bullish", "bearish", "neutral"] }
+          institution_name: { type: Type.STRING },
+          sentiment: { type: Type.STRING, enum: ["bullish", "bearish", "neutral"] },
+          viewpoint: { type: Type.STRING },
+          target_sector: { type: Type.STRING }
         },
-        required: ["institution_name", "type", "viewpoint", "target_sector", "sentiment"]
+        required: ["institution_name", "sentiment", "viewpoint", "target_sector"]
       }
     },
     smart_money_trends: {
       type: Type.ARRAY,
-      description: "Trends of Hot Money / Youzi / Leveraged Funds.",
       items: {
         type: Type.OBJECT,
         properties: {
+          signal_type: { type: Type.STRING },
           concept_name: { type: Type.STRING },
           flow_status: { type: Type.STRING, enum: ["net_inflow", "net_outflow"] },
           key_driver: { type: Type.STRING }
         },
-        required: ["concept_name", "flow_status", "key_driver"]
+        required: ["signal_type", "concept_name", "flow_status", "key_driver"]
       }
     }
   },
-  required: ["market_heat_summary", "top_surveyed_sectors", "key_institution_views", "smart_money_trends"]
+  required: ["detailed_signals", "top_surveyed_sectors", "key_institution_views", "smart_money_trends"]
+};
+
+export const fetchHighFreqSurveys = async (
+  market: MarketType,
+  apiKey: string
+): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const prompt = `
+    作为资深投研分析师，利用 googleSearch 检索 ${market} 市场最近 1-2 周内【机构调研】数据。
+    
+    【核心目标】
+    筛选并列出被机构调研“最频繁、次数最多、参与机构数量最集中”的公司排行榜。
+    机构频繁调研往往预示着基本面的反转或重大题材的爆发。
+    
+    【要求】
+    1. 挖掘出前 5-8 名高频标的。
+    2. 指出为什么这些标的被频繁调研（背后的核心基本面逻辑）。
+    3. 给出热度行业统计。
+    
+    必须输出 JSON 格式。
+  `;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt,
+    config: {
+      tools: [{ googleSearch: {} }],
+      responseMimeType: "application/json",
+      responseSchema: hotlistSchema
+    }
+  });
+
+  const text = response.text || "{}";
+  const parsed = JSON.parse(text);
+
+  return {
+    content: text,
+    timestamp: Date.now(),
+    modelUsed: ModelProvider.GEMINI_INTL,
+    isStructured: true,
+    hotlistData: parsed,
+    market
+  };
 };
 
 /**
- * Fetch Institutional Insights
+ * Implementation of fetchInstitutionalInsights to fix import error in InstitutionalMonitor.tsx
  */
 export const fetchInstitutionalInsights = async (
-  provider: ModelProvider,
+  currentModel: ModelProvider,
   market: MarketType,
-  settings: any
+  settings: UserSettings
 ): Promise<AnalysisResult> => {
-  
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('zh-CN');
-  
+  const apiKey = settings.geminiKey || process.env.API_KEY;
+  if (!apiKey) throw new Error("API Key missing");
+  const ai = new GoogleGenAI({ apiKey: apiKey });
+
   const prompt = `
-    你是一位专注于跟踪【机构动向】与【主力资金】的金融分析师。
-    当前日期: ${dateStr}。市场: ${market}。
-
-    请利用搜索工具，查询最近一周/一月的：
-    1. **机构调研热度 (Institutional Surveys)**: 哪些板块/个股接待了最多的基金经理和券商分析师调研？(国内公募/私募)
-    2. **外资/投行观点 (Foreign Institutions)**: 摩根大通(JPM)、高盛(Goldman)、摩根士丹利(Morgan Stanley) 等外资大行发布的最新中国市场研报核心观点是什么？
-    3. **游资/聪明钱动向 (Smart Money)**: 市场活跃资金(龙虎榜/营业部)正在攻击哪些题材？
-
-    要求：
-    - 必须基于**真实搜索到的近期数据**。
-    - 区分“国内机构”与“外资机构”。
-    - 输出 JSON 格式。
+    作为资深机构交易员，利用 googleSearch 深度分析 ${market} 市场的机构大资金动向。
+    1. 扫描龙虎榜 (Dragon Tiger List) 中的机构席位买卖净额。
+    2. 扫描大宗交易 (Block Trades) 的折溢价情况。
+    3. 分析主力资金主动买卖盘差额 (Spread Trend)。
+    4. 汇总近期机构重点调研的行业热度分布。
+    5. 汇总主流内外资券商（如中金、高盛等）对当前市场的核心观点。
+    
+    输出必须严格遵守 JSON 格式。
   `;
 
-  // 1. Gemini Implementation
-  if (provider === ModelProvider.GEMINI_INTL) {
-    const apiKey = settings?.geminiKey || process.env.API_KEY;
-    if (!apiKey) throw new Error("Gemini API Key missing");
-
-    const ai = new GoogleGenAI({ apiKey });
-    
-    try {
-      // Use runGeminiSafe for failover capability
-      const response = await runGeminiSafe(ai, {
-        contents: prompt + `\n\nStrictly output valid JSON matching this schema: ${JSON.stringify(institutionSchema)}`,
-        config: {
-          tools: [{ googleSearch: {} }],
-        }
-      }, "Institutional Insights");
-
-      const text = response.text || "{}";
-      let structuredData: InstitutionalInsight;
-
-      try {
-        let clean = text.trim();
-        clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
-        const firstBrace = clean.indexOf('{');
-        const lastBrace = clean.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace !== -1) {
-            clean = clean.substring(firstBrace, lastBrace + 1);
-        }
-        structuredData = JSON.parse(clean);
-      } catch (e) {
-        console.warn("JSON Parse Failed", e);
-        throw new Error("模型返回的数据格式无法解析，请重试。");
-      }
-
-      return {
-        content: text,
-        timestamp: Date.now(),
-        modelUsed: provider,
-        isStructured: true,
-        institutionalData: structuredData,
-        market
-      };
-
-    } catch (e: any) {
-      throw new Error(`Gemini Institution Error: ${e.message}`);
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt,
+    config: {
+      tools: [{ googleSearch: {} }],
+      responseMimeType: "application/json",
+      responseSchema: institutionalInsightsSchema
     }
-  }
+  });
 
-  // 2. Hunyuan Implementation
-  if (provider === ModelProvider.HUNYUAN_CN) {
-    const apiKey = settings?.hunyuanKey;
-    if (!apiKey) throw new Error("Hunyuan API Key missing");
+  const text = response.text || "{}";
+  const parsed = JSON.parse(text);
 
-    const result = await fetchExternalAI(provider, apiKey, prompt, false, undefined, market, true);
-    
-    try {
-      let clean = result.content.trim();
-      clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
-      const firstBrace = clean.indexOf('{');
-      const lastBrace = clean.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1) {
-          clean = clean.substring(firstBrace, lastBrace + 1);
-      }
-      const parsed = JSON.parse(clean);
-      result.institutionalData = parsed;
-      result.isStructured = true;
-    } catch (e) {
-      throw new Error("腾讯混元模型返回的数据格式有误。");
-    }
-
-    return result;
-  }
-
-  throw new Error("Unsupported Provider");
+  return {
+    content: text,
+    timestamp: Date.now(),
+    modelUsed: ModelProvider.GEMINI_INTL,
+    isStructured: true,
+    institutionalData: parsed,
+    market
+  };
 };
