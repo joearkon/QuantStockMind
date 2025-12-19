@@ -1,5 +1,4 @@
 
-
 export enum ModelProvider {
   GEMINI_INTL = 'Gemini 3 (海外版)',
   HUNYUAN_CN = '混元大模型 (国内版)',
@@ -9,29 +8,6 @@ export enum MarketType {
   CN = 'CN', // A-Share
   HK = 'HK', // Hong Kong
   US = 'US', // US Stocks
-}
-
-// Added InstitutionalInsight interface to define the structure for institutional analysis
-export interface InstitutionalInsight {
-  market_heat_summary: string;
-  top_surveyed_sectors: {
-    sector_name: string;
-    intensity: number;
-    top_stocks: string[];
-    reason: string;
-  }[];
-  key_institution_views: {
-    institution_name: string;
-    type: 'foreign' | 'domestic';
-    viewpoint: string;
-    target_sector: string;
-    sentiment: 'bullish' | 'bearish' | 'neutral';
-  }[];
-  smart_money_trends: {
-    concept_name: string;
-    flow_status: 'net_inflow' | 'net_outflow';
-    key_driver: string;
-  }[];
 }
 
 export interface MacroDeductionData {
@@ -59,7 +35,6 @@ export interface MacroDeductionData {
   risk_warning: string;
 }
 
-// Global declaration to fix window.__ENV__ TypeScript error
 declare global {
   interface Window {
     __ENV__?: {
@@ -68,6 +43,29 @@ declare global {
       [key: string]: any;
     };
   }
+}
+
+// Fixed: Added InstitutionalInsight interface to define the structure for institutional survey and capital flow data
+export interface InstitutionalInsight {
+  market_heat_summary: string;
+  top_surveyed_sectors: {
+    sector_name: string;
+    intensity: number;
+    top_stocks: string[];
+    reason: string;
+  }[];
+  key_institution_views: {
+    institution_name: string;
+    type: 'foreign' | 'domestic';
+    viewpoint: string;
+    target_sector: string;
+    sentiment: 'bullish' | 'bearish' | 'neutral';
+  }[];
+  smart_money_trends: {
+    concept_name: string;
+    flow_status: 'net_inflow' | 'net_outflow';
+    key_driver: string;
+  }[];
 }
 
 export interface AnalysisResult {
@@ -81,7 +79,8 @@ export interface AnalysisResult {
   historyData?: HistoricalYearData; 
   periodicData?: PeriodicReviewData; 
   macroData?: MacroDeductionData; 
-  institutionalData?: InstitutionalInsight; // Added this property to AnalysisResult
+  // Fixed: Added institutionalData to the AnalysisResult interface
+  institutionalData?: InstitutionalInsight;
   market?: MarketType;
 }
 
@@ -189,6 +188,7 @@ export interface JournalEntry {
 }
 
 export interface UserSettings {
+  hunyuanKey?: string;
 }
 
 export interface OpportunityResponse {

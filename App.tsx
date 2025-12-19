@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { Disclaimer } from './components/Disclaimer';
 import { MarketAnalysis } from './components/MarketAnalysis';
@@ -22,8 +22,11 @@ const App: React.FC = () => {
   const [stockResult, setStockResult] = useState<AnalysisResult | null>(null);
   const [stockQuery, setStockQuery] = useState('');
 
-  // UserSettings no longer carries keys manually as Gemini API key is environmental.
-  const [userSettings, setUserSettings] = useState<UserSettings>({});
+  // 从本地存储初始化设置
+  const [userSettings, setUserSettings] = useState<UserSettings>(() => {
+    const saved = localStorage.getItem('quantmind_settings');
+    return saved ? JSON.parse(saved) : {};
+  });
 
   const handleSaveSettings = (newSettings: UserSettings) => {
     setUserSettings(newSettings);

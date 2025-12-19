@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
-import { ModelProvider, AnalysisResult, UserSettings, MarketType, MacroDeductionData } from '../types';
-import { fetchMacroForecaster } from '../services/geminiService';
-import { Telescope, Loader2, Search, Zap, Calendar, History, TrendingUp, ShieldAlert, Cpu, ArrowRight, Lightbulb, Rocket, Target, AlertTriangle } from 'lucide-react';
+import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
+import { analyzeWithLLM } from '../services/llmAdapter'; // 修改为使用适配器
+import { Telescope, Loader2, Zap, Calendar, TrendingUp, ShieldAlert, Lightbulb, Rocket, Target, AlertTriangle } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 
 interface MacroForecasterProps {
@@ -34,12 +35,44 @@ export const MacroForecaster: React.FC<MacroForecasterProps> = ({
 
   const handleDeduce = async () => {
     if (!inputData.trim()) return;
+
+    // 针对国内模型增加 Key 校验提示
+    if (currentModel === ModelProvider.HUNYUAN_CN && !settings.hunyuanKey) {
+      setError("您当前选择了腾讯混元模型，请在右上角设置中配置 API Key。");
+      onOpenSettings?.();
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setResult(null);
     try {
-      // Fix: Removed settings.geminiKey as fetchMacroForecaster only accepts inputData and market
-      const data = await fetchMacroForecaster(inputData, currentMarket);
+      // 使用适配器，并标记为宏观推演模式
+      const data = await analyzeWithLLM(
+        currentModel, 
+        inputData, 
+        true, 
+        settings, 
+        false, 
+        'day', 
+        undefined, 
+        currentMarket, 
+        true
+      );
+      
+      // 如果是混元模型返回的 Markdown，尝试手动解析或转录
+      if (!data.macroData && data.content) {
+         try {
+           // 简单的 JSON 提取尝试
+           const jsonMatch = data.content.match(/\{[\s\S]*\}/);
+           if (jsonMatch) {
+             data.macroData = JSON.parse(jsonMatch[0]);
+           }
+         } catch (e) {
+           console.warn("JSON Parse from content failed", e);
+         }
+      }
+
       setResult(data);
     } catch (err: any) {
       setError(err.message || "推演失败，请稍后重试");
@@ -48,11 +81,8 @@ export const MacroForecaster: React.FC<MacroForecasterProps> = ({
     }
   };
 
-  const marketLabel = MARKET_OPTIONS.find(m => m.value === currentMarket)?.label || currentMarket;
-
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="bg-slate-900 rounded-2xl shadow-xl p-8 relative overflow-hidden text-white border border-slate-700">
          <div className="relative z-10">
             <div className="flex items-center gap-4 mb-4">
@@ -62,7 +92,7 @@ export const MacroForecaster: React.FC<MacroForecasterProps> = ({
                <div>
                   <h2 className="text-2xl font-bold">深度宏观推演 (Strategic Forecaster)</h2>
                   <p className="text-slate-400 text-sm mt-1">
-                    结合最新消息面与“十五五”战略规划，洞察未来 1-60 个月的板块轮动与投资机遇。
+                    结合最新消息面与“十五五”战略规划，洞察未来板块轮动与投资机遇。
                   </p>
                </div>
             </div>
@@ -72,7 +102,7 @@ export const MacroForecaster: React.FC<MacroForecasterProps> = ({
                   <textarea
                     value={inputData}
                     onChange={(e) => setInputData(e.target.value)}
-                    placeholder="输入关键词、新闻碎片或规划主题（如：商业航天、低空经济、国产替代）..."
+                    placeholder="输入关键词或新闻碎片（如：低空经济、国产替代、大飞机）..."
                     className="w-full bg-slate-800 border border-slate-600 rounded-xl p-4 text-slate-100 focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none h-24"
                   />
                </div>
@@ -95,8 +125,6 @@ export const MacroForecaster: React.FC<MacroForecasterProps> = ({
                </button>
             </div>
          </div>
-         <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-indigo-600/10 blur-[100px] rounded-full"></div>
-         <div className="absolute left-1/4 top-0 w-40 h-40 bg-blue-600/10 blur-[80px] rounded-full"></div>
       </div>
 
       {error && (
@@ -106,23 +134,16 @@ export const MacroForecaster: React.FC<MacroForecasterProps> = ({
         </div>
       )}
 
-      {/* Result View */}
       {result && result.macroData && (
         <div className="space-y-8 animate-slide-up pb-12">
-          
-          {/* Summary Banner */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
              <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-widest mb-2">
                 <Lightbulb className="w-4 h-4" /> 核心推演摘要
              </div>
-             <p className="text-slate-700 text-lg leading-relaxed font-medium">
-                {result.macroData.summary}
-             </p>
+             <p className="text-slate-700 text-lg leading-relaxed font-medium">{result.macroData.summary}</p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-             
-             {/* 1. Short-term Outlook (1-2 Months) */}
              <div className="space-y-4">
                 <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                    <Calendar className="w-5 h-5 text-blue-500" />
@@ -133,10 +154,7 @@ export const MacroForecaster: React.FC<MacroForecasterProps> = ({
                       <div key={idx} className="bg-white rounded-xl border border-slate-200 p-5 hover:border-blue-400 transition-colors shadow-sm">
                          <div className="flex justify-between items-start mb-3">
                             <h4 className="text-lg font-bold text-slate-900">{s.name}</h4>
-                            <div className="flex flex-col items-end">
-                               <span className="text-[10px] text-slate-400 uppercase font-bold">预期热度</span>
-                               <span className="text-xl font-black text-blue-600">{s.heat_index}</span>
-                            </div>
+                            <span className="text-xl font-black text-blue-600">{s.heat_index}</span>
                          </div>
                          <p className="text-sm text-slate-600 mb-4">{s.logic}</p>
                          <div className="flex flex-wrap gap-2">
@@ -151,7 +169,6 @@ export const MacroForecaster: React.FC<MacroForecasterProps> = ({
                 </div>
              </div>
 
-             {/* 2. Logic Chain & Timeline */}
              <div className="space-y-4">
                 <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                    <TrendingUp className="w-5 h-5 text-emerald-500" />
@@ -164,76 +181,52 @@ export const MacroForecaster: React.FC<MacroForecasterProps> = ({
                          <div className="w-6 h-6 rounded-full bg-white border-4 border-emerald-500 shrink-0 z-10 group-hover:scale-125 transition-transform"></div>
                          <div>
                             <div className="text-xs font-black text-emerald-600 uppercase mb-1">{step.event}</div>
-                            <div className="text-sm font-bold text-slate-800 mb-1">传导效应: {step.impact}</div>
-                            <p className="text-xs text-slate-500">最终指向: {step.result}</p>
+                            <div className="text-sm font-bold text-slate-800 mb-1">传导: {step.impact}</div>
+                            <p className="text-xs text-slate-500">指向: {step.result}</p>
                          </div>
                       </div>
                    ))}
                 </div>
              </div>
 
-             {/* 3. 15th Plan Foresight (Full Width) */}
              <div className="lg:col-span-2 bg-gradient-to-br from-slate-900 to-indigo-950 rounded-2xl p-8 text-white shadow-2xl relative overflow-hidden">
                 <div className="relative z-10">
                    <div className="flex items-center gap-3 mb-6">
-                      <div className="p-2 bg-white/10 rounded-lg backdrop-blur-md">
-                         <Rocket className="w-6 h-6 text-indigo-300" />
-                      </div>
-                      <h3 className="text-xl font-bold">“十五五”规划战略前瞻 (Strategic Foresight)</h3>
+                      <Rocket className="w-6 h-6 text-indigo-300" />
+                      <h3 className="text-xl font-bold">“十五五”规划战略前瞻</h3>
                    </div>
-                   
                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                      <div className="space-y-4">
-                         <div className="text-indigo-300 text-xs font-bold uppercase tracking-widest">核心主题</div>
+                      <div className="space-y-2">
+                         <div className="text-indigo-300 text-xs font-bold uppercase">核心主题</div>
                          <div className="text-2xl font-bold">{result.macroData.strategic_planning_15th.theme}</div>
-                         <p className="text-slate-400 text-sm leading-relaxed">{result.macroData.strategic_planning_15th.vision}</p>
+                         <p className="text-slate-400 text-sm">{result.macroData.strategic_planning_15th.vision}</p>
                       </div>
-
-                      <div className="space-y-4">
-                         <div className="text-indigo-300 text-xs font-bold uppercase tracking-widest">潜在国家冠军板块</div>
+                      <div className="space-y-2">
+                         <div className="text-indigo-300 text-xs font-bold uppercase">潜在冠军板块</div>
                          <div className="flex flex-wrap gap-2">
                             {result.macroData.strategic_planning_15th.potential_winners.map((w, i) => (
-                               <div key={i} className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm font-medium hover:bg-white/10 transition-colors">
-                                  {w}
-                               </div>
+                               <div key={i} className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm">{w}</div>
                             ))}
                          </div>
                       </div>
-
-                      <div className="space-y-4">
-                         <div className="text-indigo-300 text-xs font-bold uppercase tracking-widest">关键政策指标</div>
-                         <ul className="space-y-2">
+                      <div className="space-y-2">
+                         <div className="text-indigo-300 text-xs font-bold uppercase">政策指标</div>
+                         <ul className="space-y-1">
                             {result.macroData.strategic_planning_15th.key_policy_indicators.map((k, i) => (
-                               <li key={i} className="flex items-center gap-2 text-sm text-slate-300">
-                                  <Target className="w-4 h-4 text-indigo-500" />
-                                  {k}
-                               </li>
+                               <li key={i} className="flex items-center gap-2 text-sm text-slate-300"><Target className="w-4 h-4 text-indigo-500" />{k}</li>
                             ))}
                          </ul>
                       </div>
                    </div>
                 </div>
-                <div className="absolute right-0 top-0 w-96 h-96 bg-indigo-500/10 blur-[120px] rounded-full translate-x-1/2 -translate-y-1/2"></div>
-             </div>
-
-             {/* 4. Risk Alert */}
-             <div className="lg:col-span-2 bg-rose-50 border border-rose-100 rounded-xl p-6">
-                <h4 className="text-sm font-bold text-rose-800 flex items-center gap-2 mb-2">
-                   <ShieldAlert className="w-4 h-4" /> 推演失效风险
-                </h4>
-                <p className="text-sm text-rose-700 leading-relaxed">
-                   {result.macroData.risk_warning}
-                </p>
              </div>
           </div>
-
-          {/* Data Sources */}
-          {result.groundingSource && result.groundingSource.length > 0 && (
-            <div className="text-center text-[11px] text-slate-400">
-               * 基于 Google Search 提供的最新实时公开数据推演。
-            </div>
-          )}
         </div>
+      )}
+      {result && !result.macroData && result.content && (
+         <div className="bg-white rounded-xl p-6 border border-slate-200 prose max-w-none shadow-sm">
+            <div dangerouslySetInnerHTML={{ __html: result.content.replace(/\n/g, '<br/>') }} />
+         </div>
       )}
     </div>
   );
