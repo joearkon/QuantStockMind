@@ -76,28 +76,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
   return (
     <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-20">
       
-      {/* 顶部指数栏 */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {d?.market_indices && d.market_indices.length > 0 ? (
-          d.market_indices.map((idx, i) => (
-            <div key={i} className={`bg-white rounded-2xl p-4 border border-slate-200 shadow-sm transition-all hover:scale-[1.02] ${idx.direction === 'up' ? 'border-rose-100 bg-rose-50/10' : 'border-emerald-100 bg-emerald-50/10'}`}>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{idx.name}</div>
-              <div className="text-xl font-black tracking-tighter text-slate-800">{idx.value}</div>
-              <div className={`text-[10px] font-bold mt-1 ${idx.direction === 'up' ? 'text-rose-500' : 'text-emerald-500'}`}>
-                {idx.direction === 'up' ? '▲' : '▼'} {idx.percent}
-              </div>
-            </div>
-          ))
-        ) : (
-          [1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="h-24 bg-slate-50 border border-slate-100 border-dashed rounded-2xl flex items-center justify-center">
-               <span className="text-[10px] text-slate-300">等待同步...</span>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* 控制中心 */}
+      {/* 1. 控制中心 (原第二排) - 提升至第一排，方便操作 */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="bg-indigo-600 p-2.5 rounded-xl text-white">
@@ -126,6 +105,27 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
             {loading ? '同步中' : '刷新数据'}
           </button>
         </div>
+      </div>
+
+      {/* 2. 指数卡片栏 (原第一排) - 下移至第二排，作为操作反馈显示 */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {d?.market_indices && d.market_indices.length > 0 ? (
+          d.market_indices.map((idx, i) => (
+            <div key={i} className={`bg-white rounded-2xl p-4 border border-slate-200 shadow-sm transition-all hover:scale-[1.02] ${idx.direction === 'up' ? 'border-rose-100 bg-rose-50/10' : 'border-emerald-100 bg-emerald-50/10'}`}>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{idx.name}</div>
+              <div className="text-xl font-black tracking-tighter text-slate-800">{idx.value}</div>
+              <div className={`text-[10px] font-bold mt-1 ${idx.direction === 'up' ? 'text-rose-500' : 'text-emerald-500'}`}>
+                {idx.direction === 'up' ? '▲' : '▼'} {idx.percent}
+              </div>
+            </div>
+          ))
+        ) : (
+          [1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="h-24 bg-slate-50 border border-slate-100 border-dashed rounded-2xl flex items-center justify-center">
+               <span className="text-[10px] text-slate-300">等待同步...</span>
+            </div>
+          ))
+        )}
       </div>
 
       {error && (
