@@ -1,3 +1,4 @@
+
 import { AnalysisResult, ModelProvider, UserSettings, MarketType } from "../types";
 import { fetchGeminiAnalysis, fetchMarketDashboard } from "./geminiService";
 import { fetchExternalAI } from "./externalLlmService";
@@ -31,14 +32,15 @@ export const analyzeWithLLM = async (
     if (isDashboard) {
       return await fetchMarketDashboard(period, market, geminiKey);
     }
-    let datedPrompt = `[Context: Analyzing ${marketName} market at ${fullTimeContext}] ${prompt}`;
+    let datedPrompt = `[上下文: 正在分析 ${marketName} 市场，时间: ${fullTimeContext}] ${prompt}`;
     if (currentPrice) {
-      datedPrompt += `\n[IMPORTANT: The user states the CURRENT PRICE is ${currentPrice}. Use this value for all calculations.]`;
+      datedPrompt += `\n[重要: 用户指定的当前实时价格为 ${currentPrice}。请基于此价格进行所有计算和分析。]`;
     }
     // Add specific instruction for Stock Analysis to check Main Force
     if (!isDashboard) {
-      datedPrompt += `\n[MANDATORY]: You MUST search for and analyze 'Main Force/Institutional Money' (主力/机构) flows and 'Institutional Ratings' (机构评级) for this target.`;
-      datedPrompt += `\n[MANDATORY]: You MUST analyze the 'Trading Volume Trend' (成交量趋势) - is it Expanding (放量) or Contracting (缩量)? Explain the implication.`;
+      datedPrompt += `\n[必须]: 你必须搜索并分析该标的的 '主力资金/机构资金' (Main Force/Institutional Money) 流向和 '机构评级' (Institutional Ratings)。`;
+      datedPrompt += `\n[必须]: 你必须分析 '成交量趋势' (Trading Volume Trend) - 是放量 (Expanding) 还是缩量 (Contracting)？并解释其技术含义。`;
+      datedPrompt += `\n[警告]: 所有的分析内容和结论必须使用中文。`;
     }
     return await fetchGeminiAnalysis(datedPrompt, isComplex, geminiKey);
   }
@@ -71,15 +73,18 @@ export const analyzeWithLLM = async (
       5. 热门题材/个股。
       6. 机会分析（防御vs成长）。
       7. 仓位配置模型。
+      
+      所有返回内容必须使用中文。
     `;
   } else {
-    finalPrompt = `[Context: Analyzing ${marketName} market at ${fullTimeContext}] ${prompt}`;
+    finalPrompt = `[上下文: 正在分析 ${marketName} 市场，时间: ${fullTimeContext}] ${prompt}`;
     if (currentPrice) {
-       finalPrompt += `\n[User Input] The current real-time price is: ${currentPrice}. You MUST use this price for all your analysis (PE, PB, Support/Resistance).`;
+       finalPrompt += `\n[用户输入] 当前实时价为: ${currentPrice}。你必须使用此价格进行分析（PE, PB, 支撑/压力位）。`;
     }
     // Add instruction for general analysis (Stock/Holdings) to check Main Force for ALL providers
-    finalPrompt += `\n[MANDATORY Requirement] Analyze the 'Main Force Cost' (主力成本) and 'Institutional Fund Flow' (机构资金流向) using your search capabilities. If data is not found, state it clearly.`;
-    finalPrompt += `\n[MANDATORY Requirement] Analyze 'Volume Trend' (成交量: 放量/缩量).`;
+    finalPrompt += `\n[强制要求] 利用搜索能力分析 '主力成本' (Main Force Cost) 和 '机构资金流向' (Institutional Fund Flow)。如果未找到数据，请明确说明。`;
+    finalPrompt += `\n[强制要求] 分析 '成交量趋势' (放量/缩量)。`;
+    finalPrompt += `\n[语言要求] 所有输出必须为中文。`;
   }
 
   // Pass forceJson = false for standard analysis

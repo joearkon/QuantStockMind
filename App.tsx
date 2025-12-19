@@ -5,7 +5,7 @@ import { MarketAnalysis } from './components/MarketAnalysis';
 import { StockAnalysis } from './components/StockAnalysis';
 import { HoldingsReview } from './components/HoldingsReview';
 import { OpportunityMining } from './components/OpportunityMining';
-import { InstitutionalMonitor } from './components/InstitutionalMonitor'; // Import
+import { InstitutionalMonitor } from './components/InstitutionalMonitor';
 import { SettingsModal } from './components/SettingsModal';
 import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS, APP_VERSION } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
@@ -38,7 +38,7 @@ const App: React.FC = () => {
     }
 
     // Cloudflare Worker Injected Variables
-    const injectedEnv = window.__ENV__ || {};
+    const injectedEnv = (window as any).__ENV__ || {};
 
     // Check Hunyuan Env Vars
     const hunyuanKey = 
