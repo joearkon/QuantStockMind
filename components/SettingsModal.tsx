@@ -12,12 +12,14 @@ interface SettingsModalProps {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSave }) => {
   const [hunyuanKey, setHunyuanKey] = useState(settings.hunyuanKey || '');
+  const [geminiKey, setGeminiKey] = useState(settings.geminiKey || '');
 
   if (!isOpen) return null;
 
   const handleSave = () => {
     onSave({
       hunyuanKey,
+      geminiKey,
     });
     onClose();
   };
@@ -35,22 +37,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
           </button>
         </div>
         
-        <div className="p-6 space-y-6">
-          {/* Gemini 说明 (自动) */}
-          <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
-             <div className="flex items-center gap-2 text-blue-700 font-bold text-sm mb-2">
+        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+          {/* Gemini 配置 */}
+          <div className="space-y-4">
+             <div className="flex items-center gap-2 text-blue-700 font-bold text-sm">
                 <ShieldCheck className="w-4 h-4" /> Gemini 3 (海外版)
              </div>
-             <p className="text-xs text-blue-600 leading-relaxed">
-                该模型密钥已通过系统环境变量 (process.env.API_KEY) **自动托管**，您无需进行任何配置即可直接使用。
-             </p>
-             <div className="flex items-center gap-2 mt-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                <span className="text-[10px] font-bold text-emerald-700 uppercase">已就绪 (Auto Ready)</span>
+             <div className="space-y-2">
+                <label className="text-xs font-medium text-slate-500">Gemini API Key</label>
+                <input
+                  type="password"
+                  value={geminiKey}
+                  onChange={(e) => setGeminiKey(e.target.value)}
+                  placeholder="输入您的 Gemini API 密钥..."
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                />
+                <p className="text-[10px] text-slate-400 italic">
+                  若环境变量已配置，此处可留空。手动配置将覆盖系统默认值。
+                </p>
              </div>
           </div>
 
-          {/* Hunyuan 配置 (手动) */}
+          <div className="border-t border-slate-100"></div>
+
+          {/* Hunyuan 配置 */}
           <div className="space-y-4">
              <div className="flex items-center gap-2 text-slate-700 font-bold text-sm">
                 <Cpu className="w-4 h-4 text-indigo-600" /> 腾讯混元 (国内版)
@@ -64,16 +74,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
                   placeholder="输入您的混元 API 密钥..."
                   className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                 />
-                <p className="text-[10px] text-slate-400 italic">
-                  国内用户建议配置混元模型以获得更稳定的网络连接。
-                </p>
              </div>
           </div>
 
           <div className="p-3 bg-amber-50 text-amber-700 text-[11px] leading-relaxed rounded-lg border border-amber-100 flex gap-2">
             <Info className="w-4 h-4 shrink-0 mt-0.5" />
             <p>
-              密钥将保存在您的浏览器本地缓存中。我们不会在服务器端存储您的任何私密信息。
+              密钥将保存在浏览器本地缓存中。建议在设置后尝试点击“生成报告”或“开始推演”验证是否生效。
             </p>
           </div>
         </div>

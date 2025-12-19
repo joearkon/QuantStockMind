@@ -42,6 +42,7 @@ declare global {
       VITE_HUNYUAN_API_KEY?: string;
       [key: string]: any;
     };
+    process?: any;
   }
 }
 
@@ -79,7 +80,6 @@ export interface AnalysisResult {
   historyData?: HistoricalYearData; 
   periodicData?: PeriodicReviewData; 
   macroData?: MacroDeductionData; 
-  // Fixed: Added institutionalData to the AnalysisResult interface
   institutionalData?: InstitutionalInsight;
   market?: MarketType;
 }
@@ -188,6 +188,7 @@ export interface JournalEntry {
 }
 
 export interface UserSettings {
+  geminiKey?: string; // 支持 Gemini 密钥配置
   hunyuanKey?: string;
 }
 

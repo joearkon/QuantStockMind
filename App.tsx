@@ -28,6 +28,21 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : {};
   });
 
+  // 关键修复逻辑：同步密钥到全局 process.env 供服务调用
+  useEffect(() => {
+    // 优先级：用户手动设置的 Key > Cloudflare Worker 注入的 Key
+    const geminiKey = userSettings.geminiKey || window.__ENV__?.VITE_GEMINI_API_KEY;
+    
+    if (geminiKey) {
+      // 动态创建 process.env 对象
+      if (!window.process) window.process = { env: {} };
+      else if (!window.process.env) window.process.env = {};
+      
+      window.process.env.API_KEY = geminiKey;
+      console.log("QM: Gemini API Key has been dynamically mounted to process.env.API_KEY");
+    }
+  }, [userSettings.geminiKey]);
+
   const handleSaveSettings = (newSettings: UserSettings) => {
     setUserSettings(newSettings);
     localStorage.setItem('quantmind_settings', JSON.stringify(newSettings));
