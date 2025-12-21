@@ -268,20 +268,26 @@ export const parseBrokerageScreenshot = async (base64Image: string, apiKey?: str
   if (!effectiveKey) throw new Error("API Key missing");
   const ai = new GoogleGenAI({ apiKey: effectiveKey });
   
+  // Always use { contents: { parts: [...] } } for multi-part requests as per guidelines.
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
-    contents: [
-      {
-        parts: [
-          { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-          { text: "Identify all stock holdings, total assets, and position ratio from this brokerage screenshot." }
-        ]
-      }
-    ],
+    contents: {
+      parts: [
+        {
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: base64Image,
+          },
+        },
+        {
+          text: "Identify all stock holdings, total assets, and position ratio from this brokerage screenshot.",
+        },
+      ],
+    },
     config: {
       responseMimeType: "application/json",
-      responseSchema: holdingsSnapshotSchema
-    }
+      responseSchema: holdingsSnapshotSchema,
+    },
   });
   
   const text = response.text || "{}";
@@ -332,8 +338,9 @@ export const extractTradingPlan = async (analysisText: string, apiKey?: string):
   
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
-    contents: `Extract a structured daily trading plan from the following analysis text. Ensure unique IDs for each item.
-      Analysis: ${analysisText}`,
+    contents: `请从以下复盘分析文本中提取结构化的【交易计划】。
+      [注意]: 所有输出字段（股票名、操作理由、策略总结）必须使用【中文】。
+      分析文本如下: ${analysisText}`,
     config: {
       responseMimeType: "application/json",
       responseSchema: tradingPlanSchema
