@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { HashRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { Disclaimer } from './components/Disclaimer';
@@ -123,7 +124,7 @@ const App: React.FC = () => {
                 <Route path="/holdings" element={<HoldingsReview currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/stock" element={<StockAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} savedResult={stockResult} onResultUpdate={setStockResult} savedQuery={stockQuery} onQueryUpdate={setStockQuery} />} />
                 <Route path="/vane" element={<InstitutionalHotlist currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} />} />
-                <Route path="/mining" element={<OpportunityMining currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} />} />
+                <Route path="/mining" element={<OpportunityMining currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
               </Routes>
               
               <footer className="mt-12 border-t border-slate-200 pt-6 text-center text-slate-400 text-sm pb-8">
