@@ -1,9 +1,9 @@
 
 import { ModelProvider, MarketType } from './types';
-import { LayoutDashboard, TrendingUp, NotebookPen, Radar, UserCheck } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, NotebookPen, Radar, UserCheck, Layers } from 'lucide-react';
 
 export const APP_NAME = "QuantMind A-Share Assistant";
-export const APP_VERSION = "v1.5.1";
+export const APP_VERSION = "v1.6.0";
 
 export const MODEL_OPTIONS = [
   { value: ModelProvider.GEMINI_INTL, label: 'Gemini 3 (海外版)', recommended: true, region: 'Global' },
@@ -19,6 +19,7 @@ export const MARKET_OPTIONS = [
 export const NAV_ITEMS = [
   { id: 'market', label: '市场全览', icon: LayoutDashboard },
   { id: 'holdings', label: '持仓复盘', icon: NotebookPen },
+  { id: 'sector-cycle', label: '板块梯队周期', icon: Layers },
   { id: 'stock', label: '个股量化', icon: TrendingUp },
   { id: 'vane', label: '机构风向标', icon: UserCheck },
   { id: 'mining', label: '产业链透视', icon: Radar },

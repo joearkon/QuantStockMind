@@ -5,11 +5,62 @@ import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, Holding
 const GEMINI_MODEL_PRIMARY = "gemini-3-flash-preview"; 
 const GEMINI_MODEL_COMPLEX = "gemini-3-pro-preview";
 
-// Schema for Market Dashboard
+// --- Schemas ---
+
+// Sector Ladder Schema
+const sectorLadderSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    sector_name: { type: Type.STRING },
+    cycle_stage: { type: Type.STRING, enum: ["Starting", "Growing", "Climax", "End", "Receding"] },
+    stage_label: { type: Type.STRING },
+    risk_score: { type: Type.NUMBER },
+    ladder: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          tier: { type: Type.STRING },
+          stocks: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                code: { type: Type.STRING },
+                status: { type: Type.STRING, enum: ["Leading", "Stagnant", "Following", "Weakening"] },
+                performance: { type: Type.STRING },
+                health_score: { type: Type.NUMBER },
+                logic: { type: Type.STRING }
+              },
+              required: ["name", "code", "status", "performance", "health_score", "logic"]
+            }
+          }
+        },
+        required: ["tier", "stocks"]
+      }
+    },
+    structural_integrity: {
+      type: Type.OBJECT,
+      properties: {
+        synergy_score: { type: Type.NUMBER },
+        verdict: { type: Type.STRING },
+        is_divergent: { type: Type.BOOLEAN }
+      },
+      required: ["synergy_score", "verdict", "is_divergent"]
+    },
+    support_points: { type: Type.ARRAY, items: { type: Type.STRING } },
+    warning_signals: { type: Type.ARRAY, items: { type: Type.STRING } },
+    action_advice: { type: Type.STRING }
+  },
+  required: ["sector_name", "cycle_stage", "stage_label", "risk_score", "ladder", "structural_integrity", "support_points", "warning_signals", "action_advice"]
+};
+
+// Market Dashboard Schema
 const marketDashboardSchema: Schema = {
   type: Type.OBJECT,
   properties: {
-    data_date: { type: Type.STRING, description: "数据日期 (YYYY-MM-DD)" },
+    data_date: { type: Type.STRING },
     market_indices: {
       type: Type.ARRAY,
       items: {
@@ -17,11 +68,10 @@ const marketDashboardSchema: Schema = {
         properties: {
           name: { type: Type.STRING },
           value: { type: Type.STRING },
-          change: { type: Type.STRING },
           percent: { type: Type.STRING },
           direction: { type: Type.STRING, enum: ["up", "down"] }
         },
-        required: ["name", "value", "change", "percent", "direction"]
+        required: ["name", "value", "percent", "direction"]
       }
     },
     market_volume: {
@@ -62,10 +112,10 @@ const marketDashboardSchema: Schema = {
       required: ["policy_focus", "external_impact", "core_verdict"]
     }
   },
-  required: ["data_date", "market_sentiment", "market_volume", "capital_rotation", "market_indices", "macro_logic"]
+  required: ["data_date", "market_indices", "market_volume", "market_sentiment", "capital_rotation", "macro_logic"]
 };
 
-// Schema for Holdings Snapshot (OCR/Parsing)
+// Holdings Snapshot Schema
 const holdingsSnapshotSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -84,7 +134,7 @@ const holdingsSnapshotSchema: Schema = {
           currentPrice: { type: Type.NUMBER },
           profit: { type: Type.NUMBER },
           profitRate: { type: Type.STRING },
-          marketValue: { type: Type.NUMBER },
+          marketValue: { type: Type.NUMBER }
         },
         required: ["name", "code", "volume", "costPrice", "currentPrice", "profit", "profitRate", "marketValue"]
       }
@@ -93,7 +143,7 @@ const holdingsSnapshotSchema: Schema = {
   required: ["totalAssets", "positionRatio", "date", "holdings"]
 };
 
-// Schema for Periodic Review
+// Periodic Review Schema
 const periodicReviewSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -125,30 +175,29 @@ const periodicReviewSchema: Schema = {
   required: ["score", "market_trend", "market_summary", "highlight", "lowlight", "execution", "next_period_focus"]
 };
 
-// Schema for Trading Plan Extraction
+// Trading Plan Schema
 const tradingPlanSchema: Schema = {
   type: Type.OBJECT,
   properties: {
+    summary: { type: Type.STRING },
     items: {
       type: Type.ARRAY,
       items: {
         type: Type.OBJECT,
         properties: {
-          id: { type: Type.STRING },
           symbol: { type: Type.STRING },
           action: { type: Type.STRING, enum: ["buy", "sell", "hold", "monitor", "t_trade"] },
           price_target: { type: Type.STRING },
-          reason: { type: Type.STRING },
-          status: { type: Type.STRING, enum: ["pending", "completed", "skipped", "failed"] }
+          reason: { type: Type.STRING }
         },
-        required: ["id", "symbol", "action", "price_target", "reason", "status"]
+        required: ["symbol", "action", "price_target", "reason"]
       }
-    },
-    summary: { type: Type.STRING }
+    }
   },
-  required: ["items", "summary"]
+  required: ["summary", "items"]
 };
 
+// Robust JSON Parser
 const robustParse = (text: string): any => {
   if (!text) return null;
   let clean = text.trim();
@@ -164,76 +213,50 @@ const robustParse = (text: string): any => {
   }
 };
 
-/**
- * Executes a Gemini request with basic error handling wrapper
- */
-export const runGeminiSafe = async (ai: any, params: any, label: string) => {
-  try {
-    const response = await ai.models.generateContent(params);
-    return response;
-  } catch (error: any) {
-    console.error(`Gemini Error [${label}]:`, error);
-    throw error;
-  }
-};
-
-export const fetchMarketDashboard = async (
-  period: 'day' | 'month',
-  market: MarketType = MarketType.CN,
-  apiKey?: string
-): Promise<AnalysisResult> => {
-  const effectiveKey = apiKey || process.env.API_KEY;
-  if (!effectiveKey) throw new Error("API Key missing");
-  const ai = new GoogleGenAI({ apiKey: effectiveKey });
+// Fetch Sector Ladder Analysis
+export const fetchSectorLadderAnalysis = async (sectorName: string, market: MarketType, apiKey: string): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey });
   
-  try {
-    const prompt = `
-      【任务】作为资深策略分析师，利用 googleSearch 获取 ${market} 市场的最新收盘或盘中数据。
-      【核心字段】
-      1. 五大核心指数的具体数值与百分比。
-      2. 市场成交额及其增减量。
-      3. 资金轮动：明确指出今日领涨板块（流入）与领跌/获利回吐板块（流出）。
-      4. 宏观逻辑：分析今日市场背后的主要政策导向或外部环境（如美联储、汇率等）。
-      
-      【要求】
-      - 严禁返回虚假或过时数据。
-    `;
+  const prompt = `
+    作为顶级 A 股短线量化策略专家，利用 googleSearch 深度分析板块：“${sectorName}” 的当前生命周期。
     
-    const response = await ai.models.generateContent({ 
-      model: GEMINI_MODEL_PRIMARY,
-      contents: prompt, 
-      config: { 
-        tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-        responseSchema: marketDashboardSchema
-      } 
-    });
+    【核心研判逻辑 - 请务必以此框架输出】
+    1. 梯队划分：
+       - 一梯队（龙头）：识别当前的领涨标的，分析其是否出现“放量滞涨”或“缩量加速”。
+       - 二梯队（中军/核心）：找出该板块的大市值核心标的，分析其与龙头的“联动性”是否减弱（即中军是否不再跟涨）。
+       - 三梯队（补涨）：找出低位刚启动的标的，判断其是否有接力欲望。
+    2. 行情延续支撑点：找出至少3条支持行情继续走强的证据。
+    3. 行情终结警示信号：罗列触发“行情终结”的具体条件（例如：龙头放量冲高回落、中军逆势下跌、补涨批量炸板）。
     
-    const text = response.text || "{}";
-    const parsedData = robustParse(text);
-    
-    if (!parsedData) throw new Error("无法解析模型返回的 JSON 数据。");
+    请输出严格的 JSON。
+  `;
 
-    return { 
-      content: text, 
-      timestamp: Date.now(), 
-      modelUsed: ModelProvider.GEMINI_INTL, 
-      isStructured: true, 
-      structuredData: parsedData, 
-      market 
-    };
-  } catch (error: any) {
-    throw error;
-  }
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL_PRIMARY,
+    contents: prompt,
+    config: {
+      tools: [{ googleSearch: {} }],
+      responseMimeType: "application/json",
+      responseSchema: sectorLadderSchema
+    }
+  });
+
+  const text = response.text || "{}";
+  const parsed = robustParse(text);
+
+  return {
+    content: text,
+    timestamp: Date.now(),
+    modelUsed: ModelProvider.GEMINI_INTL,
+    isStructured: true,
+    ladderData: parsed,
+    market
+  };
 };
 
-export const fetchGeminiAnalysis = async (
-  prompt: string,
-  isComplex: boolean = false,
-  apiKey?: string
-): Promise<AnalysisResult> => {
-  const effectiveKey = apiKey || process.env.API_KEY;
-  const ai = new GoogleGenAI({ apiKey: effectiveKey! });
+// Fetch Gemini Analysis for general prompts
+export const fetchGeminiAnalysis = async (prompt: string, isComplex: boolean, apiKey?: string): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY || "" });
   const response = await ai.models.generateContent({
     model: isComplex ? GEMINI_MODEL_COMPLEX : GEMINI_MODEL_PRIMARY,
     contents: prompt,
@@ -241,110 +264,130 @@ export const fetchGeminiAnalysis = async (
   });
   return {
     content: response.text || "",
-    groundingSource: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
-      uri: chunk.web?.uri || "",
-      title: chunk.web?.title || ""
-    })).filter((s: any) => s.uri) || [],
+    groundingSource: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map(c => ({
+      uri: c.web?.uri || "",
+      title: c.web?.title || "来源"
+    })) || [],
     timestamp: Date.now(),
     modelUsed: ModelProvider.GEMINI_INTL
   };
 };
 
+// Fetch Stock Detail with Image (Multimodal)
 export const fetchStockDetailWithImage = async (base64Image: string, query: string, market: MarketType, apiKey: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
+  const marketLabel = market === MarketType.US ? '美股' : market === MarketType.HK ? '港股' : 'A股';
+  const prompt = `请对 ${marketLabel} 的股票 "${query}" 进行深度量化分析。结合提供的 K 线截图及实时市场数据。`;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
-    contents: { parts: [{ inlineData: { mimeType: 'image/jpeg', data: base64Image } }, { text: `分析股票 "${query}" 的形态逻辑。` }] },
+    contents: {
+      parts: [
+        { inlineData: { mimeType: 'image/png', data: base64Image } },
+        { text: prompt }
+      ]
+    },
     config: { tools: [{ googleSearch: {} }] }
   });
-  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, market };
+  return {
+    content: response.text || "",
+    timestamp: Date.now(),
+    modelUsed: ModelProvider.GEMINI_INTL,
+    market
+  };
 };
 
-/**
- * Parses a brokerage screenshot to extract holdings information using Gemini Vision
- */
-export const parseBrokerageScreenshot = async (base64Image: string, apiKey?: string): Promise<HoldingsSnapshot> => {
-  const effectiveKey = apiKey || process.env.API_KEY;
-  if (!effectiveKey) throw new Error("API Key missing");
-  const ai = new GoogleGenAI({ apiKey: effectiveKey });
-  
+// Parse Brokerage Screenshot into Holdings Snapshot
+export const parseBrokerageScreenshot = async (base64String: string, apiKey?: string): Promise<HoldingsSnapshot> => {
+  const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY || "" });
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
-    contents: [
-      {
-        parts: [
-          { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-          { text: "Identify all stock holdings, total assets, and position ratio from this brokerage screenshot." }
-        ]
-      }
-    ],
+    contents: {
+      parts: [
+        { inlineData: { mimeType: 'image/png', data: base64String } },
+        { text: "请分析这张交易软件持仓截图，提取总资产、仓位占比、日期及详细持仓列表。输出 JSON。" }
+      ]
+    },
     config: {
       responseMimeType: "application/json",
       responseSchema: holdingsSnapshotSchema
     }
   });
-  
-  const text = response.text || "{}";
-  return robustParse(text);
+  return robustParse(response.text);
 };
 
-/**
- * Performs a periodic review based on a series of journal entries
- */
-export const fetchPeriodicReview = async (journalEntries: JournalEntry[], label: string, market: MarketType, apiKey?: string): Promise<AnalysisResult> => {
-  const effectiveKey = apiKey || process.env.API_KEY;
-  if (!effectiveKey) throw new Error("API Key missing");
-  const ai = new GoogleGenAI({ apiKey: effectiveKey });
+// Fetch Periodic Review based on historical journals
+export const fetchPeriodicReview = async (journals: JournalEntry[], label: string, market: MarketType, apiKey?: string): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY || "" });
+  const historyText = journals.map(j => `日期: ${new Date(j.timestamp).toLocaleDateString()}, 资产: ${j.snapshot.totalAssets}, 持仓数: ${j.snapshot.holdings.length}`).join('\n');
+  const prompt = `分析该账户在 ${label} 期间的表现趋势、操作优劣及后续战略。市场环境: ${market}。以下为历史日志记录：\n${historyText}`;
   
-  const prompt = `Perform a periodic review for the ${label} period in the ${market} market. 
-    Analyze the following historical trading journal entries to find trends, execution quality, and next steps:
-    ${JSON.stringify(journalEntries)}`;
-
   const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_COMPLEX,
+    model: GEMINI_MODEL_PRIMARY,
     contents: prompt,
     config: {
+      tools: [{ googleSearch: {} }],
       responseMimeType: "application/json",
       responseSchema: periodicReviewSchema
     }
   });
-  
-  const text = response.text || "{}";
-  const data = robustParse(text);
-
+  const parsed = robustParse(response.text);
   return {
-    content: text,
+    content: response.text || "",
     timestamp: Date.now(),
     modelUsed: ModelProvider.GEMINI_INTL,
     isStructured: true,
-    periodicData: data,
+    periodicData: parsed,
     market
   };
 };
 
-/**
- * Extracts a structured trading plan from analysis text
- */
-export const extractTradingPlan = async (analysisText: string, apiKey?: string): Promise<{ items: PlanItem[], summary: string }> => {
-  const effectiveKey = apiKey || process.env.API_KEY;
-  if (!effectiveKey) throw new Error("API Key missing");
-  const ai = new GoogleGenAI({ apiKey: effectiveKey });
+// Extract structured Trading Plan from text
+export const extractTradingPlan = async (analysisContent: string, apiKey?: string): Promise<{ items: PlanItem[], summary: string }> => {
+  const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY || "" });
+  const prompt = `从以下个股或账户复盘分析文本中，提取出具体的交易计划项（标的、动作、目标价、理由）及策略总纲。请确保输出为 JSON。\n\n分析文本：\n${analysisContent}`;
   
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
-    contents: `Extract a structured daily trading plan from the following analysis text. Ensure unique IDs for each item.
-      Analysis: ${analysisText}`,
+    contents: prompt,
     config: {
       responseMimeType: "application/json",
       responseSchema: tradingPlanSchema
     }
   });
-  
-  const text = response.text || "{}";
-  const data = robustParse(text);
-
+  const parsed = robustParse(response.text);
+  const items = (parsed.items || []).map((it: any) => ({
+    ...it,
+    id: crypto.randomUUID(),
+    status: 'pending'
+  }));
   return {
-    items: data.items || [],
-    summary: data.summary || ""
+    items,
+    summary: parsed.summary || ""
+  };
+};
+
+// Fetch Market Dashboard data
+export const fetchMarketDashboard = async (period: 'day' | 'month', market: MarketType, apiKey?: string): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY || "" });
+  const marketName = market === MarketType.US ? '美股' : market === MarketType.HK ? '港股' : 'A股';
+  const prompt = `作为高级宏观策略分析师，请生成一份 ${marketName} 的${period === 'day' ? '当日' : '本月'}市场深度分析报告。请利用联网搜索获取最新的指数、成交量、板块轮动及宏观驱动力。`;
+  
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL_PRIMARY,
+    contents: prompt,
+    config: {
+      tools: [{ googleSearch: {} }],
+      responseMimeType: "application/json",
+      responseSchema: marketDashboardSchema
+    }
+  });
+  const parsed = robustParse(response.text);
+  return {
+    content: response.text || "",
+    timestamp: Date.now(),
+    modelUsed: ModelProvider.GEMINI_INTL,
+    isStructured: true,
+    structuredData: parsed,
+    market
   };
 };

@@ -10,6 +10,32 @@ export enum MarketType {
   US = 'US', // US Stocks
 }
 
+export interface SectorLadderData {
+  sector_name: string;
+  cycle_stage: 'Starting' | 'Growing' | 'Climax' | 'End' | 'Receding';
+  stage_label: string;
+  risk_score: number;
+  ladder: {
+    tier: string; // "一梯队（龙头）", "二梯队（中军）", "三梯队（补涨）"
+    stocks: { 
+      name: string; 
+      code: string; 
+      status: 'Leading' | 'Stagnant' | 'Following' | 'Weakening'; 
+      performance: string; // 涨跌幅及量能简述
+      health_score: number; // 0-100
+      logic: string 
+    }[];
+  }[];
+  structural_integrity: {
+    synergy_score: number;
+    verdict: string;
+    is_divergent: boolean;
+  };
+  support_points: string[]; // 行情延续支撑点
+  warning_signals: string[]; // 行情终结警示信号
+  action_advice: string;
+}
+
 export interface MarketDashboardData {
   data_date?: string; 
   market_indices?: MarketIndex[];
@@ -63,7 +89,6 @@ export interface MarketVolumeData {
   active_buy_spread?: string; 
 }
 
-// Added missing PeriodicReviewData interface to fix import error in HoldingsReview.tsx
 export interface PeriodicReviewData {
   score: number;
   market_trend: 'bull' | 'bear' | 'sideways';
@@ -79,7 +104,6 @@ export interface PeriodicReviewData {
   next_period_focus: string[];
 }
 
-// Added missing OpportunityResponse interface to fix import error in opportunityService.ts
 export interface OpportunityResponse {
   policy_theme?: string;
   analysis_summary?: string;
@@ -110,7 +134,6 @@ export interface OpportunityResponse {
   };
 }
 
-// Added missing ForesightReport interface to fix import error in opportunityService.ts
 export interface ForesightReport {
   monthly_focus: string;
   catalysts: {
@@ -125,7 +148,6 @@ export interface ForesightReport {
   macro_policy_insight: string;
 }
 
-// Added missing InstitutionalInsightData interface for InstitutionalMonitor.tsx
 export interface InstitutionalInsightData {
   detailed_signals: {
     lh_list: string;
@@ -165,18 +187,19 @@ export interface AnalysisResult {
   opportunityData?: OpportunityResponse;
   foresightData?: ForesightReport;
   institutionalData?: InstitutionalInsightData;
-  timingData?: TimingEvaluation; // 择时数据
-  hotlistData?: InstitutionalHotlist; // 高频调研榜单
+  timingData?: TimingEvaluation;
+  hotlistData?: InstitutionalHotlist;
+  ladderData?: SectorLadderData; 
 }
 
 export interface TimingEvaluation {
   action: 'Buy' | 'Wait' | 'Sell' | 'Reduce';
-  position_score: number; // 0-100 位置评分
+  position_score: number;
   entry_logic: string;
   entry_price_window: string;
   stop_loss: string;
   target_profit: string;
-  kline_analysis: string; // K线形态解读
+  kline_analysis: string;
 }
 
 export interface InstitutionalHotlist {
@@ -184,7 +207,7 @@ export interface InstitutionalHotlist {
   ranking: {
     name: string;
     code: string;
-    visit_frequency: string; // 调研频次描述
+    visit_frequency: string;
     institution_count: number;
     core_logic: string;
     potential_rating: 'High' | 'Medium';
