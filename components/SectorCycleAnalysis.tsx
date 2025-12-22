@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { ModelProvider, MarketType, AnalysisResult } from '../types';
 import { fetchSectorLadderAnalysis } from '../services/geminiService';
-import { Layers, Loader2, Search, Zap, AlertTriangle, ShieldCheck, TrendingUp, Info, Activity, Flame, Target, ShieldAlert, CheckCircle2, BookOpen, Triangle, Gauge, Skull, InfoIcon, CircleDollarSign } from 'lucide-react';
+import { Layers, Loader2, Search, Zap, AlertTriangle, ShieldCheck, TrendingUp, Info, Activity, Flame, Target, ShieldAlert, CheckCircle2, BookOpen, Triangle, Gauge, Skull, InfoIcon, CircleDollarSign, X } from 'lucide-react';
 
 export const SectorCycleAnalysis: React.FC<{
   currentModel: ModelProvider;
@@ -140,7 +140,7 @@ export const SectorCycleAnalysis: React.FC<{
                 <div className="space-y-4">
                    <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
                       <div className="text-xs font-black text-slate-800 mb-1">资金面</div>
-                      <p className="text-[10px] text-slate-500 leading-relaxed font-medium">主力资金单日流出 > 10亿，或北向资金持续卖出，杠杆资金大幅撤离。</p>
+                      <p className="text-[10px] text-slate-500 leading-relaxed font-medium">主力资金单日流出 &gt; 10亿，或北向资金持续卖出，杠杆资金大幅撤离。</p>
                    </div>
                    <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
                       <div className="text-xs font-black text-slate-800 mb-1">技术面</div>
