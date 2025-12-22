@@ -20,6 +20,7 @@ export interface SectorLadderData {
     stocks: { 
       name: string; 
       code: string; 
+      price: string; // 新增：实时或参考股价
       status: 'Leading' | 'Stagnant' | 'Following' | 'Weakening'; 
       performance: string; // 涨跌幅及量能简述
       health_score: number; // 0-100
