@@ -104,7 +104,7 @@ export const SectorCycleAnalysis: React.FC<{
           </div>
           
           <p className="text-slate-500 text-base max-w-2xl font-medium mb-10">
-            拒绝盲目乐观。引入量价背离、均线破位、主力出逃金额等硬性“凋零指标”，深度还原板块兴衰真相。
+            引入 AI 联网检索 (Search Grounding)，强制对齐最新股价，深度研判领涨、中军、补涨梯队健康度。
           </p>
 
           <div className="max-w-2xl flex gap-3 p-2 bg-slate-100 rounded-[2rem] border border-slate-200">
@@ -148,7 +148,7 @@ export const SectorCycleAnalysis: React.FC<{
                    </div>
                    <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
                       <div className="text-xs font-black text-slate-800 mb-1">基本面</div>
-                      <p className="text-[10px] text-slate-500 leading-relaxed font-medium">逻辑终结（如地产回归民生常态）、供需恶化、业绩不及预期。</p>
+                      <p className="text-[10px] text-slate-500 leading-relaxed font-medium">逻辑终结、供需恶化、业绩不及预期，股价与基本面产生严重背离。</p>
                    </div>
                 </div>
              </div>
@@ -163,7 +163,7 @@ export const SectorCycleAnalysis: React.FC<{
                    <div className="p-3 bg-rose-50 rounded-xl border border-rose-100 text-[10px] text-rose-800 font-bold">81-100：极端高危/退潮，坚决空仓观望。</div>
                 </div>
                 <div className="bg-slate-900 p-5 rounded-2xl border border-slate-700 text-[10px] text-slate-300 font-bold leading-relaxed shadow-xl">
-                   🚨 <b>注意</b>：房地产、半导体、新能源等逻辑破坏板块，若无重大反转信号，一律视为退潮期。
+                   🚨 <b>注意</b>：板块处于“逻辑切换”期时，股价可能出现剧烈震荡，AI 将通过搜索增强核实其最新真实估值。
                 </div>
              </div>
           </div>
@@ -177,9 +177,9 @@ export const SectorCycleAnalysis: React.FC<{
              <div className="relative z-10 flex-1">
                 <div className="flex items-center gap-3 mb-4">
                    <span className={`px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest bg-white/20 backdrop-blur-md border border-white/20`}>{data.stage_label}</span>
-                   <span className="text-sm font-bold opacity-70">| 行情凋零特征监测</span>
+                   <span className="text-sm font-bold opacity-70">| 结构效能研判</span>
                 </div>
-                <h3 className="text-3xl md:text-4xl font-black mb-6 drop-shadow-sm">{data.sector_name} · 结构效能研判</h3>
+                <h3 className="text-3xl md:text-4xl font-black mb-6 drop-shadow-sm">{data.sector_name} · 梯队周期诊断</h3>
                 <div className="bg-black/20 backdrop-blur-lg p-8 rounded-[2.5rem] border border-white/10 shadow-inner">
                    <p className="text-lg md:text-xl font-black italic leading-relaxed text-white/95">"{data.action_advice}"</p>
                 </div>
@@ -191,7 +191,7 @@ export const SectorCycleAnalysis: React.FC<{
                 ) : (
                    <div className="text-7xl font-black mb-1 tracking-tighter drop-shadow-lg">{Math.round(data.risk_score)}</div>
                 )}
-                <div className="text-[11px] font-black uppercase tracking-[0.3em] opacity-80 mb-2">风险系数 (Risk Index)</div>
+                <div className="text-[11px] font-black uppercase tracking-[0.3em] opacity-80 mb-2">风险指数 (Risk Index)</div>
                 <div className={`text-[12px] font-black px-4 py-1.5 bg-white rounded-full ${theme.text} shadow-lg uppercase tracking-widest border-b-2 border-slate-200`}>
                    状态：{theme.label}
                 </div>
@@ -203,7 +203,7 @@ export const SectorCycleAnalysis: React.FC<{
              <div className="lg:col-span-8 space-y-8">
                 <div className="flex justify-between items-center px-4">
                    <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-2">
-                      <Activity className="w-4 h-4" /> 三梯队凋零诊断 (Death Matrix)
+                      <Activity className="w-4 h-4" /> 梯队凋零诊断 (Death Matrix)
                    </h4>
                 </div>
                 
@@ -219,6 +219,9 @@ export const SectorCycleAnalysis: React.FC<{
                                </div>
                                {tier.tier}
                             </span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                               {idx === 0 ? '灵魂标的' : idx === 1 ? '权重中军' : '末梢补涨'}
+                            </span>
                          </div>
                          <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                             {tier.stocks.map((stock, sIdx) => (
@@ -229,11 +232,14 @@ export const SectorCycleAnalysis: React.FC<{
                                            {stock.name} 
                                            <span className="text-[11px] font-mono text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-100">{stock.code}</span>
                                         </div>
-                                        <div className="flex items-center gap-2 mt-2">
-                                           <div className="text-[14px] font-black text-rose-600 flex items-center gap-1">
-                                              <CircleDollarSign className="w-4 h-4" /> {stock.price}
+                                        <div className="flex items-center gap-2 mt-3 mb-1">
+                                           <div className="p-1.5 bg-rose-50 rounded-xl border border-rose-100">
+                                              <CircleDollarSign className="w-4 h-4 text-rose-600" />
                                            </div>
-                                           <div className="text-[11px] font-black text-slate-400 uppercase tracking-wide">· {stock.performance}</div>
+                                           <span className="text-xl font-black text-rose-600 tracking-tight">{stock.price}</span>
+                                        </div>
+                                        <div className="text-[11px] font-black text-slate-400 uppercase tracking-wide flex items-center gap-2">
+                                           <Activity className="w-3 h-3 opacity-50" /> {stock.performance}
                                         </div>
                                      </div>
                                      <div className="flex flex-col items-end gap-1.5">
@@ -242,10 +248,10 @@ export const SectorCycleAnalysis: React.FC<{
                                            stock.status === 'Weakening' ? 'bg-slate-900 text-slate-200 border-slate-700' : 
                                            'bg-blue-100 text-blue-600 border-blue-200'
                                         }`}>{stock.status}</span>
-                                        <div className="text-[9px] font-black text-slate-400 opacity-60">健康 {stock.health_score}%</div>
+                                        <div className="text-[9px] font-black text-slate-400 opacity-60">健康度 {stock.health_score}%</div>
                                      </div>
                                   </div>
-                                  <div className="text-sm text-slate-500 font-bold leading-relaxed italic bg-white/50 p-4 rounded-2xl border border-slate-100/50">
+                                  <div className="text-sm text-slate-500 font-bold leading-relaxed italic bg-white/50 p-4 rounded-2xl border border-slate-100/50 mt-2">
                                      "{stock.logic}"
                                   </div>
                                </div>

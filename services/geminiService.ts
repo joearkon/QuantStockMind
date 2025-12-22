@@ -26,7 +26,7 @@ const sectorLadderSchema = {
               properties: {
                 name: { type: Type.STRING },
                 code: { type: Type.STRING },
-                price: { type: Type.STRING, description: "当前或前一日参考收盘价" },
+                price: { type: Type.STRING, description: "当前或最新参考价格（含日期/涨跌，如 87.50 (+3%)）" },
                 status: { type: Type.STRING, enum: ["Leading", "Stagnant", "Following", "Weakening"] },
                 performance: { type: Type.STRING },
                 health_score: { type: Type.NUMBER },
@@ -340,24 +340,24 @@ export const extractTradingPlan = async (content: string, apiKey: string): Promi
 
 export const fetchSectorLadderAnalysis = async (sectorName: string, market: MarketType, apiKey: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
+  const now = new Date();
+  const dateStr = now.toLocaleDateString();
   
   const prompt = `
-    作为顶级 A 股量化专家，深度研判板块：“${sectorName}” 的生命周期及梯队结构。
+    作为顶级 A 股量化专家，深度研判板块：“${sectorName}” 的生命周期及梯队结构。当前日期为：${dateStr}。
     
     【严苛判别准则 - 必须执行】
-    1. 凋零特征识别：如果符合以下任一特征，必须归类为 "Receding" (退潮期) 或 "End" (结束期)，严禁判定为 Starting/Growing：
-       - 技术面：跌破 60 日线或年线，且成交量萎缩至前期高峰的 50% 以下。
-       - 资金面：主力资金日均净流出 > 10 亿，融资余额大幅下降。
-       - 逻辑面：行业景气度见顶（如：房地产逻辑终结、新能源产能严重过剩）。
-    2. 针对性黑名单：
-       - 房地产、半导体/芯片、新能源(光伏/锂电)、大金融、消费电子：如果当前处于阴跌或底部徘徊，必须判定为 Receding，除非有极重磅政策反转。
-    3. 实时股价抓取：必须抓取一、二、三梯队核心标的的【实时或前一交易日收盘价】作为参考。
+    1. 实时股价对齐：必须利用 googleSearch 强制联网检索该标的【今日（${dateStr}）】的真实报价（包括盘中价或最新收盘价）。如果搜索结果显示股价已大幅上涨（如中科曙光已在 80-90 区间），禁止返回陈旧的 60 价格。
+    2. 凋零特征识别：如果符合以下任一特征，必须归类为 "Receding" (退潮期) 或 "End" (结束期)：
+       - 技术面：跌破 60 日线或年线，且成交量萎缩。
+       - 逻辑面：行业景气度见顶或政策预期证伪。
+    3. 梯队识别：清晰拆解一梯队（领涨）、二梯队（中军）、三梯队（补涨）。
 
     【输出结构】
-    - 一梯队（龙头）：空间板、灵魂标的及其参考价格。
-    - 二梯队（中军）：核心大市值标的及其参考价格。
-    - 三梯队（补涨）：低位挖掘标的及其参考价格。
-    - 风险指数：0-100，分数越高代表越接近崩盘。
+    - 一梯队（龙头）：空间板、灵魂标的。必须标注其最新股价及其反映的市场情绪。
+    - 二梯队（中军）：权重、趋势核心。
+    - 三梯队（补涨）：低位扩散标的。
+    - 风险指数：0-100。
     
     请输出严格的 JSON。
   `;
