@@ -3,7 +3,7 @@ import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapsh
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { parseBrokerageScreenshot, fetchPeriodicReview, extractTradingPlan } from '../services/geminiService';
 import { analyzeImageWithExternal } from '../services/externalLlmService';
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 
@@ -21,6 +21,8 @@ const HORIZON_COLORS = {
   'long': '#8b5cf6', // Violet
 };
 
+const HISTORY_PAGE_SIZE = 5;
+
 export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   currentModel,
   currentMarket,
@@ -30,14 +32,24 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   // --- State ---
   const [snapshot, setSnapshot] = useState<HoldingsSnapshot>({
     totalAssets: 0,
-    positionRatio: 0, // Initialize
+    positionRatio: 0, 
     date: new Date().toISOString().split('T')[0],
     holdings: []
   });
   
   const [journal, setJournal] = useState<JournalEntry[]>(() => {
     const saved = localStorage.getItem('qm_journal');
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      // 关键修复：确保所有旧记录都有 ID
+      return (Array.isArray(parsed) ? parsed : []).map(item => ({
+        ...item,
+        id: item.id || `legacy-${item.timestamp}-${Math.random().toString(36).substr(2, 9)}`
+      }));
+    } catch (e) {
+      return [];
+    }
   });
 
   const [tradingPlans, setTradingPlans] = useState<DailyTradingPlan[]>(() => {
@@ -53,6 +65,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   // Drawers
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isPlanOpen, setIsPlanOpen] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
   
   const [activeTab, setActiveTab] = useState<'report' | 'charts' | 'periodic'>('report');
   
@@ -83,7 +96,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validation Check based on Provider
     if (currentModel === ModelProvider.HUNYUAN_CN && !settings.hunyuanKey) {
       setError("您当前选择了腾讯混元模型，请配置 Hunyuan API Key 以使用图片识别功能。");
       onOpenSettings?.();
@@ -100,7 +112,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     setError(null);
 
     try {
-      // Convert to Base64
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64String = (reader.result as string).split(',')[1];
@@ -108,22 +119,18 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           let parsedData: HoldingsSnapshot;
 
           if (currentModel === ModelProvider.HUNYUAN_CN) {
-             // Use Hunyuan Vision
              parsedData = await analyzeImageWithExternal(ModelProvider.HUNYUAN_CN, base64String, settings.hunyuanKey!);
           } else {
-             // Use Gemini Vision
              parsedData = await parseBrokerageScreenshot(base64String, settings.geminiKey);
           }
           
-          // Merge logic: Don't overwrite if parsed data is empty/partial, but here we assume generic success
-          // Default to 'medium' horizon for new imports
           const holdingsWithHorizon = parsedData.holdings.map(h => ({ ...h, horizon: 'medium' as const }));
           
           setSnapshot({
             ...parsedData,
-            positionRatio: parsedData.positionRatio || 0, // Capture parsed ratio
+            positionRatio: parsedData.positionRatio || 0, 
             holdings: holdingsWithHorizon,
-            date: new Date().toISOString().split('T')[0] // Reset date to today
+            date: new Date().toISOString().split('T')[0] 
           });
         } catch (err: any) {
           setError(err.message || "识别失败，请重试或手动输入");
@@ -147,7 +154,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   const saveEdit = () => {
     if (editForm && editingIndex !== null) {
       const newHoldings = [...snapshot.holdings];
-      // Auto calc market value if missing
       if (!editForm.marketValue || editForm.marketValue === 0) {
         editForm.marketValue = editForm.volume * editForm.currentPrice;
       }
@@ -179,7 +185,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
         horizon: 'short'
       }]
     }));
-    setEditingIndex(snapshot.holdings.length); // Start editing the new one immediately
+    setEditingIndex(snapshot.holdings.length);
     setEditForm({
         name: "新标的",
         code: "",
@@ -208,16 +214,11 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
     const marketLabel = MARKET_OPTIONS.find(m => m.value === currentMarket)?.label || currentMarket;
     
-    // 1. Prepare Current Context with Intelligent Date Matching
     const now = new Date();
     const todayStr = now.toLocaleDateString('zh-CN');
     const todayFullStr = now.toLocaleString('zh-CN');
 
-    // Logic: If there are multiple entries today, identify the most recent and the cross-day one.
-    // journal[0] is always the most recent snapshot saved.
     const lastSessionEntry = journal.length > 0 ? journal[0] : null;
-    
-    // Find the last entry that is NOT on the same calendar day as today
     const lastDayEntry = journal.find(j => new Date(j.timestamp).toLocaleDateString('zh-CN') !== todayStr);
 
     let historyContext = "这是该账户的首次复盘分析。";
@@ -318,23 +319,24 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     setGeneratingPlan(true);
     
     try {
-      // 1. Extract Plan from Analysis
       const { items, summary } = await extractTradingPlan(analysisResult.content, settings.geminiKey);
       
-      // 2. Create Plan Object
       const newPlan: DailyTradingPlan = {
         id: crypto.randomUUID(),
-        target_date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Default to tomorrow
+        target_date: new Date(Date.now() + 86400000).toISOString().split('T')[0], 
         created_at: Date.now(),
         items: items,
         strategy_summary: summary
       };
 
-      // 3. Save
       setTradingPlans(prev => [newPlan, ...prev]);
-      
-      // 4. Open Drawer
       setIsPlanOpen(true);
+      
+      setTimeout(() => {
+        const el = document.getElementById('trading-plan-section');
+        el?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+      
     } catch (err: any) {
       setError("生成交易计划失败: " + err.message);
     } finally {
@@ -349,7 +351,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
          ...p,
          items: p.items.map(item => {
            if (item.id !== itemId) return item;
-           // Cycle: pending -> completed -> skipped -> failed -> pending
            const states = ['pending', 'completed', 'skipped', 'failed'];
            const nextIndex = (states.indexOf(item.status) + 1) % states.length;
            return { ...item, status: states[nextIndex] as any };
@@ -381,17 +382,61 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
      let md = "# 我的交易计划归档\n\n";
      tradingPlans.forEach(plan => {
         md += `## ${plan.target_date} (策略: ${plan.strategy_summary})\n`;
+        md += "| 标的 | 操作 | 目标价 | 逻辑 | 状态 |\n";
+        md += "| --- | --- | --- | --- | --- |\n";
         plan.items.forEach(item => {
-           const statusMark = item.status === 'completed' ? '[x]' : '[ ]';
-           md += `- ${statusMark} **${item.symbol}** (${item.action}): 目标 ${item.price_target} | ${item.reason}\n`;
+           md += `| ${item.symbol} | ${item.action} | ${item.price_target || '--'} | ${item.reason} | ${item.status} |\n`;
         });
         md += "\n";
      });
      downloadFile(md, `TradingPlans_${new Date().toISOString().split('T')[0]}.md`, 'text/markdown');
   };
 
+  const handleExportPlanWord = () => {
+    let html = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head><meta charset='utf-8'><title>Trading Plans</title>
+      <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }
+        h1 { color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }
+        h2 { color: #334155; margin-top: 30px; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; border: 1px solid #e2e8f0; }
+        th, td { border: 1px solid #e2e8f0; padding: 12px; text-align: left; font-size: 14px; }
+        th { background-color: #f8fafc; color: #64748b; text-transform: uppercase; font-size: 12px; }
+        .summary { font-style: italic; color: #475569; background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .status-completed { color: #10b981; font-weight: bold; }
+        .status-pending { color: #64748b; }
+      </style>
+      </head>
+      <body>
+        <h1>QuantMind 智能交易计划</h1>
+    `;
+
+    tradingPlans.forEach(plan => {
+      html += `<h2>计划日期: ${plan.target_date}</h2>`;
+      html += `<div class="summary"><b>策略总纲:</b> ${plan.strategy_summary}</div>`;
+      html += `<table>
+        <thead>
+          <tr><th>标的 (Symbol)</th><th>操作 (Action)</th><th>目标价位</th><th>执行逻辑</th><th>当前状态</th></tr>
+        </thead>
+        <tbody>`;
+      plan.items.forEach(item => {
+        html += `<tr>
+          <td><b>${item.symbol}</b></td>
+          <td>${item.action.toUpperCase()}</td>
+          <td>${item.price_target || '--'}</td>
+          <td>${item.reason}</td>
+          <td class="${item.status === 'completed' ? 'status-completed' : 'status-pending'}">${item.status}</td>
+        </tr>`;
+      });
+      html += `</tbody></table>`;
+    });
+
+    html += `</body></html>`;
+    downloadFile(html, `TradingPlans_${new Date().toISOString().split('T')[0]}.doc`, 'application/msword');
+  };
+
   const handleExportPlanCSV = () => {
-     // BOM for Excel Chinese support
      let csv = "\uFEFF日期,股票,操作,目标价,逻辑,状态\n";
      tradingPlans.forEach(plan => {
         plan.items.forEach(item => {
@@ -410,7 +455,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
     setLoading(true);
     setError(null);
-    setAnalysisResult(null); // Clear daily analysis
+    setAnalysisResult(null); 
     setPeriodicResult(null);
     setActiveTab('periodic');
 
@@ -430,8 +475,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     }
 
     const filteredJournals = journal.filter(j => j.timestamp >= startDate);
-    // Add current snapshot if it's new (not in journal yet)
-    // We construct a temporary entry for current snapshot to include it in review
     const currentEntry: JournalEntry = {
       id: 'current',
       timestamp: Date.now(),
@@ -471,6 +514,28 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     alert("已保存到交易日志！");
   };
 
+  const deleteJournalEntry = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // 阻止触发查看详细记录的点击事件
+    if (window.confirm("确定要【永久删除】这条历史记录吗？此操作无法撤销。")) {
+      setJournal(prev => {
+        const filtered = prev.filter(entry => entry.id !== id);
+        // 如果删除后当前页没有数据了，自动回退到前一页
+        const newTotalPages = Math.ceil(filtered.length / HISTORY_PAGE_SIZE);
+        if (historyPage > newTotalPages && newTotalPages > 0) {
+          setHistoryPage(newTotalPages);
+        }
+        return filtered;
+      });
+    }
+  };
+
+  const clearAllJournalEntries = () => {
+    if (window.confirm("危险操作：确定要【清空所有】历史日志吗？这将清除所有积累的复盘数据。")) {
+       setJournal([]);
+       setHistoryPage(1);
+    }
+  };
+
   const exportJournal = () => {
     const dataStr = JSON.stringify(journal, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
@@ -492,8 +557,12 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       try {
         const imported = JSON.parse(event.target?.result as string);
         if (Array.isArray(imported)) {
-          setJournal(imported);
-          alert(`成功导入 ${imported.length} 条记录`);
+          const processed = imported.map(item => ({
+             ...item,
+             id: item.id || crypto.randomUUID()
+          }));
+          setJournal(processed);
+          alert(`成功导入 ${processed.length} 条记录`);
         }
       } catch (e) {
         alert("导入失败：文件格式错误");
@@ -510,18 +579,16 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
   // --- Helpers for Charts ---
   const getTrendData = () => {
-    // Combine saved journal entries with current snapshot
     const history = [...journal].sort((a, b) => a.timestamp - b.timestamp).map(entry => ({
       date: new Date(entry.timestamp).toLocaleDateString('zh-CN', {month: '2-digit', day: '2-digit'}),
       assets: entry.snapshot.totalAssets,
-      totalProfit: entry.snapshot.holdings.reduce((sum, h) => sum + h.profit, 0)
+      totalProfit: entry.snapshot.holdings.reduce((sum, h) => sum + (h.profit || 0), 0)
     }));
 
-    // Add current snapshot
     history.push({
       date: 'Now',
       assets: snapshot.totalAssets,
-      totalProfit: snapshot.holdings.reduce((sum, h) => sum + h.profit, 0)
+      totalProfit: snapshot.holdings.reduce((sum, h) => sum + (h.profit || 0), 0)
     });
 
     return history;
@@ -540,14 +607,15 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     ].filter(d => d.value > 0);
   };
 
+  // --- Pagination Logic ---
+  const totalHistoryPages = Math.ceil(journal.length / HISTORY_PAGE_SIZE);
+  const paginatedJournal = journal.slice((historyPage - 1) * HISTORY_PAGE_SIZE, historyPage * HISTORY_PAGE_SIZE);
+
   // --- Render Helper: Rich Periodic Review ---
   const renderPeriodicDashboard = (data: PeriodicReviewData) => {
     return (
       <div className="p-6 space-y-8 animate-fade-in">
-        
-        {/* Row 1: Score & Market Context */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-           {/* Score Card */}
            <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-xl p-6 text-white shadow-xl flex flex-col items-center justify-center relative overflow-hidden">
               <div className="absolute inset-0 bg-white/5 opacity-10 blur-xl"></div>
               <h3 className="text-slate-300 font-bold uppercase tracking-wider text-xs mb-2">综合表现评分</h3>
@@ -570,7 +638,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
               </p>
            </div>
 
-           {/* Market Context Banner */}
            <div className="md:col-span-2 bg-slate-50 border border-slate-200 rounded-xl p-6 flex flex-col justify-center">
               <div className="flex items-center gap-3 mb-3">
                  <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${
@@ -580,7 +647,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                  }`}>
                     {data.market_trend.toUpperCase()} MARKET
                  </span>
-                 <h3 className="text-lg font-bold text-slate-800">阶段市场回顾</h3>
+                 <h3 className="text-lg font-bold text-slate-800">阶段 market 回顾</h3>
               </div>
               <p className="text-slate-600 leading-relaxed text-sm">
                  {data.market_summary}
@@ -588,9 +655,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
            </div>
         </div>
 
-        {/* Row 2: Highs & Lows */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-           {/* Highlight */}
            <div className="bg-emerald-50 rounded-xl border border-emerald-100 p-6 relative overflow-hidden group">
               <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                  <Trophy className="w-24 h-24 text-emerald-600" />
@@ -605,7 +670,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
               </div>
            </div>
 
-           {/* Lowlight */}
            <div className="bg-rose-50 rounded-xl border border-rose-100 p-6 relative overflow-hidden group">
               <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                  <AlertOctagon className="w-24 h-24 text-rose-600" />
@@ -621,7 +685,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
            </div>
         </div>
 
-        {/* Row 3: Execution Audit */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
            <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -673,7 +736,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
            </div>
         </div>
 
-        {/* Row 4: Next Focus */}
         <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6">
            <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
               <ArrowRightCircle className="w-5 h-5 text-indigo-600" />
@@ -695,11 +757,9 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
   // --- Render Helper: Daily Report ---
   const renderReportContent = (content: string) => {
-    // Split by H2 headers
     const sections = content.split(/^##\s+/gm).filter(Boolean);
 
     if (sections.length === 0) {
-      // Fallback for raw text
       return (
         <div className="prose prose-slate max-w-none p-6" dangerouslySetInnerHTML={{ __html: content.replace(/\n/g, '<br/>') }} />
       );
@@ -717,7 +777,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           let iconBg = "bg-slate-100";
           let cardBorder = "border-slate-200";
 
-          // Theme based on title keywords
           if (title.includes("回顾") || title.includes("验证")) {
             Icon = GitCompare;
             headerColor = "text-indigo-700";
@@ -733,7 +792,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
             headerColor = "text-blue-700";
             iconBg = "bg-blue-100";
             cardBorder = "border-blue-100";
-          } else if (title.includes("建议") || title.includes("操作")) {
+          } else if (title.includes("建议") || title.includes("操作") || title.includes("指令") || title.includes("实战")) {
             Icon = Target;
             headerColor = "text-emerald-700";
             iconBg = "bg-emerald-100";
@@ -765,15 +824,14 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                    <h3 className={`text-lg font-bold ${headerColor}`}>{title}</h3>
                 </div>
                 
-                {/* --- ADD PLAN BUTTON --- */}
-                {title.includes("建议") && (
+                {(title.includes("建议") || title.includes("指令") || title.includes("操作") || title.includes("实战")) && (
                    <button
                      onClick={handleGeneratePlan}
                      disabled={generatingPlan}
                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all disabled:opacity-70"
                    >
                      {generatingPlan ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <ListTodo className="w-3.5 h-3.5"/>}
-                     生成明日计划
+                     生成明日计划表 (导出MD/Word)
                    </button>
                 )}
               </div>
@@ -782,14 +840,12 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                   const trimmed = line.trim();
                   if (!trimmed) return <div key={i} className="h-2"></div>;
 
-                  // 1. Highlight Action Keywords
                   const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有|补救|执行力|知行不一|放量|缩量)/g;
                   let processedLine = trimmed.replace(
                     highlightRegex, 
                     '<span class="font-bold text-white bg-indigo-500 px-1 py-0.5 rounded text-xs mx-0.5 shadow-sm">$1</span>'
                   );
                   
-                  // 2. Highlight Prices (Stop Profit/Loss)
                   if (title.includes("关键") || title.includes("K线")) {
                       processedLine = processedLine.replace(
                           /(止盈价|Target Sell)[:：]\s*(\d+\.?\d*)/g, 
@@ -800,7 +856,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                       );
                   }
 
-                  // 3. Bold Markdown
                   processedLine = processedLine.replace(
                     /\*\*(.*?)\*\*/g, 
                     '<strong class="font-bold text-slate-900 bg-slate-100 px-1 rounded">$1</strong>'
@@ -832,7 +887,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     );
   };
 
-  // Helper to render Horizon Badge
   const renderHorizonBadge = (horizon: string | undefined) => {
     switch (horizon) {
       case 'short':
@@ -844,26 +898,17 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     }
   };
 
-  // Safe Error Parsing
   const getFriendlyErrorMessage = (errMsg: string | null) => {
     if (!errMsg) return null;
-    
-    // Check if it's the specific "TypeError: Failed to fetch" string
     if (errMsg.includes("TypeError: Failed to fetch") || errMsg.includes("NetworkError")) {
        return "网络连接失败。请检查您的网络连接。若使用混元模型，可能存在浏览器跨域限制，请尝试使用 Gemini 模型。";
     }
-
     if (errMsg.trim().startsWith('{')) {
       try {
         const json = JSON.parse(errMsg);
-        // Handle various JSON error shapes
-        if (json.error) {
-           return json.error.message || json.error.status || `Error Code: ${json.error.code}`;
-        }
+        if (json.error) return json.error.message || json.error.status || `Error Code: ${json.error.code}`;
         if (json.message) return json.message;
-      } catch (e) {
-        // failed to parse, use original
-      }
+      } catch (e) {}
     }
     return errMsg;
   };
@@ -872,7 +917,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header Area */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
@@ -899,13 +943,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
               <History className="w-4 h-4" />
               历史日志
             </button>
-            <input 
-               type="file" 
-               accept="image/*" 
-               ref={fileInputRef} 
-               className="hidden" 
-               onChange={handleImageUpload} 
-            />
+            <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleImageUpload} />
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={parsing}
@@ -917,40 +955,92 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           </div>
         </div>
 
-        {/* --- History Drawer --- */}
         {isHistoryOpen && (
           <div className="mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200 animate-slide-down">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-slate-700">交易日志归档</h3>
+              <div className="flex items-center gap-4">
+                <h3 className="font-bold text-slate-700">交易日志归档 (第 {historyPage}/{totalHistoryPages || 1} 页)</h3>
+                {journal.length > 0 && (
+                   <button 
+                     onClick={clearAllJournalEntries}
+                     className="text-[10px] text-rose-500 hover:text-rose-700 flex items-center gap-1 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-100"
+                   >
+                     <AlertCircle className="w-3 h-3"/> 清空全部
+                   </button>
+                )}
+              </div>
               <div className="flex gap-2">
                  <input type="file" ref={importInputRef} className="hidden" accept=".json" onChange={importJournal} />
-                 <button onClick={() => importInputRef.current?.click()} className="text-xs flex items-center gap-1 text-slate-600 hover:text-indigo-600 px-2 py-1 bg-white border rounded">
+                 <button onClick={() => importInputRef.current?.click()} className="text-xs flex items-center gap-1 text-slate-600 hover:text-indigo-600 px-2 py-1 bg-white border rounded transition-colors">
                    <Upload className="w-3 h-3" /> 导入
                  </button>
-                 <button onClick={exportJournal} className="text-xs flex items-center gap-1 text-slate-600 hover:text-indigo-600 px-2 py-1 bg-white border rounded">
+                 <button onClick={exportJournal} className="text-xs flex items-center gap-1 text-slate-600 hover:text-indigo-600 px-2 py-1 bg-white border rounded transition-colors">
                    <Download className="w-3 h-3" /> 导出备份
                  </button>
               </div>
             </div>
             {journal.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-4">暂无记录</p>
+              <p className="text-sm text-slate-400 text-center py-6 bg-white rounded border border-dashed border-slate-200">暂无任何交易日志，完成分析后点击“保存日志”即可在此查看。</p>
             ) : (
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                {journal.map((entry) => (
-                   <div key={entry.id} onClick={() => loadEntry(entry)} className="p-3 bg-white rounded border border-slate-200 hover:border-indigo-300 cursor-pointer transition-all flex justify-between items-center group">
-                      <div>
-                        <div className="text-sm font-bold text-slate-800">{new Date(entry.timestamp).toLocaleString()}</div>
-                        <div className="text-xs text-slate-500">资产: {entry.snapshot.totalAssets.toLocaleString()} | 持仓: {entry.snapshot.holdings.length}只</div>
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-2 mb-4">
+                {paginatedJournal.map((entry) => (
+                   <div 
+                     key={entry.id} 
+                     onClick={() => loadEntry(entry)} 
+                     className="p-3 bg-white rounded border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/30 cursor-pointer transition-all flex justify-between items-center group shadow-sm"
+                   >
+                      <div className="flex-1">
+                        <div className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                           <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                           {new Date(entry.timestamp).toLocaleString('zh-CN', { 
+                              year: 'numeric', month: '2-digit', day: '2-digit', 
+                              hour: '2-digit', minute: '2-digit' 
+                           })}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">资产: <span className="font-mono font-bold text-slate-700">¥{entry.snapshot.totalAssets.toLocaleString()}</span> | 持仓: <span className="font-bold text-slate-700">{entry.snapshot.holdings.length}只</span></div>
                       </div>
-                      <div className="opacity-0 group-hover:opacity-100 text-indigo-600 text-xs font-medium">查看</div>
+                      <div className="flex items-center gap-3">
+                        <div className="hidden group-hover:block text-indigo-600 text-[10px] font-black uppercase tracking-wider bg-white px-2 py-1 rounded border border-indigo-100 shadow-sm animate-fade-in">查看详情</div>
+                        <button 
+                          onClick={(e) => deleteJournalEntry(entry.id, e)}
+                          className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                          title="删除此记录"
+                        >
+                          <Trash2 className="w-4.5 h-4.5" />
+                        </button>
+                      </div>
                    </div>
                 ))}
               </div>
             )}
+            
+            {totalHistoryPages > 1 && (
+               <div className="flex items-center justify-center gap-4 py-3 border-t border-slate-200 mt-2 bg-slate-100/50 rounded-b-lg">
+                  <button 
+                    disabled={historyPage === 1}
+                    onClick={() => setHistoryPage(p => p - 1)}
+                    className="p-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm transition-all"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <div className="text-xs font-black text-slate-600 flex items-center gap-2 bg-white px-4 py-1.5 rounded-full border border-slate-200 shadow-inner">
+                    <span>PAGE</span>
+                    <span className="text-indigo-600">{historyPage}</span>
+                    <span className="text-slate-300">/</span>
+                    <span>{totalHistoryPages}</span>
+                  </div>
+                  <button 
+                    disabled={historyPage === totalHistoryPages}
+                    onClick={() => setHistoryPage(p => p + 1)}
+                    className="p-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm transition-all"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+               </div>
+            )}
           </div>
         )}
 
-        {/* --- Error --- */}
         {displayError && (
           <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-lg flex items-center text-red-700 gap-2 animate-fade-in">
             <AlertTriangle className="w-5 h-5 shrink-0" />
@@ -958,11 +1048,9 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           </div>
         )}
 
-        {/* --- Holdings Table --- */}
         <div className="overflow-x-auto rounded-lg border border-slate-200 mb-6">
            <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex flex-wrap gap-4 justify-between items-center">
               <div className="flex items-center gap-4 flex-wrap">
-                 {/* Total Assets Input */}
                  <div className="flex flex-col">
                    <span className="text-xs text-slate-500 uppercase font-bold">总资产 (Assets)</span>
                    <div className="flex items-baseline gap-2">
@@ -975,15 +1063,9 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                       />
                    </div>
                  </div>
-                 
                  <div className="h-8 w-px bg-slate-300 mx-2 hidden sm:block"></div>
-
-                 {/* Position Ratio Input */}
                  <div className="flex flex-col">
-                   <span className="text-xs text-slate-500 uppercase font-bold flex items-center gap-1">
-                      仓位占比 (Pos %)
-                      <AlertTriangle className="w-3 h-3 text-amber-500" title="如果识别不准请手动修改" />
-                   </span>
+                   <span className="text-xs text-slate-500 uppercase font-bold flex items-center gap-1">仓位占比 (Pos %)</span>
                    <div className="flex items-baseline gap-2">
                       <input 
                         type="number" 
@@ -994,16 +1076,10 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                       <span className="text-lg font-bold text-slate-800">%</span>
                    </div>
                  </div>
-
                  <div className="h-8 w-px bg-slate-300 mx-2 hidden sm:block"></div>
-                 
-                 <div className="text-xs text-slate-500">
-                    日期: {snapshot.date}
-                 </div>
+                 <div className="text-xs text-slate-500">日期: {snapshot.date}</div>
               </div>
-              <button onClick={addEmptyHolding} className="text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded transition-colors">
-                 + 添加标的
-              </button>
+              <button onClick={addEmptyHolding} className="text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded transition-colors">+ 添加标的</button>
            </div>
            
            <table className="w-full text-sm text-left">
@@ -1019,35 +1095,16 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100">
                  {snapshot.holdings.length === 0 && (
-                   <tr>
-                     <td colSpan={6} className="text-center py-8 text-slate-400">
-                       请上传截图或手动添加持仓
-                     </td>
-                   </tr>
+                   <tr><td colSpan={6} className="text-center py-8 text-slate-400">请上传截图或手动添加持仓</td></tr>
                  )}
                  {snapshot.holdings.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
                        {editingIndex === idx && editForm ? (
-                          // Edit Mode
                           <>
                             <td className="px-4 py-2">
-                              <input 
-                                className="w-24 p-1 border rounded text-xs mb-1 block" 
-                                value={editForm.name} 
-                                onChange={e => setEditForm({...editForm, name: e.target.value})} 
-                                placeholder="名称"
-                              />
-                              <input 
-                                className="w-24 p-1 border rounded text-xs font-mono mb-1" 
-                                value={editForm.code} 
-                                onChange={e => setEditForm({...editForm, code: e.target.value})} 
-                                placeholder="代码"
-                              />
-                              <select 
-                                value={editForm.horizon} 
-                                onChange={e => setEditForm({...editForm, horizon: e.target.value as any})}
-                                className="w-24 p-1 border rounded text-xs bg-slate-50"
-                              >
+                              <input className="w-24 p-1 border rounded text-xs mb-1 block" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} placeholder="名称"/>
+                              <input className="w-24 p-1 border rounded text-xs font-mono mb-1" value={editForm.code} onChange={e => setEditForm({...editForm, code: e.target.value})} placeholder="代码"/>
+                              <select value={editForm.horizon} onChange={e => setEditForm({...editForm, horizon: e.target.value as any})} className="w-24 p-1 border rounded text-xs bg-slate-50">
                                 <option value="short">短线 (1月)</option>
                                 <option value="medium">中线 (1-3月)</option>
                                 <option value="long">长线 (3月+)</option>
@@ -1063,7 +1120,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                             </td>
                           </>
                        ) : (
-                          // View Mode
                           <>
                             <td className="px-4 py-3">
                                <div className="flex items-center gap-2">
@@ -1084,12 +1140,8 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                                 </div>
                             </td>
                             <td className="px-4 py-3 text-right flex justify-end gap-2">
-                               <button onClick={() => startEdit(idx, item)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors">
-                                  <Edit2 className="w-4 h-4" />
-                               </button>
-                               <button onClick={() => deleteHolding(idx)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
-                                  <Trash2 className="w-4 h-4" />
-                               </button>
+                               <button onClick={() => startEdit(idx, item)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"><Edit2 className="w-4 h-4" /></button>
+                               <button onClick={() => deleteHolding(idx)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
                             </td>
                           </>
                        )}
@@ -1099,89 +1151,37 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
            </table>
         </div>
 
-        {/* Action Bar */}
         <div className="flex flex-col sm:flex-row justify-end items-center gap-4 border-t border-slate-100 pt-6">
            <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
-              <span className="text-xs font-bold text-slate-500 px-2 uppercase flex items-center gap-1">
-                 <Calendar className="w-3 h-3" /> 阶段复盘
-              </span>
-              <button 
-                onClick={() => handlePeriodicReview('week')}
-                disabled={loading || journal.length < 1}
-                className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded transition-all disabled:opacity-50"
-              >
-                近一周
-              </button>
+              <span className="text-xs font-bold text-slate-500 px-2 uppercase flex items-center gap-1"><Calendar className="w-3 h-3" /> 阶段复盘</span>
+              <button onClick={() => handlePeriodicReview('week')} disabled={loading || journal.length < 1} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded transition-all disabled:opacity-50">近一周</button>
               <div className="w-px h-4 bg-slate-300"></div>
-              <button 
-                onClick={() => handlePeriodicReview('month')}
-                disabled={loading || journal.length < 1}
-                className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded transition-all disabled:opacity-50"
-              >
-                近一月
-              </button>
+              <button onClick={() => handlePeriodicReview('month')} disabled={loading || journal.length < 1} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded transition-all disabled:opacity-50">近一月</button>
            </div>
-           
-           <button
-             onClick={handleAnalyze}
-             disabled={loading || snapshot.holdings.length === 0}
-             className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
-           >
+           <button onClick={handleAnalyze} disabled={loading || snapshot.holdings.length === 0} className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 transition-all disabled:opacity-50 transform hover:scale-[1.02]">
              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <TrendingUp className="w-5 h-5" />}
              {loading ? 'AI 复盘中...' : '开始连续性复盘 (智能对比历史)'}
            </button>
         </div>
       </div>
 
-      {/* --- Analysis Result --- */}
       {(analysisResult || periodicResult) && (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-slide-up">
            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-wrap justify-between items-center gap-4">
               <div className="flex gap-4">
-                <button
-                   onClick={() => setActiveTab('report')}
-                   className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'report' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                   <FileJson className="w-4 h-4" />
-                   AI 诊断报告
-                </button>
-                <button
-                   onClick={() => setActiveTab('charts')}
-                   className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'charts' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                   <BarChart3 className="w-4 h-4" />
-                   深度图表
-                </button>
+                <button onClick={() => setActiveTab('report')} className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'report' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}><FileJson className="w-4 h-4" /> AI 诊断报告</button>
+                <button onClick={() => setActiveTab('charts')} className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'charts' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}><BarChart3 className="w-4 h-4" /> 深度图表</button>
                 {periodicResult && (
-                  <button
-                     onClick={() => setActiveTab('periodic')}
-                     className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'periodic' ? 'bg-indigo-600 text-white shadow-sm border border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
-                     <Calendar className="w-4 h-4" />
-                     阶段性总结 (New)
-                  </button>
+                  <button onClick={() => setActiveTab('periodic')} className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'periodic' ? 'bg-indigo-600 text-white shadow-sm border border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}><Calendar className="w-4 h-4" /> 阶段性总结</button>
                 )}
               </div>
-              <button 
-                 onClick={saveToJournal}
-                 className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium bg-white border border-indigo-200 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"
-              >
-                 <Save className="w-4 h-4" />
-                 保存日志
-              </button>
+              <button onClick={saveToJournal} className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium bg-white border border-indigo-200 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"><Save className="w-4 h-4" /> 保存日志</button>
            </div>
-           
            <div className="bg-slate-50/50 min-h-[400px]">
-             {activeTab === 'report' && analysisResult ? (
-                renderReportContent(analysisResult.content)
-             ) : activeTab === 'periodic' && periodicResult?.periodicData ? (
-                renderPeriodicDashboard(periodicResult.periodicData)
-             ) : (
+             {activeTab === 'report' && analysisResult ? renderReportContent(analysisResult.content) : activeTab === 'periodic' && periodicResult?.periodicData ? renderPeriodicDashboard(periodicResult.periodicData) : (
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                    <div className="md:col-span-2 lg:col-span-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                      <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
-                        <LineChartIcon className="w-4 h-4 text-indigo-500"/> 资金净值与盈亏走势 (Trend Analysis)
-                      </h4>
+                      <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2"><LineChartIcon className="w-4 h-4 text-indigo-500"/> 资金净值与盈亏走势</h4>
                       <div className="h-72 w-full">
                          <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={getTrendData()}>
@@ -1189,188 +1189,50 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                                <XAxis dataKey="date" tick={{fontSize: 12}} />
                                <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" />
                                <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" />
-                               <Tooltip 
-                                  contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
-                                  formatter={(value: any, name: string) => [
-                                    name === 'assets' ? `¥${value.toLocaleString()}` : `¥${value.toLocaleString()}`,
-                                    name === 'assets' ? '总资产' : '累计盈亏'
-                                  ]}
-                               />
+                               <Tooltip contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0'}} />
                                <Legend />
-                               <Line yAxisId="left" type="monotone" dataKey="assets" name="总资产" stroke="#3b82f6" strokeWidth={2} dot={{r: 4}} activeDot={{r: 6}} />
-                               <Line yAxisId="right" type="monotone" dataKey="totalProfit" name="累计盈亏" stroke="#f59e0b" strokeWidth={2} dot={{r: 4}} />
+                               <Line yAxisId="left" type="monotone" dataKey="assets" name="总资产" stroke="#3b82f6" strokeWidth={2} />
+                               <Line yAxisId="right" type="monotone" dataKey="totalProfit" name="累计盈亏" stroke="#f59e0b" strokeWidth={2} />
                             </LineChart>
-                         </ResponsiveContainer>
-                      </div>
-                   </div>
-
-                   <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                      <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-violet-500"/> 投资周期分布 (Time Horizon)
-                      </h4>
-                      <div className="h-64">
-                         <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                               <Pie
-                                  data={getHorizonData()}
-                                  cx="50%"
-                                  cy="50%"
-                                  innerRadius={60}
-                                  outerRadius={80}
-                                  paddingAngle={5}
-                                  dataKey="value"
-                               >
-                                  {getHorizonData().map((entry, index) => (
-                                     <Cell key={`cell-${index}`} fill={entry.color} />
-                                  ))}
-                               </Pie>
-                               <Tooltip />
-                               <Legend />
-                            </PieChart>
-                         </ResponsiveContainer>
-                      </div>
-                   </div>
-
-                   <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                      <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
-                        <PieChartIcon className="w-4 h-4 text-blue-500"/> 仓位分布 (Market Value)
-                      </h4>
-                      <div className="h-64">
-                         <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                               <Pie
-                                  data={snapshot.holdings.map(h => ({ 
-                                    name: h.name, 
-                                    value: h.marketValue || (h.volume * h.currentPrice) 
-                                  }))}
-                                  cx="50%"
-                                  cy="50%"
-                                  innerRadius={60}
-                                  outerRadius={80}
-                                  paddingAngle={5}
-                                  dataKey="value"
-                               >
-                                  {snapshot.holdings.map((entry, index) => (
-                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                  ))}
-                               </Pie>
-                               <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
-                               <Legend />
-                            </PieChart>
-                         </ResponsiveContainer>
-                      </div>
-                   </div>
-
-                   <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                      <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
-                        <BarChart3 className="w-4 h-4 text-emerald-500"/> 单标的盈亏分布 (Profit/Loss)
-                      </h4>
-                      <div className="h-64">
-                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={snapshot.holdings}>
-                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                               <XAxis dataKey="name" tick={{fontSize: 10}} interval={0} />
-                               <YAxis />
-                               <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
-                               <ReferenceLine y={0} stroke="#94a3b8" />
-                               <Bar dataKey="profit" name="盈亏金额" radius={[4, 4, 0, 0]}>
-                                 {snapshot.holdings.map((entry, index) => (
-                                   <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? '#ef4444' : '#10b981'} />
-                                 ))}
-                               </Bar>
-                            </BarChart>
                          </ResponsiveContainer>
                       </div>
                    </div>
                 </div>
              )}
            </div>
-
-           {(analysisResult?.groundingSource || periodicResult?.groundingSource) && (
-             <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500">
-               参考来源: {(analysisResult?.groundingSource || periodicResult?.groundingSource || []).map(s => s.title).join(', ')}
-             </div>
-           )}
         </div>
       )}
 
       {isPlanOpen && (
-         <div className="mt-8 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden animate-slide-up shadow-inner" id="trading-plan-section">
+         <div id="trading-plan-section" className="mt-8 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden animate-slide-up shadow-inner">
             <div className="px-6 py-4 bg-white border-b border-slate-200 flex justify-between items-center">
-               <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                 <ListTodo className="w-5 h-5 text-emerald-600"/>
-                 我的交易计划 (Trading Plans)
-               </h3>
+               <h3 className="font-bold text-slate-800 flex items-center gap-2"><ListTodo className="w-5 h-5 text-emerald-600"/> 我的交易计划 (Trading Plans)</h3>
                <div className="flex items-center gap-2">
-                 <button onClick={handleExportPlanMD} className="text-xs flex items-center gap-1 text-slate-500 hover:text-indigo-600 border border-slate-200 rounded px-2 py-1 bg-white">
-                    <FileText className="w-3 h-3"/> 导出MD
-                 </button>
-                 <button onClick={handleExportPlanCSV} className="text-xs flex items-center gap-1 text-slate-500 hover:text-green-600 border border-slate-200 rounded px-2 py-1 bg-white">
-                    <FileSpreadsheet className="w-3 h-3"/> 导出Excel
-                 </button>
+                 <button onClick={handleExportPlanMD} className="text-xs flex items-center gap-1 text-slate-500 hover:text-indigo-600 border border-slate-200 rounded px-2 py-1 bg-white transition-colors hover:bg-indigo-50"><FileText className="w-3 h-3"/> MD</button>
+                 <button onClick={handleExportPlanWord} className="text-xs flex items-center gap-1 text-slate-500 hover:text-blue-600 border border-slate-200 rounded px-2 py-1 bg-white transition-colors hover:bg-blue-50"><FileCode className="w-3 h-3"/> Word</button>
+                 <button onClick={handleExportPlanCSV} className="text-xs flex items-center gap-1 text-slate-500 hover:text-green-600 border border-slate-200 rounded px-2 py-1 bg-white transition-colors hover:bg-green-50"><FileSpreadsheet className="w-3 h-3"/> Excel</button>
                </div>
             </div>
             <div className="p-4 space-y-6 max-h-[600px] overflow-y-auto">
-               {tradingPlans.length === 0 ? (
-                  <div className="text-center py-8 text-slate-400">暂无交易计划，请在分析报告中生成。</div>
-               ) : (
-                  tradingPlans.map((plan) => (
+               {tradingPlans.length === 0 ? <div className="text-center py-8 text-slate-400">暂无交易计划</div> : tradingPlans.map((plan) => (
                      <div key={plan.id} className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-                        <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
-                           <span className="font-bold text-slate-700 text-sm">{plan.target_date} (计划)</span>
-                           <button onClick={() => deletePlan(plan.id)} className="text-slate-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5"/></button>
-                        </div>
+                        <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex justify-between items-center"><span className="font-bold text-slate-700 text-sm">{plan.target_date} 计划</span><button onClick={() => deletePlan(plan.id)} className="text-slate-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5"/></button></div>
                         <div className="p-4">
-                           <div className="mb-3 text-xs text-slate-500 bg-slate-50 p-2 rounded italic">
-                              策略总纲: {plan.strategy_summary}
-                           </div>
+                           <div className="mb-3 text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100 italic">策略总纲: {plan.strategy_summary}</div>
                            <div className="space-y-2">
-                              {plan.items.map((item) => {
-                                 const isCompleted = item.status === 'completed';
-                                 const isSkipped = item.status === 'skipped';
-                                 const isFailed = item.status === 'failed';
-                                 
-                                 let statusColor = "bg-white border-slate-200";
-                                 if (isCompleted) statusColor = "bg-emerald-50 border-emerald-200";
-                                 if (isSkipped) statusColor = "bg-slate-50 border-slate-200 opacity-60";
-                                 if (isFailed) statusColor = "bg-rose-50 border-rose-200";
-
-                                 return (
-                                    <div key={item.id} className={`flex items-start gap-3 p-3 rounded border ${statusColor} transition-all`}>
-                                       <button 
-                                          onClick={() => togglePlanItemStatus(plan.id, item.id)}
-                                          className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                                             isCompleted ? 'bg-emerald-500 border-emerald-600 text-white' : 
-                                             isFailed ? 'bg-rose-500 border-rose-600 text-white' :
-                                             isSkipped ? 'bg-slate-300 border-slate-400 text-slate-500' :
-                                             'bg-white border-slate-300 hover:border-emerald-400'
-                                          }`}
-                                       >
-                                          {isCompleted && <Check className="w-3.5 h-3.5" />}
-                                          {isFailed && <X className="w-3.5 h-3.5" />}
-                                          {isSkipped && <MoreHorizontal className="w-3.5 h-3.5" />}
-                                       </button>
+                              {plan.items.map((item) => (
+                                    <div key={item.id} className={`flex items-start gap-3 p-3 rounded border ${item.status === 'completed' ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'} transition-all`}>
+                                       <button onClick={() => togglePlanItemStatus(plan.id, item.id)} className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-all ${item.status === 'completed' ? 'bg-emerald-500 border-emerald-600 text-white' : 'bg-white border-slate-300 hover:border-indigo-400'}`}>{item.status === 'completed' && <Check className="w-3.5 h-3.5" />}</button>
                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 mb-1">
-                                             <span className={`text-sm font-bold ${isCompleted ? 'text-emerald-800' : isFailed ? 'text-rose-800' : 'text-slate-800'}`}>{item.symbol}</span>
-                                             <span className={`text-xs px-1.5 rounded uppercase font-medium border ${
-                                                item.action === 'buy' ? 'bg-rose-100 text-rose-700 border-rose-200' :
-                                                item.action === 'sell' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                                                'bg-slate-100 text-slate-700 border-slate-200'
-                                             }`}>{item.action === 't_trade' ? '做T' : item.action}</span>
-                                          </div>
-                                          <div className="text-xs text-slate-600">
-                                             <span className="font-medium">目标:</span> {item.price_target} <span className="text-slate-300 mx-1">|</span> {item.reason}
-                                          </div>
+                                          <div className="flex items-center gap-2 mb-1"><span className="text-sm font-bold">{item.symbol}</span><span className={`text-[10px] px-1.5 rounded uppercase font-medium border ${item.action === 'buy' ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>{item.action}</span></div>
+                                          <div className="text-xs text-slate-600"><span className="font-medium">目标:</span> {item.price_target || '--'} | {item.reason}</div>
                                        </div>
                                     </div>
-                                 );
-                              })}
+                                 ))}
                            </div>
                         </div>
                      </div>
-                  ))
-               )}
+                  ))}
             </div>
          </div>
       )}
