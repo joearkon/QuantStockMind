@@ -10,20 +10,39 @@ export enum MarketType {
   US = 'US', // US Stocks
 }
 
+export interface BatchStockScore {
+  name: string;
+  code: string;
+  win_rate: number; // 0-100
+  verdict: 'Immediate' | 'Pullback' | 'Wait' | 'Avoid';
+  verdict_label: string; // "现价买入", "回踩买入", "观望", "放弃"
+  sector_heat: number; // 0-100
+  capital_flow: 'Inflow' | 'Neutral' | 'Outflow';
+  technical_score: number;
+  logic_summary: string;
+  key_price: string; // 核心入场价
+}
+
+export interface BatchTimingResponse {
+  market_context: string;
+  overall_risk_score: number;
+  stocks: BatchStockScore[];
+}
+
 export interface SectorLadderData {
   sector_name: string;
   cycle_stage: 'Starting' | 'Growing' | 'Climax' | 'End' | 'Receding';
   stage_label: string;
   risk_score: number;
   ladder: {
-    tier: string; // "一梯队（龙头）", "二梯队（中军）", "三梯队（补涨）"
+    tier: string;
     stocks: { 
       name: string; 
       code: string; 
-      price: string; // 新增：实时或参考股价
+      price: string;
       status: 'Leading' | 'Stagnant' | 'Following' | 'Weakening'; 
-      performance: string; // 涨跌幅及量能简述
-      health_score: number; // 0-100
+      performance: string;
+      health_score: number;
       logic: string 
     }[];
   }[];
@@ -32,8 +51,8 @@ export interface SectorLadderData {
     verdict: string;
     is_divergent: boolean;
   };
-  support_points: string[]; // 行情延续支撑点
-  warning_signals: string[]; // 行情终结警示信号
+  support_points: string[];
+  warning_signals: string[];
   action_advice: string;
 }
 
@@ -191,6 +210,7 @@ export interface AnalysisResult {
   timingData?: TimingEvaluation;
   hotlistData?: InstitutionalHotlist;
   ladderData?: SectorLadderData; 
+  batchTimingData?: BatchTimingResponse;
 }
 
 export interface TimingEvaluation {

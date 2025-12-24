@@ -204,11 +204,48 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     setAnalysisResult(null);
     setPeriodicResult(null);
     setError(null);
-    setActiveTab('report'); // Switch to report tab on new analysis
+    setActiveTab('report'); 
 
     const marketLabel = MARKET_OPTIONS.find(m => m.value === currentMarket)?.label || currentMarket;
     
-    // 1. Prepare Current Context with Horizon
+    // 1. Prepare Current Context with Intelligent Date Matching
+    const now = new Date();
+    const todayStr = now.toLocaleDateString('zh-CN');
+    const todayFullStr = now.toLocaleString('zh-CN');
+
+    // Logic: If there are multiple entries today, identify the most recent and the cross-day one.
+    // journal[0] is always the most recent snapshot saved.
+    const lastSessionEntry = journal.length > 0 ? journal[0] : null;
+    
+    // Find the last entry that is NOT on the same calendar day as today
+    const lastDayEntry = journal.find(j => new Date(j.timestamp).toLocaleDateString('zh-CN') !== todayStr);
+
+    let historyContext = "这是该账户的首次复盘分析。";
+
+    if (lastSessionEntry) {
+      const lastSessionTime = new Date(lastSessionEntry.timestamp).toLocaleString('zh-CN');
+      const isSameDay = new Date(lastSessionEntry.timestamp).toLocaleDateString('zh-CN') === todayStr;
+      
+      historyContext = `
+      【历史记录上下文】
+      - 当前系统时间: ${todayFullStr}
+      - 基准对比快照 (${isSameDay ? '今日早前' : '历史最近'}): ${lastSessionTime}
+      - 基准快照总资产: ${lastSessionEntry.snapshot.totalAssets} 元
+      `;
+
+      if (isSameDay && lastDayEntry) {
+        const lastDayTime = new Date(lastDayEntry.timestamp).toLocaleString('zh-CN');
+        historyContext += `- 上一交易日(历史跨天)参考记录: ${lastDayTime} (资产: ${lastDayEntry.snapshot.totalAssets} 元)\n`;
+      }
+
+      historyContext += `\n【历史持仓对比基准】\n`;
+      historyContext += `${lastSessionEntry.snapshot.holdings.map(h => `- ${h.name} (${h.code}): 持仓:${h.volume}, 盈亏率:${h.profitRate}`).join('\n')}\n`;
+      
+      if (lastSessionEntry.analysis?.content) {
+        historyContext += `\n【上期建议追溯】\n"""\n${lastSessionEntry.analysis.content.substring(0, 1000)}\n"""\n`;
+      }
+    }
+
     const getHorizonLabel = (h: string | undefined) => {
       if (h === 'short') return '短线(1月内)';
       if (h === 'long') return '长线(3月+)';
@@ -216,79 +253,52 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     };
 
     const currentHoldingsText = snapshot.holdings.map((h, i) => 
-      `${i+1}. ${h.name} (${h.code}) [${getHorizonLabel(h.horizon)}]: 持仓${h.volume}股, 成本${h.costPrice}, 现价${h.currentPrice}, 浮动盈亏 ${h.profit} (${h.profitRate})`
+      `${i+1}. ${h.name} (${h.code}) [${getHorizonLabel(h.horizon)}]: 持仓${h.volume}股, 成本${h.costPrice}, 现价${h.currentPrice}, 盈亏 ${h.profit} (${h.profitRate})`
     ).join('\n');
-
-    // 2. Prepare Historical Context
-    const previousEntry = journal.length > 0 ? journal[0] : null;
-    let historyContext = "这是该账户的首次复盘分析。";
-
-    if (previousEntry) {
-      const prevDate = new Date(previousEntry.timestamp).toLocaleDateString();
-      const prevHoldingsText = previousEntry.snapshot.holdings.map(h => 
-        `- ${h.name} (${h.code}): Vol:${h.volume}, PnL:${h.profitRate}`
-      ).join('\n');
-      
-      const prevAdvice = previousEntry.analysis?.content 
-        ? previousEntry.analysis.content.substring(0, 1500) // Limit tokens
-        : "无历史建议";
-
-      historyContext = `
-      【历史复盘上下文 (上一交易日: ${prevDate})】
-      1. 上期总资产: ${previousEntry.snapshot.totalAssets} (当前变动: ${(snapshot.totalAssets - previousEntry.snapshot.totalAssets).toFixed(2)})
-      2. 上期持仓快照:
-      ${prevHoldingsText}
-      3. 上期AI核心建议回顾:
-      """
-      ${prevAdvice}
-      """
-      `;
-    }
 
     const prompt = `
       请作为一位【专属私人基金经理】对我当前的 ${marketLabel} 账户进行【连续性】复盘分析。
       
       你不只是分析今天，更要结合历史上下文，跟踪策略的执行情况和市场验证情况。
+      
+      【重要：时序逻辑】
+      - 如果基准记录是“今日早前”（如午盘），请侧重分析午后至今的动态博弈。
+      - 如果基准记录是“上一交易日”，请进行完整的跨日复盘（如 2025-12-24 对比 2025-12-23）。
 
       === 历史档案 ===
       ${historyContext}
 
-      === 今日账户概况 ===
+      === 今日最新概况 ===
       - 总资产: ${snapshot.totalAssets} 元
-      - 真实仓位占比: ${snapshot.positionRatio || '未知'}% (请以此数值为准评估风险，不要只看持仓市值)
-      - 交易日期: ${snapshot.date}
-      - 详细持仓 (注意每只股票的【周期标记】):
+      - 真实仓位占比: ${snapshot.positionRatio || '未知'}%
+      - 记录时间: ${todayFullStr}
+      - 详细持仓:
       ${currentHoldingsText}
       
       【核心任务】
-      请结合联网搜索（获取最新行情、公告、舆情），输出 Markdown 报告 (严格遵守 H2 标题结构):
+      请结合联网搜索最新的行情动向，输出报告 (H2 标题):
 
-      ## 1. 昨策回顾与执行验证 (Review)
-      - **对比分析**: 对比"上期持仓"与"今日持仓"，判断我是否执行了上期的建议？(例如：上期建议减仓某股，我是否减了？)
-      - **评分**: 对我的操作执行力打分 (0-10分)。
+      ## 1. 昨策回顾与执行力审计 (Review)
+      - **跨度分析**: 明确指出这是“跨日对比”还是“盘中持续观察”。
+      - **验证**: 上期建议是否被执行？资产变动是因为市场波动还是操作失误？
+      - **评分**: 执行力评分 (0-10分)。
 
-      ## 2. 盈亏诊断与心理按摩 (Diagnosis)
-      - 基于成本价和现价，判断当前是获利回吐、深套、还是刚刚起涨？
-      - 针对当前的盈亏比例和**仓位占比 (${snapshot.positionRatio}%)**，给出风险评估和心理建议。
+      ## 2. 盈亏诊断与实战压力 (Diagnosis)
+      - 基于成本/现价，分析持仓处于什么技术周期。
+      - 针对**仓位占比 (${snapshot.positionRatio}%)** 评估整体账户抗风险能力。
       
-      ## 3. K线与量能形态 (Technical)
-      - **K线形态**: 识别今日收盘后的最新形态。
-      - **成交量分析 (Volume)**: 【必须】指出当前是“放量” (Volume Surge) 还是“缩量” (Volume Contraction)，并解读其含义（如：缩量下跌暗示抛压衰竭）。
-      - **动态调整**: 必须更新每一只持仓的【止盈价 (Target Sell)】和【止损价 (Stop Loss)】。
+      ## 3. 技术形态与动态点位 (Technical)
+      - **量能分析**: 【必须】指出是“放量”还是“缩量”并合理解释。
+      - **锚点**: 必须重新核准每一只持仓的【止盈价】和【止损价】。
 
-      ## 4. 实战操作建议 (Action)
-      - **策略区分**: 请严格根据每只股票的【周期标记】给出建议：
-         - **短线**: 重点关注技术面破位和情绪，止损要窄，不恋战。
-         - **中线**: 关注波段趋势和资金流向。
-         - **长线**: 忽略短期噪音，重点评估基本面逻辑是否改变，止损可适当放宽。
-      - 给出明确指令：【加仓 / 减仓 / 做T / 清仓 / 锁仓】。
-      - 如果我上期没听建议导致亏损扩大，请给出补救措施。
+      ## 4. 实战指令 (Action)
+      - **针对性**: 根据股票【周期标记】给出犀利指令。
+      - 指令含：【加仓 / 减仓 / 做T / 清仓 / 锁仓】。
 
       ## 5. 账户总方针 (Strategy)
-      - 评估整体仓位的风险敞口。
-      - 结合昨天的策略，更新今天的总方针。
+      - 更新账户总防御/进攻方针。
 
-      请语言简练、犀利，具有连贯性，像一个长期陪伴的导师。
+      请像一位长期跟踪我账户的导师，语言要专业且具有连贯记忆。
     `;
 
     try {
@@ -1003,7 +1013,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                     <th className="px-4 py-3">持仓量</th>
                     <th className="px-4 py-3">成本价</th>
                     <th className="px-4 py-3">现价</th>
-                    <th className="px-4 py-3">浮动盈亏</th>
+                    <th className="px-4 py-3">盈亏</th>
                     <th className="px-4 py-3 text-right">操作</th>
                  </tr>
               </thead>
@@ -1091,7 +1101,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
         {/* Action Bar */}
         <div className="flex flex-col sm:flex-row justify-end items-center gap-4 border-t border-slate-100 pt-6">
-           {/* Periodic Review Actions */}
            <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
               <span className="text-xs font-bold text-slate-500 px-2 uppercase flex items-center gap-1">
                  <Calendar className="w-3 h-3" /> 阶段复盘
@@ -1119,7 +1128,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
            >
              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <TrendingUp className="w-5 h-5" />}
-             {loading ? 'AI 复盘中...' : '开始连续性复盘 (昨日 vs 今日)'}
+             {loading ? 'AI 复盘中...' : '开始连续性复盘 (智能对比历史)'}
            </button>
         </div>
       </div>
@@ -1162,7 +1171,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
               </button>
            </div>
            
-           {/* Custom Rendered Content */}
            <div className="bg-slate-50/50 min-h-[400px]">
              {activeTab === 'report' && analysisResult ? (
                 renderReportContent(analysisResult.content)
@@ -1170,8 +1178,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                 renderPeriodicDashboard(periodicResult.periodicData)
              ) : (
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                   
-                   {/* 1. Historical Asset Trend (Full Width) */}
                    <div className="md:col-span-2 lg:col-span-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                       <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
                         <LineChartIcon className="w-4 h-4 text-indigo-500"/> 资金净值与盈亏走势 (Trend Analysis)
@@ -1198,7 +1204,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                       </div>
                    </div>
 
-                   {/* 2. Horizon Allocation */}
                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                       <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
                         <Clock className="w-4 h-4 text-violet-500"/> 投资周期分布 (Time Horizon)
@@ -1226,7 +1231,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                       </div>
                    </div>
 
-                   {/* 3. Market Value Allocation */}
                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                       <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
                         <PieChartIcon className="w-4 h-4 text-blue-500"/> 仓位分布 (Market Value)
@@ -1257,7 +1261,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                       </div>
                    </div>
 
-                   {/* 4. Profit/Loss Distribution */}
                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                       <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
                         <BarChart3 className="w-4 h-4 text-emerald-500"/> 单标的盈亏分布 (Profit/Loss)
@@ -1279,7 +1282,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                          </ResponsiveContainer>
                       </div>
                    </div>
-
                 </div>
              )}
            </div>
@@ -1292,91 +1294,86 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
         </div>
       )}
 
-      {/* --- TRADING PLAN DRAWER (Moved to Bottom) --- */}
-        {isPlanOpen && (
-           <div className="mt-8 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden animate-slide-up shadow-inner" id="trading-plan-section">
-              <div className="px-6 py-4 bg-white border-b border-slate-200 flex justify-between items-center">
-                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                   <ListTodo className="w-5 h-5 text-emerald-600"/>
-                   我的交易计划 (Trading Plans)
-                 </h3>
-                 <div className="flex items-center gap-2">
-                   <button onClick={handleExportPlanMD} className="text-xs flex items-center gap-1 text-slate-500 hover:text-indigo-600 border border-slate-200 rounded px-2 py-1 bg-white">
-                      <FileText className="w-3 h-3"/> 导出MD
-                   </button>
-                   <button onClick={handleExportPlanCSV} className="text-xs flex items-center gap-1 text-slate-500 hover:text-green-600 border border-slate-200 rounded px-2 py-1 bg-white">
-                      <FileSpreadsheet className="w-3 h-3"/> 导出Excel
-                   </button>
-                   <span className="text-xs text-slate-400 ml-2 border-l border-slate-200 pl-2">勾选以确认完成情况</span>
-                 </div>
-              </div>
-              <div className="p-4 space-y-6 max-h-[600px] overflow-y-auto">
-                 {tradingPlans.length === 0 ? (
-                    <div className="text-center py-8 text-slate-400">暂无交易计划，请在分析报告中生成。</div>
-                 ) : (
-                    tradingPlans.map((plan) => (
-                       <div key={plan.id} className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-                          <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
-                             <span className="font-bold text-slate-700 text-sm">{plan.target_date} (计划)</span>
-                             <button onClick={() => deletePlan(plan.id)} className="text-slate-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5"/></button>
-                          </div>
-                          <div className="p-4">
-                             <div className="mb-3 text-xs text-slate-500 bg-slate-50 p-2 rounded italic">
-                                策略总纲: {plan.strategy_summary}
-                             </div>
-                             <div className="space-y-2">
-                                {plan.items.map((item) => {
-                                   const isCompleted = item.status === 'completed';
-                                   const isSkipped = item.status === 'skipped';
-                                   const isFailed = item.status === 'failed';
-                                   
-                                   let statusColor = "bg-white border-slate-200";
-                                   if (isCompleted) statusColor = "bg-emerald-50 border-emerald-200";
-                                   if (isSkipped) statusColor = "bg-slate-50 border-slate-200 opacity-60";
-                                   if (isFailed) statusColor = "bg-rose-50 border-rose-200";
+      {isPlanOpen && (
+         <div className="mt-8 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden animate-slide-up shadow-inner" id="trading-plan-section">
+            <div className="px-6 py-4 bg-white border-b border-slate-200 flex justify-between items-center">
+               <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                 <ListTodo className="w-5 h-5 text-emerald-600"/>
+                 我的交易计划 (Trading Plans)
+               </h3>
+               <div className="flex items-center gap-2">
+                 <button onClick={handleExportPlanMD} className="text-xs flex items-center gap-1 text-slate-500 hover:text-indigo-600 border border-slate-200 rounded px-2 py-1 bg-white">
+                    <FileText className="w-3 h-3"/> 导出MD
+                 </button>
+                 <button onClick={handleExportPlanCSV} className="text-xs flex items-center gap-1 text-slate-500 hover:text-green-600 border border-slate-200 rounded px-2 py-1 bg-white">
+                    <FileSpreadsheet className="w-3 h-3"/> 导出Excel
+                 </button>
+               </div>
+            </div>
+            <div className="p-4 space-y-6 max-h-[600px] overflow-y-auto">
+               {tradingPlans.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400">暂无交易计划，请在分析报告中生成。</div>
+               ) : (
+                  tradingPlans.map((plan) => (
+                     <div key={plan.id} className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
+                           <span className="font-bold text-slate-700 text-sm">{plan.target_date} (计划)</span>
+                           <button onClick={() => deletePlan(plan.id)} className="text-slate-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5"/></button>
+                        </div>
+                        <div className="p-4">
+                           <div className="mb-3 text-xs text-slate-500 bg-slate-50 p-2 rounded italic">
+                              策略总纲: {plan.strategy_summary}
+                           </div>
+                           <div className="space-y-2">
+                              {plan.items.map((item) => {
+                                 const isCompleted = item.status === 'completed';
+                                 const isSkipped = item.status === 'skipped';
+                                 const isFailed = item.status === 'failed';
+                                 
+                                 let statusColor = "bg-white border-slate-200";
+                                 if (isCompleted) statusColor = "bg-emerald-50 border-emerald-200";
+                                 if (isSkipped) statusColor = "bg-slate-50 border-slate-200 opacity-60";
+                                 if (isFailed) statusColor = "bg-rose-50 border-rose-200";
 
-                                   return (
-                                      <div key={item.id} className={`flex items-start gap-3 p-3 rounded border ${statusColor} transition-all`}>
-                                         <button 
-                                            onClick={() => togglePlanItemStatus(plan.id, item.id)}
-                                            className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                                               isCompleted ? 'bg-emerald-500 border-emerald-600 text-white' : 
-                                               isFailed ? 'bg-rose-500 border-rose-600 text-white' :
-                                               isSkipped ? 'bg-slate-300 border-slate-400 text-slate-500' :
-                                               'bg-white border-slate-300 hover:border-emerald-400'
-                                            }`}
-                                         >
-                                            {isCompleted && <Check className="w-3.5 h-3.5" />}
-                                            {isFailed && <X className="w-3.5 h-3.5" />}
-                                            {isSkipped && <MoreHorizontal className="w-3.5 h-3.5" />}
-                                         </button>
-                                         <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                               <span className={`text-sm font-bold ${isCompleted ? 'text-emerald-800' : isFailed ? 'text-rose-800' : 'text-slate-800'}`}>{item.symbol}</span>
-                                               <span className={`text-xs px-1.5 rounded uppercase font-medium border ${
-                                                  item.action === 'buy' ? 'bg-rose-100 text-rose-700 border-rose-200' :
-                                                  item.action === 'sell' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                                                  'bg-slate-100 text-slate-700 border-slate-200'
-                                               }`}>{item.action === 't_trade' ? '做T' : item.action}</span>
-                                            </div>
-                                            <div className="text-xs text-slate-600">
-                                               <span className="font-medium">目标:</span> {item.price_target} <span className="text-slate-300 mx-1">|</span> {item.reason}
-                                            </div>
-                                         </div>
-                                         <div className="text-[10px] text-slate-400 uppercase font-medium self-center">
-                                            {item.status}
-                                         </div>
-                                      </div>
-                                   );
-                                })}
-                             </div>
-                          </div>
-                       </div>
-                    ))
-                 )}
-              </div>
-           </div>
-        )}
+                                 return (
+                                    <div key={item.id} className={`flex items-start gap-3 p-3 rounded border ${statusColor} transition-all`}>
+                                       <button 
+                                          onClick={() => togglePlanItemStatus(plan.id, item.id)}
+                                          className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                                             isCompleted ? 'bg-emerald-500 border-emerald-600 text-white' : 
+                                             isFailed ? 'bg-rose-500 border-rose-600 text-white' :
+                                             isSkipped ? 'bg-slate-300 border-slate-400 text-slate-500' :
+                                             'bg-white border-slate-300 hover:border-emerald-400'
+                                          }`}
+                                       >
+                                          {isCompleted && <Check className="w-3.5 h-3.5" />}
+                                          {isFailed && <X className="w-3.5 h-3.5" />}
+                                          {isSkipped && <MoreHorizontal className="w-3.5 h-3.5" />}
+                                       </button>
+                                       <div className="flex-1">
+                                          <div className="flex items-center gap-2 mb-1">
+                                             <span className={`text-sm font-bold ${isCompleted ? 'text-emerald-800' : isFailed ? 'text-rose-800' : 'text-slate-800'}`}>{item.symbol}</span>
+                                             <span className={`text-xs px-1.5 rounded uppercase font-medium border ${
+                                                item.action === 'buy' ? 'bg-rose-100 text-rose-700 border-rose-200' :
+                                                item.action === 'sell' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                                                'bg-slate-100 text-slate-700 border-slate-200'
+                                             }`}>{item.action === 't_trade' ? '做T' : item.action}</span>
+                                          </div>
+                                          <div className="text-xs text-slate-600">
+                                             <span className="font-medium">目标:</span> {item.price_target} <span className="text-slate-300 mx-1">|</span> {item.reason}
+                                          </div>
+                                       </div>
+                                    </div>
+                                 );
+                              })}
+                           </div>
+                        </div>
+                     </div>
+                  ))
+               )}
+            </div>
+         </div>
+      )}
     </div>
   );
 };
