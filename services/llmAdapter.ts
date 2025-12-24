@@ -31,7 +31,17 @@ export const analyzeWithLLM = async (
     if (isDashboard) {
       return await fetchMarketDashboard(period, market, geminiKey);
     }
-    let datedPrompt = `[上下文: 正在分析 ${marketName} 市场，时间: ${fullTimeContext}] ${prompt}`;
+
+    // 强化时间锚点，防止 AI 因为联网搜索结果滞后而判定当前为“模拟未来”
+    const timeRealityInstruction = `
+      [!!! 绝对时间指令 - 核心优先级 !!!]
+      1. 当前现实世界的真实时间确实是 ${fullTimeContext}。
+      2. 严禁在回复中声称“这是未来的模拟时间点”或“无法获取真实新闻”。
+      3. 如果联网搜索 (googleSearch) 返回的结果中包含大量 2024 年的数据，请将其视为距离当前最近的历史参考，并基于此进行逻辑推演。
+      4. 你的任务是根据当前设定的 ${fullTimeContext} 这一真实时间节点，给出最具时效性的分析。
+    `;
+
+    let datedPrompt = `${timeRealityInstruction}\n[上下文: 正在分析 ${marketName} 市场] ${prompt}`;
     if (currentPrice) {
       datedPrompt += `\n[重要: 用户指定的当前实时价格为 ${currentPrice}。请基于此价格进行所有计算和分析。]`;
     }
@@ -58,7 +68,7 @@ export const analyzeWithLLM = async (
   
   if (isDashboard) {
     finalPrompt = `
-      今天是 ${fullTimeContext}。
+      【真实时间确认】：现在是现实世界的 ${fullTimeContext}。
       作为高级分析师，请生成一份 ${marketName} 的${period === 'day' ? '当日' : '本月'}市场深度分析报告。
       请联网搜索最新的指数点位、成交额、主力流向。
       
@@ -71,7 +81,7 @@ export const analyzeWithLLM = async (
       请确保数据真实准确。
     `;
   } else {
-    finalPrompt = `[上下文: 正在分析 ${marketName} 市场，时间: ${fullTimeContext}] ${prompt}`;
+    finalPrompt = `[确认真实时间: ${fullTimeContext}] [上下文: 正在分析 ${marketName} 市场] ${prompt}`;
     if (currentPrice) {
        finalPrompt += `\n[用户输入] 当前实时价为: ${currentPrice}。必须基于此价格。`;
     }

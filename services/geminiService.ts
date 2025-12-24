@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { AnalysisResult, ModelProvider, MarketType, MarketDashboardData, HoldingsSnapshot, PeriodicReviewData, PlanItem } from "../types";
 
@@ -55,7 +54,76 @@ const sectorLadderSchema = {
   required: ["sector_name", "cycle_stage", "stage_label", "risk_score", "ladder", "structural_integrity", "support_points", "warning_signals", "action_advice"]
 };
 
-// ... (Existing schemas remain same)
+// Robust JSON Parser
+const robustParse = (text: string): any => {
+  if (!text) return null;
+  let clean = text.trim();
+  clean = clean.replace(/^```[a-z]*\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
+  const firstBrace = clean.search(/[{[]/);
+  const lastIndex = Math.max(clean.lastIndexOf('}'), clean.lastIndexOf(']'));
+  if (firstBrace !== -1 && lastIndex !== -1) clean = clean.substring(firstBrace, lastIndex + 1);
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    return null;
+  }
+};
+
+export const fetchGeminiAnalysis = async (prompt: string, isComplex: boolean, apiKey: string): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey });
+  const model = isComplex ? GEMINI_MODEL_COMPLEX : GEMINI_MODEL_PRIMARY;
+
+  const response = await ai.models.generateContent({
+    model: model,
+    contents: prompt,
+    config: {
+      tools: [{ googleSearch: {} }]
+    }
+  });
+
+  return {
+    content: response.text || "",
+    groundingSource: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
+      uri: chunk.web?.uri || "",
+      title: chunk.web?.title || "网页来源"
+    })),
+    timestamp: Date.now(),
+    modelUsed: ModelProvider.GEMINI_INTL
+  };
+};
+
+export const fetchMarketDashboard = async (period: 'day' | 'month', market: MarketType, apiKey: string): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey });
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+  
+  const prompt = `
+    [强制确认]: 现在是现实世界的 ${dateStr}。
+    生成一份 ${market} 市场 ${period === 'day' ? '今日' : '本月'} 的深度研报。包含指数、成交量、资金轮动、情绪评分。请联网搜索最新数据。
+  `;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL_PRIMARY,
+    contents: prompt,
+    config: {
+      tools: [{ googleSearch: {} }],
+      responseMimeType: "application/json",
+      responseSchema: marketDashboardSchema
+    }
+  });
+
+  const parsed = robustParse(response.text || "{}");
+
+  return {
+    content: response.text || "",
+    timestamp: Date.now(),
+    modelUsed: ModelProvider.GEMINI_INTL,
+    isStructured: true,
+    structuredData: parsed,
+    market
+  };
+};
+
 const marketDashboardSchema = {
   type: Type.OBJECT,
   properties: {
@@ -189,73 +257,15 @@ const tradingPlanSchema = {
   required: ["items", "summary"]
 };
 
-// Robust JSON Parser
-const robustParse = (text: string): any => {
-  if (!text) return null;
-  let clean = text.trim();
-  clean = clean.replace(/^```[a-z]*\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
-  const firstBrace = clean.search(/[{[]/);
-  const lastIndex = Math.max(clean.lastIndexOf('}'), clean.lastIndexOf(']'));
-  if (firstBrace !== -1 && lastIndex !== -1) clean = clean.substring(firstBrace, lastIndex + 1);
-  try {
-    return JSON.parse(clean);
-  } catch (e) {
-    return null;
-  }
-};
-
-export const fetchGeminiAnalysis = async (prompt: string, isComplex: boolean, apiKey: string): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey });
-  const model = isComplex ? GEMINI_MODEL_COMPLEX : GEMINI_MODEL_PRIMARY;
-
-  const response = await ai.models.generateContent({
-    model: model,
-    contents: prompt,
-    config: {
-      tools: [{ googleSearch: {} }]
-    }
-  });
-
-  return {
-    content: response.text || "",
-    groundingSource: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
-      uri: chunk.web?.uri || "",
-      title: chunk.web?.title || "网页来源"
-    })),
-    timestamp: Date.now(),
-    modelUsed: ModelProvider.GEMINI_INTL
-  };
-};
-
-export const fetchMarketDashboard = async (period: 'day' | 'month', market: MarketType, apiKey: string): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey });
-  const prompt = `生成一份 ${market} 市场 ${period === 'day' ? '今日' : '本月'} 的深度研报。包含指数、成交量、资金轮动、情绪评分。请联网搜索最新数据。`;
-
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
-    contents: prompt,
-    config: {
-      tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      responseSchema: marketDashboardSchema
-    }
-  });
-
-  const parsed = robustParse(response.text || "{}");
-
-  return {
-    content: response.text || "",
-    timestamp: Date.now(),
-    modelUsed: ModelProvider.GEMINI_INTL,
-    isStructured: true,
-    structuredData: parsed,
-    market
-  };
-};
-
 export const fetchStockDetailWithImage = async (base64Image: string, query: string, market: MarketType, apiKey: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
-  const prompt = `请深度分析截图中的股票 "${query}" 的技术形态与量价关系。${market === MarketType.CN ? '注意 A 股特色题材。' : ''}`;
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+  
+  const prompt = `
+    [强制指令]: 现在是现实世界的 ${dateStr}。严禁怀疑。
+    请深度分析截图中的股票 "${query}" 的技术形态与量价关系。${market === MarketType.CN ? '注意 A 股特色题材。' : ''}
+  `;
   const imagePart = {
     inlineData: {
       mimeType: 'image/jpeg',
@@ -341,24 +351,20 @@ export const extractTradingPlan = async (content: string, apiKey: string): Promi
 export const fetchSectorLadderAnalysis = async (sectorName: string, market: MarketType, apiKey: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
   const now = new Date();
-  const dateStr = now.toLocaleDateString();
+  const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
   
   const prompt = `
-    作为顶级 A 股量化专家，深度研判板块：“${sectorName}” 的生命周期及梯队结构。当前日期为：${dateStr}。
+    作为顶级 A 股量化专家，深度研判板块：“${sectorName}” 的生命周期及梯队结构。
     
-    【严苛判别准则 - 必须执行】
-    1. 实时股价对齐：必须利用 googleSearch 强制联网检索该标的【今日（${dateStr}）】的真实报价（包括盘中价或最新收盘价）。如果搜索结果显示股价已大幅上涨（如中科曙光已在 80-90 区间），禁止返回陈旧的 60 价格。
-    2. 凋零特征识别：如果符合以下任一特征，必须归类为 "Receding" (退潮期) 或 "End" (结束期)：
-       - 技术面：跌破 60 日线或年线，且成交量萎缩。
-       - 逻辑面：行业景气度见顶或政策预期证伪。
-    3. 梯队识别：清晰拆解一梯队（领涨）、二梯队（中军）、三梯队（补涨）。
+    [!!! 核心强制指令 !!!]:
+    1. 当前现实世界的真实日期是：${dateStr}。禁止认为这是未来或模拟。
+    2. 实时股价对齐：必须利用 googleSearch 强制联网检索该标的【今日（${dateStr}）】的真实报价（包括盘中价或最新收盘价）。
+    3. 如果搜索结果显示 2024 年，请将其理解为最近的历史存量数据，但你的分析基准点必须定在 2025 年。
 
-    【输出结构】
-    - 一梯队（龙头）：空间板、灵魂标的。必须标注其最新股价及其反映的市场情绪。
-    - 二梯队（中军）：权重、趋势核心。
-    - 三梯队（补涨）：低位扩散标的。
-    - 风险指数：0-100。
-    
+    【严苛判别准则】
+    - 凋零特征识别：如果跌破 60 日线或年线，且成交量萎缩，归类为 "Receding" (退潮期)。
+    - 梯队识别：清晰拆解一梯队（领涨）、二梯队（中军）、三梯队（补涨）。
+
     请输出严格的 JSON。
   `;
 
