@@ -4,10 +4,9 @@ import { HashRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { Disclaimer } from './components/Disclaimer';
 import { MarketAnalysis } from './components/MarketAnalysis';
 import { StockAnalysis } from './components/StockAnalysis';
-import { InstitutionalMonitor } from './components/InstitutionalMonitor';
 import { DailyCapitalReport } from './components/DailyCapitalReport';
 import { HoldingsReview } from './components/HoldingsReview';
-import { OpportunityMining } from './components/OpportunityMining';
+import { OpportunityMining } from './components/OpportunityMining'; 
 import { SectorCycleAnalysis } from './components/SectorCycleAnalysis'; 
 import { BatchTimingAnalysis } from './components/BatchTimingAnalysis';
 import { SettingsModal } from './components/SettingsModal';
@@ -109,12 +108,21 @@ const App: React.FC = () => {
                 <Route path="/" element={<Navigate to="/market" replace />} />
                 <Route path="/market" element={<MarketAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} savedResult={marketResult} onResultUpdate={setMarketResult} savedPeriod={marketPeriod} onPeriodUpdate={setMarketPeriod} />} />
                 <Route path="/holdings" element={<HoldingsReview currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
-                <Route path="/lhb" element={<DailyCapitalReport currentMarket={selectedMarket} />} />
+                <Route path="/lhb" element={
+                  <DailyCapitalReport 
+                    currentMarket={selectedMarket} 
+                    currentModel={selectedModel}
+                    settings={userSettings}
+                    savedStockResult={stockResult}
+                    onStockResultUpdate={setStockResult}
+                    savedStockQuery={stockQuery}
+                    onStockQueryUpdate={setStockQuery}
+                  />
+                } />
+                <Route path="/stock" element={<StockAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} savedResult={stockResult} onResultUpdate={setStockResult} savedQuery={stockQuery} onQueryUpdate={setStockQuery} />} />
+                <Route path="/discovery" element={<OpportunityMining currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/sector-cycle" element={<SectorCycleAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/batch-timing" element={<BatchTimingAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
-                <Route path="/stock" element={<StockAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} savedResult={stockResult} onResultUpdate={setStockResult} savedQuery={stockQuery} onQueryUpdate={setStockQuery} />} />
-                <Route path="/vane" element={<InstitutionalMonitor currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
-                <Route path="/mining" element={<OpportunityMining currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
               </Routes>
               
               <footer className="mt-12 border-t border-slate-200 pt-6 text-center text-slate-400 text-sm pb-8">
