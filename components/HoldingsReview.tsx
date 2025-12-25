@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry, PeriodicReviewData, DailyTradingPlan, PlanItem } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
@@ -95,6 +96,18 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (currentModel === ModelProvider.HUNYUAN_CN && !settings.hunyuanKey) {
+      setError("您当前选择了腾讯混元模型，请配置 Hunyuan API Key 以使用图片识别功能。");
+      onOpenSettings?.();
+      return;
+    }
+    
+    if (currentModel === ModelProvider.GEMINI_INTL && !settings.geminiKey) {
+      setError("您当前选择了 Gemini 模型，请配置 Gemini API Key 以使用图片识别功能。");
+      onOpenSettings?.();
+      return;
+    }
+
     setParsing(true);
     setError(null);
 
@@ -106,9 +119,9 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           let parsedData: HoldingsSnapshot;
 
           if (currentModel === ModelProvider.HUNYUAN_CN) {
-             parsedData = await analyzeImageWithExternal(ModelProvider.HUNYUAN_CN, base64String, "");
+             parsedData = await analyzeImageWithExternal(ModelProvider.HUNYUAN_CN, base64String, settings.hunyuanKey!);
           } else {
-             parsedData = await parseBrokerageScreenshot(base64String, "");
+             parsedData = await parseBrokerageScreenshot(base64String, settings.geminiKey);
           }
           
           const holdingsWithHorizon = parsedData.holdings.map(h => ({ ...h, horizon: 'medium' as const }));
@@ -317,7 +330,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     setGeneratingPlan(true);
     
     try {
-      const { items, summary } = await extractTradingPlan(analysisResult.content, "");
+      const { items, summary } = await extractTradingPlan(analysisResult.content, settings.geminiKey);
       
       const newPlan: DailyTradingPlan = {
         id: crypto.randomUUID(),
@@ -489,7 +502,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     }
 
     try {
-      const result = await fetchPeriodicReview(reviewJournals, label, currentMarket, "");
+      const result = await fetchPeriodicReview(reviewJournals, label, currentMarket, settings.geminiKey);
       setPeriodicResult(result);
     } catch (err: any) {
       setError(err.message);
@@ -589,6 +602,19 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     });
 
     return history;
+  };
+
+  const getHorizonData = () => {
+    const counts = { short: 0, medium: 0, long: 0 };
+    snapshot.holdings.forEach(h => {
+      const type = h.horizon || 'medium';
+      counts[type]++;
+    });
+    return [
+      { name: '短线 (Short)', value: counts.short, color: HORIZON_COLORS.short },
+      { name: '中线 (Medium)', value: counts.medium, color: HORIZON_COLORS.medium },
+      { name: '长线 (Long)', value: counts.long, color: HORIZON_COLORS.long },
+    ].filter(d => d.value > 0);
   };
 
   // --- Pagination Logic ---
@@ -1213,7 +1239,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                    <div className="md:col-span-2 lg:col-span-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                       <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2"><LineChartIcon className="w-4 h-4 text-indigo-500"/> 资金净值与盈亏走势</h4>
                       <div className="h-72 w-full">
-                         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={getTrendData()}>
                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                <XAxis dataKey="date" tick={{fontSize: 12}} />

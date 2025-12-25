@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
 import { fetchInstitutionalInsights } from '../services/institutionService';
-import { Building2, Loader2, Search, Briefcase, Globe, Zap, Users, BarChart3, TrendingUp, AlertTriangle, ArrowRightCircle, Activity, LayoutGrid, Info, Target } from 'lucide-react';
+import { Building2, Loader2, Search, Briefcase, Globe, Zap, Users, BarChart3, TrendingUp, AlertTriangle, ArrowRightCircle, Activity, LayoutGrid, Info } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
 
@@ -47,7 +48,7 @@ export const InstitutionalMonitor: React.FC<InstitutionalMonitorProps> = ({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-20">
+    <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8 relative overflow-hidden">
          <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -130,7 +131,7 @@ export const InstitutionalMonitor: React.FC<InstitutionalMonitorProps> = ({
                     国内机构调研热度 (Domestic Surveys)
                  </h3>
                  <div className="h-60 w-full mb-6">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <ResponsiveContainer width="100%" height="100%">
                        <BarChart data={result.institutionalData.top_surveyed_sectors || []} layout="vertical" margin={{top: 5, right: 30, left: 20, bottom: 5}}>
                           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                           <XAxis type="number" hide />
