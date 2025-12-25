@@ -1,6 +1,6 @@
 
 import { ModelProvider, MarketType } from './types';
-import { LayoutDashboard, TrendingUp, NotebookPen, Radar, UserCheck, Layers, ListChecks } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, NotebookPen, Radar, UserCheck, Layers, ListChecks, Flame } from 'lucide-react';
 
 export const APP_NAME = "QuantMind A-Share Assistant";
 export const APP_VERSION = "v1.7.0";
@@ -19,6 +19,7 @@ export const MARKET_OPTIONS = [
 export const NAV_ITEMS = [
   { id: 'market', label: '市场全览', icon: LayoutDashboard },
   { id: 'holdings', label: '持仓复盘', icon: NotebookPen },
+  { id: 'lhb', label: '主力龙虎榜', icon: Flame },
   { id: 'sector-cycle', label: '板块梯队周期', icon: Layers },
   { id: 'batch-timing', label: '多股择时打分', icon: ListChecks },
   { id: 'stock', label: '个股量化', icon: TrendingUp },

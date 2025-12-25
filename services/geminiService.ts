@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { AnalysisResult, ModelProvider, MarketType, MarketDashboardData, HoldingsSnapshot, PeriodicReviewData, PlanItem } from "../types";
 
@@ -210,7 +211,7 @@ const periodicReviewSchema = {
   properties: {
     score: { type: Type.NUMBER },
     market_trend: { type: Type.STRING, enum: ["bull", "bear", "sideways"] },
-    market_summary: { type: Type.STRING },
+    market_summary: { type: Type.STRING, description: "包含对大盘（如上证指数）的大局解读" },
     highlight: {
       type: Type.OBJECT,
       properties: { title: { type: Type.STRING }, description: { type: Type.STRING } },
@@ -231,9 +232,21 @@ const periodicReviewSchema = {
       },
       required: ["score", "details", "good_behaviors", "bad_behaviors"]
     },
+    stock_diagnostics: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          issues: { type: Type.ARRAY, items: { type: Type.STRING }, description: "该标的具体存在的问题，如成本过高、基本面转弱、缩量阴跌等" },
+          verdict: { type: Type.STRING, description: "针对该标的的具体诊断结论，如：减仓持有、等待修复、坚决卖出" }
+        },
+        required: ["name", "issues", "verdict"]
+      }
+    },
     next_period_focus: { type: Type.ARRAY, items: { type: Type.STRING } }
   },
-  required: ["score", "market_trend", "market_summary", "highlight", "lowlight", "execution", "next_period_focus"]
+  required: ["score", "market_trend", "market_summary", "highlight", "lowlight", "execution", "stock_diagnostics", "next_period_focus"]
 };
 
 const tradingPlanSchema = {
@@ -309,16 +322,37 @@ export const parseBrokerageScreenshot = async (base64Image: string, apiKey: stri
 
 export const fetchPeriodicReview = async (journals: any[], label: string, market: MarketType, apiKey: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
-  const historyText = journals.map(j => `日期: ${new Date(j.timestamp).toLocaleDateString()}, 盈亏: ${j.snapshot?.holdings?.reduce((sum: number, h: any) => sum + (h.profit || 0), 0)}`).join('\n');
-  const prompt = `基于以下历史交易记录生成一份【${label}】的阶段性总结：\n${historyText}\n请重点分析执行力、高光点与不足点。`;
+  
+  const historyData = journals.map(j => ({
+    date: new Date(j.timestamp).toLocaleDateString(),
+    holdings: j.snapshot?.holdings?.map((h: any) => ({ name: h.name, profit: h.profit, profitRate: h.profitRate, cost: h.costPrice, price: h.currentPrice })),
+    totalProfit: j.snapshot?.holdings?.reduce((sum: number, h: any) => sum + (h.profit || 0), 0)
+  }));
+
+  const prompt = `
+    作为资深基金经理，基于以下【${label}】的历史多份持仓快照生成阶段性复盘报告。
+    
+    【核心任务】
+    1. **大局观解读**：必须利用 googleSearch 检索并分析最近【${label}】期间 A 股大盘（特别是上证指数）的走势。分析大盘对账户盈亏的影响，当前大盘处于什么博弈周期。
+    2. **深度个股审计**：不要模糊带过。请根据快照中每只股票的“成本-现价”关系及盈亏变动，点名指出哪些票存在严重问题（如：高位接盘、成本摊薄失败、逻辑证伪等）。
+    3. **知行合一审计**：分析我在这个阶段内的操作习惯，是否有“赚了就跑、套了就死扛”的散户行为。
+    
+    【历史数据】
+    ${JSON.stringify(historyData, null, 2)}
+    
+    必须输出严格的 JSON 格式。
+  `;
+
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
     contents: prompt,
     config: {
+      tools: [{ googleSearch: {} }],
       responseMimeType: "application/json",
       responseSchema: periodicReviewSchema
     }
   });
+
   const parsed = robustParse(response.text || "{}");
   return {
     content: response.text || "",
@@ -352,6 +386,7 @@ export const fetchSectorLadderAnalysis = async (sectorName: string, market: Mark
   const ai = new GoogleGenAI({ apiKey });
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+  const nextYear = now.getFullYear() + 1;
   
   const prompt = `
     作为顶级 A 股量化专家，深度研判板块：“${sectorName}” 的生命周期及梯队结构。
@@ -359,7 +394,8 @@ export const fetchSectorLadderAnalysis = async (sectorName: string, market: Mark
     [!!! 核心强制指令 !!!]:
     1. 当前现实世界的真实日期是：${dateStr}。禁止认为这是未来或模拟。
     2. 实时股价对齐：必须利用 googleSearch 强制联网检索该标的【今日（${dateStr}）】的真实报价（包括盘中价或最新收盘价）。
-    3. 如果搜索结果显示 2024 年，请将其理解为最近的历史存量数据，但你的分析基准点必须定在 2025 年。
+    3. 年度切换逻辑：现在已进入 ${now.getFullYear()} 年末，任何关于“明年”或“开门红”的预判必须以 **${nextYear} 年** 为准。
+    4. 如果搜索结果显示 2024 年，请将其理解为最近的历史存量数据，但你的分析基准点必须定在 ${now.getFullYear()} 年末及 ${nextYear} 年初。
 
     【严苛判别准则】
     - 凋零特征识别：如果跌破 60 日线或年线，且成交量萎缩，归类为 "Receding" (退潮期)。

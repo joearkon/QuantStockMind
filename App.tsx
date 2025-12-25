@@ -4,7 +4,8 @@ import { HashRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { Disclaimer } from './components/Disclaimer';
 import { MarketAnalysis } from './components/MarketAnalysis';
 import { StockAnalysis } from './components/StockAnalysis';
-import { InstitutionalHotlist } from './components/InstitutionalHotlist';
+import { InstitutionalMonitor } from './components/InstitutionalMonitor';
+import { DailyCapitalReport } from './components/DailyCapitalReport';
 import { HoldingsReview } from './components/HoldingsReview';
 import { OpportunityMining } from './components/OpportunityMining';
 import { SectorCycleAnalysis } from './components/SectorCycleAnalysis'; 
@@ -12,7 +13,7 @@ import { BatchTimingAnalysis } from './components/BatchTimingAnalysis';
 import { SettingsModal } from './components/SettingsModal';
 import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS, APP_VERSION } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
-import { Settings, BrainCircuit, Globe, FlaskConical } from 'lucide-react';
+import { Settings, BrainCircuit, FlaskConical } from 'lucide-react';
 
 const App: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<ModelProvider>(ModelProvider.GEMINI_INTL);
@@ -25,26 +26,10 @@ const App: React.FC = () => {
   const [stockResult, setStockResult] = useState<AnalysisResult | null>(null);
   const [stockQuery, setStockQuery] = useState('');
 
-  const [userSettings, setUserSettings] = useState<UserSettings>(() => {
-    const saved = localStorage.getItem('quantmind_settings');
-    let parsed: UserSettings = {};
-    if (saved) {
-      try {
-        parsed = JSON.parse(saved);
-      } catch (e) {
-        console.error("Failed to parse settings", e);
-      }
-    }
-    const injectedEnv = (window as any).__ENV__ || {};
-    return {
-      hunyuanKey: parsed.hunyuanKey || injectedEnv.VITE_HUNYUAN_API_KEY || "",
-      geminiKey: parsed.geminiKey || injectedEnv.VITE_GEMINI_API_KEY || "",
-    };
-  });
+  const [userSettings, setUserSettings] = useState<UserSettings>({});
 
   const handleSaveSettings = (newSettings: UserSettings) => {
     setUserSettings(newSettings);
-    localStorage.setItem('quantmind_settings', JSON.stringify(newSettings));
   };
 
   return (
@@ -124,10 +109,11 @@ const App: React.FC = () => {
                 <Route path="/" element={<Navigate to="/market" replace />} />
                 <Route path="/market" element={<MarketAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} savedResult={marketResult} onResultUpdate={setMarketResult} savedPeriod={marketPeriod} onPeriodUpdate={setMarketPeriod} />} />
                 <Route path="/holdings" element={<HoldingsReview currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
+                <Route path="/lhb" element={<DailyCapitalReport currentMarket={selectedMarket} />} />
                 <Route path="/sector-cycle" element={<SectorCycleAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/batch-timing" element={<BatchTimingAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/stock" element={<StockAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} savedResult={stockResult} onResultUpdate={setStockResult} savedQuery={stockQuery} onQueryUpdate={setStockQuery} />} />
-                <Route path="/vane" element={<InstitutionalHotlist currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} />} />
+                <Route path="/vane" element={<InstitutionalMonitor currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/mining" element={<OpportunityMining currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
               </Routes>
               

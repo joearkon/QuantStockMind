@@ -98,6 +98,7 @@ export interface MarketIndex {
   value: string;
   change: string;
   direction: 'up' | 'down';
+  percent: string;
 }
 
 export interface MarketVolumeData {
@@ -121,7 +122,31 @@ export interface PeriodicReviewData {
     good_behaviors: string[];
     bad_behaviors: string[];
   };
+  stock_diagnostics: {
+    name: string;
+    issues: string[];
+    verdict: string;
+  }[];
   next_period_focus: string[];
+}
+
+export interface CapitalFlowResult {
+  summary: string;
+  total_main_inflow: string;
+  market_sentiment_tag: string;
+  lhb_list: LHBEntry[];
+  sector_flow_ranking: { name: string; value: number; type: 'in' | 'out' }[];
+  money_quality_analysis: string;
+}
+
+export interface LHBEntry {
+  name: string;
+  code: string;
+  net_buy: string;
+  institutional_buy_count: number;
+  hot_money_participation: string;
+  logic: string;
+  impact_level: 'High' | 'Medium' | 'Low';
 }
 
 export interface OpportunityResponse {
@@ -211,6 +236,7 @@ export interface AnalysisResult {
   hotlistData?: InstitutionalHotlist;
   ladderData?: SectorLadderData; 
   batchTimingData?: BatchTimingResponse;
+  capitalFlowData?: CapitalFlowResult;
 }
 
 export interface TimingEvaluation {

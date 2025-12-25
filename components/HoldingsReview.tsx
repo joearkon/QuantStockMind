@@ -3,7 +3,7 @@ import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapsh
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { parseBrokerageScreenshot, fetchPeriodicReview, extractTradingPlan } from '../services/geminiService';
 import { analyzeImageWithExternal } from '../services/externalLlmService';
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle, Scale, Coins } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle, Scale, Coins, ShieldAlert, Microscope, MessageSquareQuote } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 
@@ -95,18 +95,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (currentModel === ModelProvider.HUNYUAN_CN && !settings.hunyuanKey) {
-      setError("您当前选择了腾讯混元模型，请配置 Hunyuan API Key 以使用图片识别功能。");
-      onOpenSettings?.();
-      return;
-    }
-    
-    if (currentModel === ModelProvider.GEMINI_INTL && !settings.geminiKey) {
-      setError("您当前选择了 Gemini 模型，请配置 Gemini API Key 以使用图片识别功能。");
-      onOpenSettings?.();
-      return;
-    }
-
     setParsing(true);
     setError(null);
 
@@ -118,9 +106,9 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           let parsedData: HoldingsSnapshot;
 
           if (currentModel === ModelProvider.HUNYUAN_CN) {
-             parsedData = await analyzeImageWithExternal(ModelProvider.HUNYUAN_CN, base64String, settings.hunyuanKey!);
+             parsedData = await analyzeImageWithExternal(ModelProvider.HUNYUAN_CN, base64String, "");
           } else {
-             parsedData = await parseBrokerageScreenshot(base64String, settings.geminiKey);
+             parsedData = await parseBrokerageScreenshot(base64String, "");
           }
           
           const holdingsWithHorizon = parsedData.holdings.map(h => ({ ...h, horizon: 'medium' as const }));
@@ -216,6 +204,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     const now = new Date();
     const todayStr = now.toLocaleDateString('zh-CN');
     const todayFullStr = now.toLocaleString('zh-CN');
+    const nextYear = now.getFullYear() + 1;
 
     const lastSessionEntry = journal.length > 0 ? journal[0] : null;
     const lastDayEntry = journal.find(j => new Date(j.timestamp).toLocaleDateString('zh-CN') !== todayStr);
@@ -255,7 +244,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     const currentHoldingsText = snapshot.holdings.map((h, i) => {
       const marketVal = h.volume * h.currentPrice;
       const weight = snapshot.totalAssets > 0 ? ((marketVal / snapshot.totalAssets) * 100).toFixed(2) : "0.00";
-      return `${i+1}. ${h.name} (${h.code}) [${getHorizonLabel(h.horizon)}]: 持仓${h.volume}股, 成本${h.costPrice}, 现价${h.currentPrice}, 市值${marketVal.toFixed(2)}元 (占总资产比例: ${weight}%), 盈亏 ${h.profit} (${h.profitRate})`;
+      return `${i+1}. ${h.name} (${h.code}) [${getHorizonLabel(h.horizon)}]: 持仓${h.volume}股, 成本${h.costPrice},现价${h.currentPrice}, 市值${marketVal.toFixed(2)}元 (占总资产比例: ${weight}%), 盈亏 ${h.profit} (${h.profitRate})`;
     }).join('\n');
 
     const prompt = `
@@ -263,7 +252,10 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       
       你不只是分析今天，更要结合历史上下文，跟踪策略的执行情况和市场验证情况。
       
-      【重要：时序逻辑】
+      【重要：时序逻辑与年度切换】
+      - 现在是现实世界的 ${todayFullStr}。
+      - **即将到来的年份是 ${nextYear} 年**。
+      - 如果你分析中涉及到“开门红预案”、“跨年行情”或“明年展望”，**请务必使用 ${nextYear} 年作为年份标识**。严禁将明年称为 ${now.getFullYear()} 年。
       - 如果基准记录是“今日早前”（如午盘），请侧重分析午后至今的动态博弈。
       - 如果基准记录是“上一交易日”，请进行完整的跨日复盘（如 2025-12-24 对比 2025-12-23）。
 
@@ -325,7 +317,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     setGeneratingPlan(true);
     
     try {
-      const { items, summary } = await extractTradingPlan(analysisResult.content, settings.geminiKey);
+      const { items, summary } = await extractTradingPlan(analysisResult.content, "");
       
       const newPlan: DailyTradingPlan = {
         id: crypto.randomUUID(),
@@ -388,7 +380,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
      let md = "# 我的交易计划归档\n\n";
      tradingPlans.forEach(plan => {
         md += `## ${plan.target_date} (策略: ${plan.strategy_summary})\n`;
-        md += "| 标的 | 操作 | 目标价 | 逻辑 | 状态 |\n";
+        md += "| 标意 | 操作 | 目标价 | 逻辑 | 状态 |\n";
         md += "| --- | --- | --- | --- | --- |\n";
         plan.items.forEach(item => {
            md += `| ${item.symbol} | ${item.action} | ${item.price_target || '--'} | ${item.reason} | ${item.status} |\n`;
@@ -497,7 +489,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     }
 
     try {
-      const result = await fetchPeriodicReview(reviewJournals, label, currentMarket, settings.geminiKey);
+      const result = await fetchPeriodicReview(reviewJournals, label, currentMarket, "");
       setPeriodicResult(result);
     } catch (err: any) {
       setError(err.message);
@@ -599,19 +591,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     return history;
   };
 
-  const getHorizonData = () => {
-    const counts = { short: 0, medium: 0, long: 0 };
-    snapshot.holdings.forEach(h => {
-      const type = h.horizon || 'medium';
-      counts[type]++;
-    });
-    return [
-      { name: '短线 (Short)', value: counts.short, color: HORIZON_COLORS.short },
-      { name: '中线 (Medium)', value: counts.medium, color: HORIZON_COLORS.medium },
-      { name: '长线 (Long)', value: counts.long, color: HORIZON_COLORS.long },
-    ].filter(d => d.value > 0);
-  };
-
   // --- Pagination Logic ---
   const totalHistoryPages = Math.ceil(journal.length / HISTORY_PAGE_SIZE);
   const paginatedJournal = journal.slice((historyPage - 1) * HISTORY_PAGE_SIZE, historyPage * HISTORY_PAGE_SIZE);
@@ -652,11 +631,52 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                  }`}>
                     {data.market_trend.toUpperCase()} MARKET
                  </span>
-                 <h3 className="text-lg font-bold text-slate-800">阶段 market 回顾</h3>
+                 <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                   <TrendingUp className="w-5 h-5 text-indigo-500" />
+                   阶段大盘/上证大局解读
+                 </h3>
               </div>
-              <p className="text-slate-600 leading-relaxed text-sm">
+              <p className="text-slate-600 leading-relaxed text-sm bg-white p-4 rounded-lg border border-slate-100 italic shadow-inner">
+                 <MessageSquareQuote className="w-4 h-4 text-slate-300 mb-1" />
                  {data.market_summary}
               </p>
+           </div>
+        </div>
+
+        {/* 重点新模块：个股专项审计报告 */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 overflow-hidden relative">
+           <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+              <Microscope className="w-40 h-40 text-indigo-900" />
+           </div>
+           <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+              <Microscope className="w-5 h-5 text-indigo-600" />
+              个股专项问题诊断 (Stock Audit)
+           </h3>
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {data.stock_diagnostics && data.stock_diagnostics.length > 0 ? (
+                 data.stock_diagnostics.map((stock, idx) => (
+                    <div key={idx} className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex flex-col hover:border-indigo-200 transition-colors group">
+                       <div className="flex justify-between items-center mb-3">
+                          <span className="font-black text-slate-800 text-lg group-hover:text-indigo-700 transition-colors">{stock.name}</span>
+                          <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${
+                             stock.verdict.includes('卖出') || stock.verdict.includes('减仓') ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'
+                          }`}>
+                             {stock.verdict}
+                          </span>
+                       </div>
+                       <div className="space-y-2">
+                          {stock.issues.map((issue, iIdx) => (
+                             <div key={iIdx} className="flex gap-2 text-xs text-slate-600 items-start">
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                                <span>{issue}</span>
+                             </div>
+                          ))}
+                       </div>
+                    </div>
+                 ))
+              ) : (
+                 <p className="text-sm text-slate-400 col-span-2 py-8 text-center italic">个股池整体表现稳健，暂未发现严重结构性风险。</p>
+              )}
            </div>
         </div>
 
@@ -668,7 +688,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
               <div className="relative z-10">
                  <div className="flex items-center gap-2 mb-3 text-emerald-800 font-bold">
                     <div className="p-1.5 bg-white rounded-lg shadow-sm"><Trophy className="w-5 h-5 text-emerald-600" /></div>
-                    高光时刻 (Highlight)
+                    阶段高光时刻 (Highlight)
                  </div>
                  <h4 className="text-lg font-bold text-emerald-900 mb-2">{data.highlight.title}</h4>
                  <p className="text-sm text-emerald-800 leading-relaxed opacity-90">{data.highlight.description}</p>
@@ -682,7 +702,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
               <div className="relative z-10">
                  <div className="flex items-center gap-2 mb-3 text-rose-800 font-bold">
                     <div className="p-1.5 bg-white rounded-lg shadow-sm"><AlertOctagon className="w-5 h-5 text-rose-600" /></div>
-                    至暗时刻 (Lowlight)
+                    阶段重灾区 (Lowlight)
                  </div>
                  <h4 className="text-lg font-bold text-rose-900 mb-2">{data.lowlight.title}</h4>
                  <p className="text-sm text-rose-800 leading-relaxed opacity-90">{data.lowlight.description}</p>
@@ -1193,7 +1213,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                    <div className="md:col-span-2 lg:col-span-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                       <h4 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2"><LineChartIcon className="w-4 h-4 text-indigo-500"/> 资金净值与盈亏走势</h4>
                       <div className="h-72 w-full">
-                         <ResponsiveContainer width="100%" height="100%">
+                         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <LineChart data={getTrendData()}>
                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                <XAxis dataKey="date" tick={{fontSize: 12}} />
