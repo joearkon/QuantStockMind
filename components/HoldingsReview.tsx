@@ -3,7 +3,7 @@ import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapsh
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { parseBrokerageScreenshot, fetchPeriodicReview, extractTradingPlan } from '../services/geminiService';
 import { analyzeImageWithExternal } from '../services/externalLlmService';
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle, Scale, Coins } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 
@@ -42,7 +42,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     if (!saved) return [];
     try {
       const parsed = JSON.parse(saved);
-      // 关键修复：确保所有旧记录都有 ID
       return (Array.isArray(parsed) ? parsed : []).map(item => ({
         ...item,
         id: item.id || `legacy-${item.timestamp}-${Math.random().toString(36).substr(2, 9)}`
@@ -253,9 +252,11 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       return '中线(1-3月)';
     };
 
-    const currentHoldingsText = snapshot.holdings.map((h, i) => 
-      `${i+1}. ${h.name} (${h.code}) [${getHorizonLabel(h.horizon)}]: 持仓${h.volume}股, 成本${h.costPrice}, 现价${h.currentPrice}, 盈亏 ${h.profit} (${h.profitRate})`
-    ).join('\n');
+    const currentHoldingsText = snapshot.holdings.map((h, i) => {
+      const marketVal = h.volume * h.currentPrice;
+      const weight = snapshot.totalAssets > 0 ? ((marketVal / snapshot.totalAssets) * 100).toFixed(2) : "0.00";
+      return `${i+1}. ${h.name} (${h.code}) [${getHorizonLabel(h.horizon)}]: 持仓${h.volume}股, 成本${h.costPrice}, 现价${h.currentPrice}, 市值${marketVal.toFixed(2)}元 (占总资产比例: ${weight}%), 盈亏 ${h.profit} (${h.profitRate})`;
+    }).join('\n');
 
     const prompt = `
       请作为一位【专属私人基金经理】对我当前的 ${marketLabel} 账户进行【连续性】复盘分析。
@@ -296,7 +297,12 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       - **针对性**: 根据股票【周期标记】给出犀利指令。
       - 指令含：【加仓 / 减仓 / 做T / 清仓 / 锁仓】。
 
-      ## 5. 账户总方针 (Strategy)
+      ## 5. 持仓配比与数量优化建议 (Position Optimization)
+      - **数量评估**: 评价每一只股票的【持仓数量/股数】是否合理？是否存在单票过重或过轻（蜻蜓点水）的情况？
+      - **配比调整**: 根据技术面胜率，给出具体的增减持【股数】建议，以优化账户的夏普比率。
+      - **流动性预警**: 针对当前持仓量，分析在当前市场成交额下是否存在退出冲击成本。
+
+      ## 6. 账户总方针 (Strategy)
       - 更新账户总防御/进攻方针。
 
       请像一位长期跟踪我账户的导师，语言要专业且具有连贯记忆。
@@ -515,11 +521,10 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   };
 
   const deleteJournalEntry = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // 阻止触发查看详细记录的点击事件
+    e.stopPropagation(); 
     if (window.confirm("确定要【永久删除】这条历史记录吗？此操作无法撤销。")) {
       setJournal(prev => {
         const filtered = prev.filter(entry => entry.id !== id);
-        // 如果删除后当前页没有数据了，自动回退到前一页
         const newTotalPages = Math.ceil(filtered.length / HISTORY_PAGE_SIZE);
         if (historyPage > newTotalPages && newTotalPages > 0) {
           setHistoryPage(newTotalPages);
@@ -797,6 +802,11 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
             headerColor = "text-emerald-700";
             iconBg = "bg-emerald-100";
             cardBorder = "border-emerald-100";
+          } else if (title.includes("数量") || title.includes("配比") || title.includes("权重") || title.includes("Optimization")) {
+            Icon = Scale;
+            headerColor = "text-orange-700";
+            iconBg = "bg-orange-100";
+            cardBorder = "border-orange-100";
           } else if (title.includes("总结") || title.includes("方针")) {
             Icon = ClipboardList;
             headerColor = "text-violet-700";
@@ -840,13 +850,13 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                   const trimmed = line.trim();
                   if (!trimmed) return <div key={i} className="h-2"></div>;
 
-                  const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有|补救|执行力|知行不一|放量|缩量)/g;
+                  const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有|补救|执行力|知行不一|放量|缩量|股数|仓位|权重|配比|过轻|过重)/g;
                   let processedLine = trimmed.replace(
                     highlightRegex, 
                     '<span class="font-bold text-white bg-indigo-500 px-1 py-0.5 rounded text-xs mx-0.5 shadow-sm">$1</span>'
                   );
                   
-                  if (title.includes("关键") || title.includes("K线")) {
+                  if (title.includes("关键") || title.includes("K线") || title.includes("点位")) {
                       processedLine = processedLine.replace(
                           /(止盈价|Target Sell)[:：]\s*(\d+\.?\d*)/g, 
                           '<span class="inline-flex items-center gap-1 font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-100 mx-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg> 止盈 $2</span>'
@@ -864,7 +874,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                   if (trimmed.startsWith('-') || trimmed.startsWith('* ')) {
                      return (
                        <div key={i} className="flex gap-3 mb-3 items-start group">
-                          <div className={`mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0 group-hover:scale-125 transition-transform ${title.includes("建议") ? 'bg-emerald-400' : 'bg-slate-400'}`}></div>
+                          <div className={`mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0 group-hover:scale-125 transition-transform ${title.includes("建议") ? 'bg-emerald-400' : title.includes("数量") ? 'bg-orange-400' : 'bg-slate-400'}`}></div>
                           <p className="flex-1 text-slate-700 leading-relaxed text-sm sm:text-base" dangerouslySetInnerHTML={{ __html: processedLine.replace(/^[-*]\s+/, '') }}></p>
                        </div>
                      );
