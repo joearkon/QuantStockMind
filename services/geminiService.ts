@@ -71,7 +71,7 @@ const robustParse = (text: string): any => {
 };
 
 export const fetchGeminiAnalysis = async (prompt: string, isComplex: boolean, apiKey: string): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = isComplex ? GEMINI_MODEL_COMPLEX : GEMINI_MODEL_PRIMARY;
 
   const response = await ai.models.generateContent({
@@ -94,7 +94,7 @@ export const fetchGeminiAnalysis = async (prompt: string, isComplex: boolean, ap
 };
 
 export const fetchMarketDashboard = async (period: 'day' | 'month', market: MarketType, apiKey: string): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
   
@@ -212,6 +212,7 @@ const periodicReviewSchema = {
     score: { type: Type.NUMBER },
     market_trend: { type: Type.STRING, enum: ["bull", "bear", "sideways"] },
     market_summary: { type: Type.STRING, description: "包含对大盘（如上证指数）的大局解读" },
+    alpha_beta_analysis: { type: Type.STRING, description: "深度剖析：盈利中有多少是由于市场普涨（Beta），有多少是由于用户的选股和执行力（Alpha）。" },
     highlight: {
       type: Type.OBJECT,
       properties: { title: { type: Type.STRING }, description: { type: Type.STRING } },
@@ -246,7 +247,7 @@ const periodicReviewSchema = {
     },
     next_period_focus: { type: Type.ARRAY, items: { type: Type.STRING } }
   },
-  required: ["score", "market_trend", "market_summary", "highlight", "lowlight", "execution", "stock_diagnostics", "next_period_focus"]
+  required: ["score", "market_trend", "market_summary", "alpha_beta_analysis", "highlight", "lowlight", "execution", "stock_diagnostics", "next_period_focus"]
 };
 
 const tradingPlanSchema = {
@@ -271,7 +272,7 @@ const tradingPlanSchema = {
 };
 
 export const fetchStockDetailWithImage = async (base64Image: string, query: string, market: MarketType, apiKey: string): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
   
@@ -301,7 +302,7 @@ export const fetchStockDetailWithImage = async (base64Image: string, query: stri
 };
 
 export const parseBrokerageScreenshot = async (base64Image: string, apiKey: string): Promise<HoldingsSnapshot> => {
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = "请识别这张持仓截图中的所有数据，包括总资产、仓位占比以及详细持仓列表（名称、代码、数量、成本价、现价、盈亏）。";
   const imagePart = {
     inlineData: {
@@ -321,21 +322,21 @@ export const parseBrokerageScreenshot = async (base64Image: string, apiKey: stri
 };
 
 export const fetchPeriodicReview = async (journals: any[], label: string, market: MarketType, apiKey: string): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const historyData = journals.map(j => ({
     date: new Date(j.timestamp).toLocaleDateString(),
     holdings: j.snapshot?.holdings?.map((h: any) => ({ name: h.name, profit: h.profit, profitRate: h.profitRate, cost: h.costPrice, price: h.currentPrice })),
-    totalProfit: j.snapshot?.holdings?.reduce((sum: number, h: any) => sum + (h.profit || 0), 0)
+    totalAssets: j.snapshot?.totalAssets
   }));
 
   const prompt = `
-    作为资深基金经理，基于以下【${label}】的历史多份持仓快照生成阶段性复盘报告。
+    作为资深基金经理，基于以下【${label}】的历史持仓快照生成深度复盘审计报告。
     
-    【核心任务】
-    1. **大局观解读**：必须利用 googleSearch 检索并分析最近【${label}】期间 A 股大盘（特别是上证指数）的走势。分析大盘对账户盈亏的影响，当前大盘处于什么博弈周期。
-    2. **深度个股审计**：不要模糊带过。请根据快照中每只股票的“成本-现价”关系及盈亏变动，点名指出哪些票存在严重问题（如：高位接盘、成本摊薄失败、逻辑证伪等）。
-    3. **知行合一审计**：分析我在这个阶段内的操作习惯，是否有“赚了就跑、套了就死扛”的散户行为。
+    【核心审计任务】
+    1. **运气与实力剥离 (Alpha vs Beta)**：利用 googleSearch 检索并对比这段时间内 ${market} 市场的涨幅中位数（特别是上证指数 7 连阳的影响）。分析用户的账户曲线是跑赢了指数，还是仅仅由于市场普涨带动的“水涨船高”？
+    2. **逆势韧性回溯**：特别关注 12 月中下旬（市场低迷期）到现在的变化。如果用户在 12 月中旬开始建立复盘习惯，请审计其在市场阴跌期是否有效控制了回撤。
+    3. **知行合一审计**：用户反馈执行力约为 80分。请对比其持仓变动和市场节奏，分析这 80 分的执行力在“避开陷阱”和“抓住主升”中起到了多大作用。
     
     【历史数据】
     ${JSON.stringify(historyData, null, 2)}
@@ -365,7 +366,7 @@ export const fetchPeriodicReview = async (journals: any[], label: string, market
 };
 
 export const extractTradingPlan = async (content: string, apiKey: string): Promise<{ items: PlanItem[], summary: string }> => {
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `从以下分析报告中提取“明日交易计划”：\n\n${content}\n\n请识别出明确的 标的、动作(buy/sell/hold/monitor/t_trade)、价格目标、理由。`;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
@@ -383,23 +384,16 @@ export const extractTradingPlan = async (content: string, apiKey: string): Promi
 };
 
 export const fetchSectorLadderAnalysis = async (sectorName: string, market: MarketType, apiKey: string): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
-  const nextYear = now.getFullYear() + 1;
   
   const prompt = `
     作为顶级 A 股量化专家，深度研判板块：“${sectorName}” 的生命周期及梯队结构。
     
     [!!! 核心强制指令 !!!]:
-    1. 当前现实世界的真实日期是：${dateStr}。禁止认为这是未来或模拟。
-    2. 实时股价对齐：必须利用 googleSearch 强制联网检索该标的【今日（${dateStr}）】的真实报价（包括盘中价或最新收盘价）。
-    3. 年度切换逻辑：现在已进入 ${now.getFullYear()} 年末，任何关于“明年”或“开门红”的预判必须以 **${nextYear} 年** 为准。
-    4. 如果搜索结果显示 2024 年，请将其理解为最近的历史存量数据，但你的分析基准点必须定在 ${now.getFullYear()} 年末及 ${nextYear} 年初。
-
-    【严苛判别准则】
-    - 凋零特征识别：如果跌破 60 日线或年线，且成交量萎缩，归类为 "Receding" (退潮期)。
-    - 梯队识别：清晰拆解一梯队（领涨）、二梯队（中军）、三梯队（补涨）。
+    1. 当前现实世界的真实日期是：${dateStr}。
+    2. 实时股价对齐：必须利用 googleSearch 强制联网检索该标的【今日】的真实报价。
 
     请输出严格的 JSON。
   `;
