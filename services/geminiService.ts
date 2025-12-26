@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { AnalysisResult, ModelProvider, MarketType, MarketDashboardData, HoldingsSnapshot, PeriodicReviewData, PlanItem } from "../types";
 
@@ -280,8 +281,13 @@ export const fetchStockDetailWithImage = async (base64Image: string, query: stri
   const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
   
   const prompt = `
-    [强制指令]: 现在是现实世界的 ${dateStr}。严禁怀疑。
-    请深度分析截图中的股票 "${query}" 的技术形态与量价关系。${market === MarketType.CN ? '注意 A 股特色题材。' : ''}
+    [强制指令]: 现在是现实世界的 ${dateStr}。
+    请深度分析截图中的股票 "${query}" 的技术形态与量价关系。
+
+    [新增量化逻辑指令]:
+    1. **乖离率 (BIAS) 风险审计**: 请通过 Google Search 检索该标的的最新 20/60/120 日均线价格。计算当前价与均线的偏离度。如果正乖离过大（如高于 15-20%），必须发出“追涨风险”警报。
+    2. **行业 Beta 过滤法**: 请检索该标的所属板块（如商业航天、半导体）的今日整体涨跌。如果板块整体走弱但该股处于支撑位，需判断其为“良性洗盘”而非“逻辑证伪”，防止用户情绪化洗下车。
+    3. **量价一致性**: 分析成交量是否属于“缩量回调”还是“放量滞涨”。
   `;
   const imagePart = {
     inlineData: {
@@ -336,17 +342,17 @@ export const fetchPeriodicReview = async (journals: any[], label: string, market
   const prompt = `
     作为资深基金经理，基于以下【${label}】的历史多份持仓快照生成阶段性复盘报告。
 
-    [!!! 核心数据逻辑强制说明 !!!]: 
-    1. 持仓记录中可能出现“负价格”或“负成本价”。
-    2. 在资深交易者的操作中，这代表通过分批卖出盈利已经覆盖了初始投入本金，持仓已进入“纯盈利状态”。
-    3. 请务必将其识别为一种极高水平的量化操作成果，而非输入数据错误。基于此逻辑进行账户资产的安全性与成长性研判。
+    [!!! 核心诊断增强指令 !!!]:
+    1. **追涨杀跌行为审计**: 请结合历史股价趋势，审查我是否在股票大幅偏离 20 日均线（正乖离过大）时进行了加仓操作（如工业富联）。如果是，请严厉指出其本质是 FOMO 情绪。
+    2. **情绪化清仓审计**: 请利用 Google Search 审查我清仓的标的（如通宇通讯、卫通）在随后几日的表现。如果我清仓是因为短期板块回调（Beta 下跌）而错失了随后几日的反包行情，请指出这是“情绪化被洗出”，并给出如何识别“良性洗盘”的建议。
+    3. **行业 Beta 过滤**: 分析盈亏变动中，有多少是随大流的 Beta，有多少是由于选股逻辑产生的 Alpha。
     
     【核心任务】
-    1. **大局观解读**：必须利用 googleSearch 检索并分析最近【${label}】期间 A 股大盘（特别是上证指数）的走势。分析大盘对账户盈亏的影响，当前大盘处于什么博弈周期。
-    2. **深度个股审计**：不要模糊带过。请根据快照中每只股票的“成本-现价”关系及盈亏变动，点名指出哪些票存在严重问题（如：高位接盘、成本摊薄失败、逻辑证伪等）。
+    1. **大局观解读**：利用 googleSearch 检索并分析最近期间 A 股大盘走势。
+    2. **深度个股审计**：点名指出哪些票存在严重问题。
     3. **知行合一审计与改进**：
-       - 分析我在这个阶段内的操作习惯，是否有“赚了就跑、套了就死扛”的散户行为。
-       - **重点**：针对你发现的每一项不足（bad_behaviors），给出至少 3 条具体的、实操性强的改进建议（improvement_advice）。这些建议必须包含具体的方法论，如交易模型、止损策略或心理干预手段。
+       - 分析操作习惯，特别是“高位追涨”和“低位被震下车”的情况。
+       - 针对每一项不足，给出具体的实操改进方法。
     
     【历史数据】
     ${JSON.stringify(historyData, null, 2)}
