@@ -3,7 +3,7 @@ import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapsh
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { parseBrokerageScreenshot, fetchPeriodicReview, extractTradingPlan } from '../services/geminiService';
 import { analyzeImageWithExternal } from '../services/externalLlmService';
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle, Scale, Coins, ShieldAlert, Microscope, MessageSquareQuote, Lightbulb } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle, Scale, Coins, ShieldAlert, Microscope, MessageSquareQuote, Lightbulb, FileType } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 
@@ -294,7 +294,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       - **验证**: 上期建议是否被执行？资产变动是因为市场波动还是操作失误？
       - **评分**: 执行力评分 (0-10分)。
 
-      ## 2. 盈亏诊断与实战压力 (Diagnosis)
+      ## 盈亏诊断与实战压力 (Diagnosis)
       - 基于成本/现价，分析持仓处于什么技术周期。
       - 针对**仓位占比 (${snapshot.positionRatio}%)** 评估整体账户抗风险能力。
       
@@ -459,6 +459,36 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
         });
      });
      downloadFile(csv, `TradingPlans_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
+  };
+
+  const handleExportReportMD = (result: AnalysisResult | null) => {
+    if (!result) return;
+    const dateStr = new Date(result.timestamp).toLocaleString();
+    const content = `# QuantMind 智能复盘报告\n日期: ${dateStr}\n\n${result.content}`;
+    downloadFile(content, `Report_${new Date().toISOString().split('T')[0]}.md`, 'text/markdown');
+  };
+
+  const handleExportPeriodicMD = (data: PeriodicReviewData | undefined) => {
+    if (!data) return;
+    let md = `# QuantMind 阶段性复盘总结\n日期: ${new Date().toLocaleDateString()}\n\n`;
+    md += `## 1. 综合表现评分: ${data.score}/100\n`;
+    md += `## 2. 市场大局解读 (${data.market_trend.toUpperCase()})\n${data.market_summary}\n\n`;
+    md += `## 3. 个股专项问题诊断\n`;
+    data.stock_diagnostics.forEach(s => {
+      md += `### ${s.name} (${s.verdict})\n`;
+      s.issues.forEach(issue => md += `- ${issue}\n`);
+      md += `\n`;
+    });
+    md += `## 4. 改进建议与实操方法\n`;
+    data.improvement_advice.forEach(advice => md += `- ${advice}\n`);
+    md += `\n## 5. 下阶段战略重心\n`;
+    data.next_period_focus.forEach(focus => md += `- ${focus}\n`);
+    
+    downloadFile(md, `Periodic_Review_${new Date().toISOString().split('T')[0]}.md`, 'text/markdown');
+  };
+
+  const handlePrintToPDF = () => {
+    window.print();
   };
 
   // --- Handlers: Periodic Review ---
@@ -628,7 +658,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   // --- Render Helper: Rich Periodic Review ---
   const renderPeriodicDashboard = (data: PeriodicReviewData) => {
     return (
-      <div className="p-6 space-y-8 animate-fade-in">
+      <div className="p-6 space-y-8 animate-fade-in" id="periodic-report-printable">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
            <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-xl p-6 text-white shadow-xl flex flex-col items-center justify-center relative overflow-hidden">
               <div className="absolute inset-0 bg-white/5 opacity-10 blur-xl"></div>
@@ -810,7 +840,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           </div>
         )}
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-white">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-white no-print">
            <h3 className="text-lg font-bold text-indigo-300 mb-4 flex items-center gap-2">
               <ArrowRightCircle className="w-5 h-5 text-indigo-400" />
               下阶段战略重心 (Strategic Focus)
@@ -840,7 +870,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     }
 
     return (
-      <div className="grid grid-cols-1 gap-6 p-6">
+      <div className="grid grid-cols-1 gap-6 p-6" id="daily-report-printable">
         {sections.map((sec, idx) => {
           const lines = sec.trim().split('\n');
           const title = lines[0].trim();
@@ -907,7 +937,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                    <button
                      onClick={handleGeneratePlan}
                      disabled={generatingPlan}
-                     className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all disabled:opacity-70"
+                     className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all disabled:opacity-70 no-print"
                    >
                      {generatingPlan ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <ListTodo className="w-3.5 h-3.5"/>}
                      生成明日计划表 (导出MD/Word)
@@ -996,7 +1026,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 no-print">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
             <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -1218,7 +1248,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                                   {item.profitRate}
                                 </div>
                             </td>
-                            <td className="px-4 py-3 text-right flex justify-end gap-2">
+                            <td className="px-4 py-3 text-right flex justify-end gap-2 no-print">
                                <button onClick={() => startEdit(idx, item)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"><Edit2 className="w-4 h-4" /></button>
                                <button onClick={() => deleteHolding(idx)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
                             </td>
@@ -1246,7 +1276,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
       {(analysisResult || periodicResult) && (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-slide-up">
-           <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-wrap justify-between items-center gap-4">
+           <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-wrap justify-between items-center gap-4 no-print">
               <div className="flex gap-4">
                 <button onClick={() => setActiveTab('report')} className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'report' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}><FileJson className="w-4 h-4" /> AI 诊断报告</button>
                 <button onClick={() => setActiveTab('charts')} className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'charts' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}><BarChart3 className="w-4 h-4" /> 深度图表</button>
@@ -1254,7 +1284,21 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                   <button onClick={() => setActiveTab('periodic')} className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'periodic' ? 'bg-indigo-600 text-white shadow-sm border border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}><Calendar className="w-4 h-4" /> 阶段性总结</button>
                 )}
               </div>
-              <button onClick={saveToJournal} className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium bg-white border border-indigo-200 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"><Save className="w-4 h-4" /> 保存日志</button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => activeTab === 'report' ? handleExportReportMD(analysisResult) : handleExportPeriodicMD(periodicResult?.periodicData)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  <FileText className="w-3.5 h-3.5" /> 导出 MD
+                </button>
+                <button 
+                  onClick={handlePrintToPDF}
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  <FileType className="w-3.5 h-3.5" /> 导出 PDF
+                </button>
+                <button onClick={saveToJournal} className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium bg-white border border-indigo-200 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"><Save className="w-4 h-4" /> 保存日志</button>
+              </div>
            </div>
            <div className="bg-slate-50/50 min-h-[400px]">
              {activeTab === 'report' && analysisResult ? renderReportContent(analysisResult.content) : activeTab === 'periodic' && periodicResult?.periodicData ? renderPeriodicDashboard(periodicResult.periodicData) : (
@@ -1283,7 +1327,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       )}
 
       {isPlanOpen && (
-         <div id="trading-plan-section" className="mt-8 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden animate-slide-up shadow-inner">
+         <div id="trading-plan-section" className="mt-8 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden animate-slide-up shadow-inner no-print">
             <div className="px-6 py-4 bg-white border-b border-slate-200 flex justify-between items-center">
                <h3 className="font-bold text-slate-800 flex items-center gap-2"><ListTodo className="w-5 h-5 text-emerald-600"/> 我的交易计划 (Trading Plans)</h3>
                <div className="flex items-center gap-2">
