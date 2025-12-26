@@ -19,9 +19,9 @@ export const MARKET_OPTIONS = [
 export const NAV_ITEMS = [
   { id: 'market', label: '市场全览', icon: LayoutDashboard },
   { id: 'holdings', label: '持仓复盘', icon: NotebookPen },
+  { id: 'stock', label: '个股量化', icon: TrendingUp },
   { id: 'sector-cycle', label: '板块梯队周期', icon: Layers },
   { id: 'batch-timing', label: '多股择时打分', icon: ListChecks },
-  { id: 'stock', label: '个股量化', icon: TrendingUp },
   { id: 'vane', label: '机构风向标', icon: UserCheck },
   { id: 'mining', label: '产业链透视', icon: Radar },
 ];
