@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry, PeriodicReviewData, DailyTradingPlan, PlanItem } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { parseBrokerageScreenshot, fetchPeriodicReview, extractTradingPlan } from '../services/geminiService';
 import { analyzeImageWithExternal } from '../services/externalLlmService';
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle, Scale, Coins, ShieldAlert, Microscope, MessageSquareQuote } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle, Scale, Coins, ShieldAlert, Microscope, MessageSquareQuote, Lightbulb } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 
@@ -262,7 +261,12 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
     const prompt = `
       请作为一位【专属私人基金经理】对我当前的 ${marketLabel} 账户进行【连续性】复盘分析。
-      
+
+      [!!! 重要数据逻辑指令 !!!]:
+      1. 持仓数据中可能出现【负数】（如负的成本价、负的现价或负的盈亏）。
+      2. 在量化交易、高抛低吸（做T）或大幅止盈后，由于本金已全部收回且产生了额外利润，记账上出现“负成本”或“负价格”是完全正常且代表该头寸已进入“零风险纯盈利”状态。
+      3. 严禁将其视为“数据错误”、“格式异常”或“非法输入”。请基于“用户已实现超额利润并持有无成本底仓”的逻辑进行深度诊断。
+
       你不只是分析今天，更要结合历史上下文，跟踪策略的执行情况和市场验证情况。
       
       【重要：时序逻辑与年度切换】
@@ -736,6 +740,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
            </div>
         </div>
 
+        {/* 知行合一审计模块 */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
            <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -787,16 +792,34 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
            </div>
         </div>
 
-        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6">
-           <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
-              <ArrowRightCircle className="w-5 h-5 text-indigo-600" />
+        {/* 重点升级：改进建议与实操方法 */}
+        {data.improvement_advice && data.improvement_advice.length > 0 && (
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6 shadow-sm">
+             <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
+                <Lightbulb className="w-5 h-5 text-indigo-600" />
+                针对性改进建议与实操方法
+             </h3>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {data.improvement_advice.map((advice, idx) => (
+                  <div key={idx} className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm flex items-start gap-3 hover:shadow-md transition-shadow">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-sm">{idx + 1}</div>
+                    <p className="text-sm text-slate-700 font-bold leading-relaxed pt-1">{advice}</p>
+                  </div>
+                ))}
+             </div>
+          </div>
+        )}
+
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-white">
+           <h3 className="text-lg font-bold text-indigo-300 mb-4 flex items-center gap-2">
+              <ArrowRightCircle className="w-5 h-5 text-indigo-400" />
               下阶段战略重心 (Strategic Focus)
            </h3>
            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {data.next_period_focus.map((item, idx) => (
-                 <div key={idx} className="bg-white p-3 rounded-lg shadow-sm border border-indigo-100 flex items-start gap-3">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">{idx + 1}</span>
-                    <p className="text-sm text-slate-700 font-medium pt-0.5">{item}</p>
+                 <div key={idx} className="bg-slate-800 p-3 rounded-lg border border-slate-700 flex items-start gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-900 text-indigo-400 flex items-center justify-center font-bold text-xs">{idx + 1}</span>
+                    <p className="text-sm text-slate-300 font-medium pt-0.5">{item}</p>
                  </div>
               ))}
            </div>

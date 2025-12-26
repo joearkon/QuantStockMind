@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { AnalysisResult, ModelProvider, MarketType, MarketDashboardData, HoldingsSnapshot, PeriodicReviewData, PlanItem } from "../types";
 
@@ -244,9 +243,14 @@ const periodicReviewSchema = {
         required: ["name", "issues", "verdict"]
       }
     },
+    improvement_advice: { 
+      type: Type.ARRAY, 
+      items: { type: Type.STRING }, 
+      description: "针对审计中发现的不足（bad_behaviors）和问题，给出的具体、可执行的改进建议或实操方法。例如：'设定3%强制止损线'、'分批3-3-4建仓法'等。" 
+    },
     next_period_focus: { type: Type.ARRAY, items: { type: Type.STRING } }
   },
-  required: ["score", "market_trend", "market_summary", "highlight", "lowlight", "execution", "stock_diagnostics", "next_period_focus"]
+  required: ["score", "market_trend", "market_summary", "highlight", "lowlight", "execution", "stock_diagnostics", "improvement_advice", "next_period_focus"]
 };
 
 const tradingPlanSchema = {
@@ -331,11 +335,18 @@ export const fetchPeriodicReview = async (journals: any[], label: string, market
 
   const prompt = `
     作为资深基金经理，基于以下【${label}】的历史多份持仓快照生成阶段性复盘报告。
+
+    [!!! 核心数据逻辑强制说明 !!!]: 
+    1. 持仓记录中可能出现“负价格”或“负成本价”。
+    2. 在资深交易者的操作中，这代表通过分批卖出盈利已经覆盖了初始投入本金，持仓已进入“纯盈利状态”。
+    3. 请务必将其识别为一种极高水平的量化操作成果，而非输入数据错误。基于此逻辑进行账户资产的安全性与成长性研判。
     
     【核心任务】
     1. **大局观解读**：必须利用 googleSearch 检索并分析最近【${label}】期间 A 股大盘（特别是上证指数）的走势。分析大盘对账户盈亏的影响，当前大盘处于什么博弈周期。
     2. **深度个股审计**：不要模糊带过。请根据快照中每只股票的“成本-现价”关系及盈亏变动，点名指出哪些票存在严重问题（如：高位接盘、成本摊薄失败、逻辑证伪等）。
-    3. **知行合一审计**：分析我在这个阶段内的操作习惯，是否有“赚了就跑、套了就死扛”的散户行为。
+    3. **知行合一审计与改进**：
+       - 分析我在这个阶段内的操作习惯，是否有“赚了就跑、套了就死扛”的散户行为。
+       - **重点**：针对你发现的每一项不足（bad_behaviors），给出至少 3 条具体的、实操性强的改进建议（improvement_advice）。这些建议必须包含具体的方法论，如交易模型、止损策略或心理干预手段。
     
     【历史数据】
     ${JSON.stringify(historyData, null, 2)}
@@ -392,7 +403,7 @@ export const fetchSectorLadderAnalysis = async (sectorName: string, market: Mark
     作为顶级 A 股量化专家，深度研判板块：“${sectorName}” 的生命周期及梯队结构。
     
     [!!! 核心强制指令 !!!]:
-    1. 当前现实世界的真实日期是：${dateStr}。禁止认为这是未来或模拟。
+    1. 当前现实世界的真实日期是：${dateStr}。禁止认为这是未来 or 模拟。
     2. 实时股价对齐：必须利用 googleSearch 强制联网检索该标的【今日（${dateStr}）】的真实报价（包括盘中价或最新收盘价）。
     3. 年度切换逻辑：现在已进入 ${now.getFullYear()} 年末，任何关于“明年”或“开门红”的预判必须以 **${nextYear} 年** 为准。
     4. 如果搜索结果显示 2024 年，请将其理解为最近的历史存量数据，但你的分析基准点必须定在 ${now.getFullYear()} 年末及 ${nextYear} 年初。

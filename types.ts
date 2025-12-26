@@ -128,6 +128,7 @@ export interface PeriodicReviewData {
     verdict: string;
   }[];
   next_period_focus: string[];
+  improvement_advice: string[];
 }
 
 export interface OpportunityResponse {
