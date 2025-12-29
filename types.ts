@@ -10,9 +10,39 @@ export enum MarketType {
   US = 'US', // US Stocks
 }
 
+export interface InstitutionalPosition {
+  type: string;
+  change: string;
+  description: string;
+}
+
+export interface ChipAnalysisData {
+  name: string;
+  code: string;
+  current_price: string;
+  control_score: number; // 0-100
+  control_status: 'High' | 'Medium' | 'Low';
+  main_cost: string;
+  cost_distance: string; // 现价距离成本的距离，如 +15%
+  profit_ratio: string; // 获利盘比例
+  chip_concentration: string; // 筹码集中度
+  recent_big_flow: string; // 近期大单动向
+  positions: InstitutionalPosition[];
+  battle_verdict: string; // 筹码博弈结论
+}
+
+export interface MarketScanItem {
+  name: string;
+  code: string;
+  synergy_score: number;
+  verdict: string;
+  tomorrow_range: string;
+  action_hint: string;
+}
+
 export interface KLineSynergyData {
   pattern_name: string;
-  synergy_score: number; // 0-100
+  synergy_score: number; 
   time_frame: string; 
   logic_timeline: {
     day: string;
@@ -29,7 +59,6 @@ export interface KLineSynergyData {
     probability: string;
     target_window: string;
     key_observation: string;
-    // 新增：具体的股价路线图
     price_roadmap: {
       tomorrow: {
         range: string;
@@ -46,6 +75,7 @@ export interface KLineSynergyData {
     };
   };
   battle_summary: string;
+  scan_results?: MarketScanItem[]; 
 }
 
 export interface BatchStockScore {
@@ -257,6 +287,7 @@ export interface AnalysisResult {
   ladderData?: SectorLadderData; 
   batchTimingData?: BatchTimingResponse;
   klineSynergyData?: KLineSynergyData;
+  chipData?: ChipAnalysisData; // 新增筹码分析数据
 }
 
 export interface TimingEvaluation {
