@@ -10,17 +10,55 @@ export enum MarketType {
   US = 'US', // US Stocks
 }
 
+export interface KLineSynergyData {
+  pattern_name: string;
+  synergy_score: number; // 0-100
+  time_frame: string; 
+  logic_timeline: {
+    day: string;
+    action: string;
+    psychology: string;
+  }[];
+  synergy_factors: {
+    volume_resonance: number;
+    price_strength: number;
+    capital_alignment: number;
+  };
+  prediction: {
+    trend: 'Bullish' | 'Bearish' | 'Neutral';
+    probability: string;
+    target_window: string;
+    key_observation: string;
+    // 新增：具体的股价路线图
+    price_roadmap: {
+      tomorrow: {
+        range: string;
+        high_target: string;
+        low_support: string;
+        action_hint: string;
+      };
+      day_after: {
+        range: string;
+        high_target: string;
+        low_support: string;
+        action_hint: string;
+      };
+    };
+  };
+  battle_summary: string;
+}
+
 export interface BatchStockScore {
   name: string;
   code: string;
-  win_rate: number; // 0-100
+  win_rate: number;
   verdict: 'Immediate' | 'Pullback' | 'Wait' | 'Avoid';
-  verdict_label: string; // "现价买入", "回踩买入", "观望", "放弃"
-  sector_heat: number; // 0-100
+  verdict_label: string;
+  sector_heat: number;
   capital_flow: 'Inflow' | 'Neutral' | 'Outflow';
   technical_score: number;
   logic_summary: string;
-  key_price: string; // 核心入场价
+  key_price: string;
 }
 
 export interface BatchTimingResponse {
@@ -218,6 +256,7 @@ export interface AnalysisResult {
   hotlistData?: InstitutionalHotlist;
   ladderData?: SectorLadderData; 
   batchTimingData?: BatchTimingResponse;
+  klineSynergyData?: KLineSynergyData;
 }
 
 export interface TimingEvaluation {
