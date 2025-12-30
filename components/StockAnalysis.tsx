@@ -53,8 +53,10 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
 
       if (selectedImage && currentModel === ModelProvider.GEMINI_INTL) {
          // --- Multimodal Analysis (Image + Text) ---
-         // Fix: Only pass 3 arguments as defined in fetchStockDetailWithImage (apiKey is internal)
-         data = await fetchStockDetailWithImage(selectedImage, query, currentMarket);
+         if (!settings.geminiKey) {
+            throw new Error("图片分析需要 Gemini API Key，请先在设置中配置。");
+         }
+         data = await fetchStockDetailWithImage(selectedImage, query, currentMarket, settings.geminiKey);
       } else {
          // --- Text Only Analysis ---
          const prompt = `

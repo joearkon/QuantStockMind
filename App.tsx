@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { HashRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { Disclaimer } from './components/Disclaimer';
 import { MarketAnalysis } from './components/MarketAnalysis';
@@ -14,13 +14,12 @@ import { ChipMaster } from './components/ChipMaster';
 import { SettingsModal } from './components/SettingsModal';
 import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS, APP_VERSION } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
-import { Settings, BrainCircuit, Globe, FlaskConical, Key, AlertCircle, ChevronRight } from 'lucide-react';
+import { Settings, BrainCircuit, Globe, FlaskConical } from 'lucide-react';
 
 const App: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<ModelProvider>(ModelProvider.GEMINI_INTL);
   const [selectedMarket, setSelectedMarket] = useState<MarketType>(MarketType.CN);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [hasApiKey, setHasApiKey] = useState<boolean>(true);
   
   const [marketResult, setMarketResult] = useState<AnalysisResult | null>(null);
   const [marketPeriod, setMarketPeriod] = useState<'day' | 'month'>('day');
@@ -44,29 +43,6 @@ const App: React.FC = () => {
       geminiKey: parsed.geminiKey || injectedEnv.VITE_GEMINI_API_KEY || "",
     };
   });
-
-  useEffect(() => {
-    const checkKey = async () => {
-      // 检查 AISTUDIO 环境中是否已选择 API Key
-      if ((window as any).aistudio && (window as any).aistudio.hasSelectedApiKey) {
-        const selected = await (window as any).aistudio.hasSelectedApiKey();
-        setHasApiKey(selected);
-      } else if (!process.env.API_KEY) {
-        setHasApiKey(false);
-      }
-    };
-    checkKey();
-  }, []);
-
-  const handleOpenKeySelector = async () => {
-    if ((window as any).aistudio && (window as any).aistudio.openSelectKey) {
-      await (window as any).aistudio.openSelectKey();
-      // 触发后假定成功，隐藏横幅，此时 process.env.API_KEY 会被自动注入
-      setHasApiKey(true);
-    } else {
-      setIsSettingsOpen(true);
-    }
-  };
 
   const handleSaveSettings = (newSettings: UserSettings) => {
     setUserSettings(newSettings);
@@ -122,29 +98,6 @@ const App: React.FC = () => {
             </div>
           </div>
         </header>
-
-        {!hasApiKey && selectedModel === ModelProvider.GEMINI_INTL && (
-          <div className="bg-indigo-600 text-white animate-fade-in shadow-xl relative z-40">
-            <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-1.5 bg-white/20 rounded-md">
-                  <Key className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold">API 密钥未配置或已失效</p>
-                  <p className="text-[11px] opacity-80">当前分析引擎处于离线状态。请选择一个有效的付费 GCP 项目密钥以启用 AI 服务。</p>
-                </div>
-              </div>
-              <button 
-                onClick={handleOpenKeySelector}
-                className="flex items-center gap-2 px-5 py-2 bg-white text-indigo-600 rounded-lg text-sm font-black shadow-lg hover:bg-indigo-50 transition-all active:scale-95"
-              >
-                立即配置 API 密钥
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
