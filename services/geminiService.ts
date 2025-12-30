@@ -1,54 +1,73 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { AnalysisResult, ModelProvider, MarketType, MarketDashboardData, HoldingsSnapshot, PeriodicReviewData, PlanItem, KLineSynergyData } from "../types";
+import { AnalysisResult, ModelProvider, MarketType, MarketDashboardData, HoldingsSnapshot, PeriodicReviewData, PlanItem, KLineSynergyData, DualBoardScanResponse, MainBoardScanResponse } from "../types";
 
 const GEMINI_MODEL_PRIMARY = "gemini-3-flash-preview"; 
 const GEMINI_MODEL_COMPLEX = "gemini-3-pro-preview";
 
-// KLine Synergy Schema
-const klineSynergySchema = {
+// Dual Board Scan Schema
+const dualBoardScanSchema = {
   type: Type.OBJECT,
   properties: {
-    pattern_name: { type: Type.STRING },
-    synergy_score: { type: Type.NUMBER },
-    time_frame: { type: Type.STRING },
-    logic_timeline: {
+    scan_time: { type: Type.STRING },
+    market_mood: { type: Type.STRING },
+    hot_sectors: { type: Type.ARRAY, items: { type: Type.STRING } },
+    stocks: {
       type: Type.ARRAY,
       items: {
         type: Type.OBJECT,
         properties: {
-          day: { type: Type.STRING },
-          action: { type: Type.STRING },
-          psychology: { type: Type.STRING }
+          name: { type: Type.STRING },
+          code: { type: Type.STRING },
+          board: { type: Type.STRING, enum: ["创业板", "科创板"] },
+          control_score: { type: Type.NUMBER },
+          cost_price: { type: Type.STRING },
+          trend_momentum: { type: Type.STRING, description: "封板动能描述（如：一字封死、T字板、回封强力）" },
+          rating: { type: Type.STRING, enum: ["起爆", "锁筹", "分歧", "出货", "潜伏"] },
+          volume_ratio: { type: Type.STRING },
+          logic: { type: Type.STRING },
+          target_price: { type: Type.STRING },
+          support_price: { type: Type.STRING }
         },
-        required: ["day", "action", "psychology"]
+        required: ["name", "code", "board", "control_score", "cost_price", "trend_momentum", "rating", "logic"]
       }
-    },
-    synergy_factors: {
-      type: Type.OBJECT,
-      properties: {
-        volume_resonance: { type: Type.NUMBER },
-        price_strength: { type: Type.NUMBER },
-        capital_alignment: { type: Type.NUMBER }
-      },
-      required: ["volume_resonance", "price_strength", "capital_alignment"]
-    },
-    prediction: {
-      type: Type.OBJECT,
-      properties: {
-        trend: { type: Type.STRING, enum: ["Bullish", "Bearish", "Neutral"] },
-        probability: { type: Type.STRING },
-        target_window: { type: Type.STRING },
-        key_observation: { type: Type.STRING }
-      },
-      required: ["trend", "probability", "target_window", "key_observation"]
-    },
-    battle_summary: { type: Type.STRING }
+    }
   },
-  required: ["pattern_name", "synergy_score", "time_frame", "logic_timeline", "synergy_factors", "prediction", "battle_summary"]
+  required: ["scan_time", "market_mood", "stocks"]
 };
 
-// ... 其他 Schema ...
+// Main Board Scan Schema (Enhanced)
+const mainBoardScanSchema = {
+  type: Type.OBJECT,
+  properties: {
+    scan_time: { type: Type.STRING },
+    market_mood: { type: Type.STRING },
+    hot_sectors: { type: Type.ARRAY, items: { type: Type.STRING } },
+    stocks: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          code: { type: Type.STRING },
+          board: { type: Type.STRING, enum: ["沪市主板", "深市主板"] },
+          limit_up_type: { type: Type.STRING, enum: ["首板", "连板"] },
+          consecutive_days: { type: Type.NUMBER },
+          control_score: { type: Type.NUMBER },
+          cost_price: { type: Type.STRING },
+          trend_momentum: { type: Type.STRING },
+          rating: { type: Type.STRING, enum: ["起爆", "锁筹", "分歧", "出货", "潜伏"] },
+          volume_ratio: { type: Type.STRING },
+          logic: { type: Type.STRING },
+          target_price: { type: Type.STRING },
+          support_price: { type: Type.STRING }
+        },
+        required: ["name", "code", "board", "limit_up_type", "consecutive_days", "control_score", "cost_price", "trend_momentum", "rating", "logic"]
+      }
+    }
+  },
+  required: ["scan_time", "market_mood", "stocks"]
+};
 
 // Robust JSON Parser
 const robustParse = (text: string): any => {
@@ -63,6 +82,93 @@ const robustParse = (text: string): any => {
   } catch (e) {
     return null;
   }
+};
+
+export const fetchDualBoardScanning = async (
+  apiKey: string
+): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey });
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('zh-CN');
+
+  const prompt = `
+    作为顶级 A 股量化短线专家，请利用 googleSearch 实时扫描今日（${dateStr}）**创业板** 和 **科创板** 的【涨停封板】标的。
+    
+    [!!! 极重要指令 - 只要涨停股 !!!]
+    1. 目标范围：仅限今日涨幅达 20%（或接近 20% 且处于封板状态）的创业板、科创板个股。
+    2. 筛选数量：精选 **20 只** 涨停标的。如果今日涨停总数不足 20 只，请列出所有已涨停标的，并补充涨幅大于 15% 且主力资金净流入前列的强势备选。
+    3. 核心审计维度：
+       - **主力控盘分 (Control Score)**: 基于封单金额占成交额比例、撤单频率、以及涨停前的拉升角度。
+       - **封板动能 (Trend Momentum)**: 描述封板质量。例如：“早盘秒板、资金溢价极高”或“烂板回封、筹码交换充分”。
+       - **主力核心成本**: 重点计算今日主攻资金在分时图上的平均扫货价格。
+    4. [!!! 严格剔除 !!!]: 严禁输出任何“安全垫”或“估值”逻辑，只看【势能】与【资金博弈】。
+    
+    请输出严格格式的 JSON。
+  `;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL_PRIMARY,
+    contents: prompt,
+    config: {
+      tools: [{ googleSearch: {} }],
+      responseMimeType: "application/json",
+      responseSchema: dualBoardScanSchema
+    }
+  });
+
+  const parsed = robustParse(response.text || "{}");
+
+  return {
+    content: response.text || "",
+    timestamp: Date.now(),
+    modelUsed: ModelProvider.GEMINI_INTL,
+    isStructured: true,
+    dualBoardScanData: parsed,
+    market: MarketType.CN
+  };
+};
+
+export const fetchMainBoardScanning = async (
+  apiKey: string
+): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey });
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('zh-CN');
+
+  const prompt = `
+    作为顶级 A 股量化短线专家，请利用 googleSearch 实时扫描今日（${dateStr}）**上证主板** 和 **深证主板** 的【涨停封板】标的。
+    
+    [!!! 核心进化指令 !!!]
+    1. 目标范围：仅限今日涨幅 10%（或封板中）的沪深主板个股。
+    2. **涨停类型识别**：
+       - **首板**：今日为该标的近期首个涨停。
+       - **连板**：今日为连续涨停的第 N 天（请务必准确计算 N）。
+    3. 筛选数量：精选 **20 只** 核心涨停标的。
+    4. 核心维度：主力控盘分（0-100）、扫货成本、封板动能。
+    
+    请输出严格格式的 JSON，包含 limit_up_type (首板/连板) 和 consecutive_days (数字)。
+  `;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL_PRIMARY,
+    contents: prompt,
+    config: {
+      tools: [{ googleSearch: {} }],
+      responseMimeType: "application/json",
+      responseSchema: mainBoardScanSchema
+    }
+  });
+
+  const parsed = robustParse(response.text || "{}");
+
+  return {
+    content: response.text || "",
+    timestamp: Date.now(),
+    modelUsed: ModelProvider.GEMINI_INTL,
+    isStructured: true,
+    mainBoardScanData: parsed,
+    market: MarketType.CN
+  };
 };
 
 export const fetchKLineSynergyAnalysis = async (
@@ -116,7 +222,48 @@ export const fetchKLineSynergyAnalysis = async (
   };
 };
 
-// ... 原有的 fetchGeminiAnalysis, fetchMarketDashboard 等函数 ...
+const klineSynergySchema = {
+  type: Type.OBJECT,
+  properties: {
+    pattern_name: { type: Type.STRING },
+    synergy_score: { type: Type.NUMBER },
+    time_frame: { type: Type.STRING },
+    logic_timeline: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          day: { type: Type.STRING },
+          action: { type: Type.STRING },
+          psychology: { type: Type.STRING }
+        },
+        required: ["day", "action", "psychology"]
+      }
+    },
+    synergy_factors: {
+      type: Type.OBJECT,
+      properties: {
+        volume_resonance: { type: Type.NUMBER },
+        price_strength: { type: Type.NUMBER },
+        capital_alignment: { type: Type.NUMBER }
+      },
+      required: ["volume_resonance", "price_strength", "capital_alignment"]
+    },
+    prediction: {
+      type: Type.OBJECT,
+      properties: {
+        trend: { type: Type.STRING, enum: ["Bullish", "Bearish", "Neutral"] },
+        probability: { type: Type.STRING },
+        target_window: { type: Type.STRING },
+        key_observation: { type: Type.STRING }
+      },
+      required: ["trend", "probability", "target_window", "key_observation"]
+    },
+    battle_summary: { type: Type.STRING }
+  },
+  required: ["pattern_name", "synergy_score", "time_frame", "logic_timeline", "synergy_factors", "prediction", "battle_summary"]
+};
+
 export const fetchGeminiAnalysis = async (prompt: string, isComplex: boolean, apiKey: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
   const model = isComplex ? GEMINI_MODEL_COMPLEX : GEMINI_MODEL_PRIMARY;
@@ -332,8 +479,8 @@ export const fetchStockDetailWithImage = async (base64Image: string, query: stri
     请深度分析截图中的股票 "${query}" 的技术形态与量价关系。
 
     [新增量化逻辑指令]:
-    1. **乖离率 (BIAS) 风险审计**: 请通过 Google Search 检索该标的的最新 20/60/120 日均线价格。计算当前价与均线的偏离度。如果正乖离过大（如高于 15-20%），必须发出“追涨风险”警报。
-    2. **行业 Beta 过滤法**: 请检索该标的所属板块（如商业航天、半导体）的今日整体涨跌。如果板块整体走弱但该股处于支撑位，需判断其为“良性洗盘”而非“逻辑证伪”，防止用户情绪化洗下车。
+    1. **乖离率 (BIAS) 风险审计**: 请通过 Google Search 检索该标的的最新 20/60/120 日均线价格。计算当前价与均线的偏离度。如果正乖离过大（如高于 15-20%），必须发出“追涨风险”警警报。
+    2. **行业 Beta 过滤法**: 请检索该标不所属板块（如商业航天、半导体）的今日整体涨跌。如果板块整体走弱但该股处于支撑位，需判断其为“良性洗盘”而非“逻辑证伪”，防止用户情绪化洗下车。
     3. **量价一致性**: 分析成交量是否属于“缩量回调”还是“放量滞涨”。
   `;
   const imagePart = {
@@ -430,7 +577,7 @@ export const fetchPeriodicReview = async (journals: any[], label: string, market
 
 export const extractTradingPlan = async (content: string, apiKey: string): Promise<{ items: PlanItem[], summary: string }> => {
   const ai = new GoogleGenAI({ apiKey });
-  const prompt = `从以下分析报告中提取“明日交易计划”：\n\n${content}\n\n请识别出明确的 标的、动作(buy/sell/hold/monitor/t_trade)、价格目标、理由。`;
+  const prompt = `从以下分析报告中提取“明日交易计划”：\n\n${content}\n\n请识别出明确的 标的、动作(buy/sell/hold/monitor/t_trade Walton)、价格目标、理由。`;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
     contents: prompt,

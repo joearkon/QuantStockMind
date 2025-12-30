@@ -10,6 +10,7 @@ import { OpportunityMining } from './components/OpportunityMining';
 import { SectorCycleAnalysis } from './components/SectorCycleAnalysis'; 
 import { BatchTimingAnalysis } from './components/BatchTimingAnalysis';
 import { KLineMaster } from './components/KLineMaster';
+import { MainBoardMaster } from './components/MainBoardMaster';
 import { SettingsModal } from './components/SettingsModal';
 import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS, APP_VERSION } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
@@ -128,6 +129,7 @@ const App: React.FC = () => {
                 <Route path="/sector-cycle" element={<SectorCycleAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/batch-timing" element={<BatchTimingAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/kline-master" element={<KLineMaster currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
+                <Route path="/main-board-master" element={<MainBoardMaster currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/stock" element={<StockAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} savedResult={stockResult} onResultUpdate={setStockResult} savedQuery={stockQuery} onQueryUpdate={setStockQuery} />} />
                 <Route path="/vane" element={<InstitutionalHotlist currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} />} />
                 <Route path="/mining" element={<OpportunityMining currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />

@@ -10,6 +10,50 @@ export enum MarketType {
   US = 'US', // US Stocks
 }
 
+export interface DualBoardScanItem {
+  name: string;
+  code: string;
+  board: '创业板' | '科创板';
+  control_score: number; // 0-100 主力控盘分
+  cost_price: string;    // 主力核心成本
+  trend_momentum: string; // 短期趋势动能 (如: 强力进攻, 缩量洗盘, 平台突破)
+  rating: '起爆' | '锁筹' | '分歧' | '出货' | '潜伏';
+  volume_ratio: string;  // 量比
+  logic: string;         // 控盘逻辑简述
+  target_price: string;  // 明日压力位
+  support_price: string; // 明日支撑位
+}
+
+export interface DualBoardScanResponse {
+  scan_time: string;
+  market_mood: string;
+  hot_sectors: string[];
+  stocks: DualBoardScanItem[];
+}
+
+export interface MainBoardScanItem {
+  name: string;
+  code: string;
+  board: '沪市主板' | '深市主板';
+  limit_up_type: '首板' | '连板';
+  consecutive_days: number; // 连板天数，首板为1
+  control_score: number;
+  cost_price: string;
+  trend_momentum: string;
+  rating: '起爆' | '锁筹' | '分歧' | '出货' | '潜伏';
+  volume_ratio: string;
+  logic: string;
+  target_price: string;
+  support_price: string;
+}
+
+export interface MainBoardScanResponse {
+  scan_time: string;
+  market_mood: string;
+  hot_sectors: string[];
+  stocks: MainBoardScanItem[];
+}
+
 export interface KLineSynergyData {
   pattern_name: string;
   synergy_score: number; // 0-100
@@ -98,8 +142,10 @@ export interface MarketDashboardData {
   };
   macro_logic?: {
     policy_focus: string;
-    macro_event: string;
-    impact_level: 'High' | 'Medium' | 'Low';
+    external_impact?: string;
+    core_verdict?: string;
+    macro_event?: string;
+    impact_level?: 'High' | 'Medium' | 'Low';
   };
   institutional_signals?: {
     dragon_tiger_summary: string;
@@ -242,6 +288,8 @@ export interface AnalysisResult {
   ladderData?: SectorLadderData; 
   batchTimingData?: BatchTimingResponse;
   klineSynergyData?: KLineSynergyData;
+  dualBoardScanData?: DualBoardScanResponse;
+  mainBoardScanData?: MainBoardScanResponse;
 }
 
 export interface TimingEvaluation {
