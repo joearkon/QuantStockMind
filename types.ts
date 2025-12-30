@@ -10,85 +10,40 @@ export enum MarketType {
   US = 'US', // US Stocks
 }
 
-export interface InstitutionalPosition {
-  type: string;
-  change: string;
-  description: string;
-}
-
-export interface ChipAnalysisData {
-  name: string;
-  code: string;
-  current_price: string;
-  control_score: number; // 0-100
-  control_status: 'High' | 'Medium' | 'Low';
-  main_cost: string;
-  cost_distance: string; // 现价距离成本的距离，如 +15%
-  profit_ratio: string; // 获利盘比例
-  chip_concentration: string; // 筹码集中度
-  recent_big_flow: string; // 近期大单动向
-  positions: InstitutionalPosition[];
-  battle_verdict: string; // 筹码博弈结论
-}
-
-export interface MarketScanItem {
-  name: string;
-  code: string;
-  synergy_score: number;
-  verdict: string;
-  tomorrow_range: string;
-  action_hint: string;
-}
-
 export interface KLineSynergyData {
   pattern_name: string;
-  synergy_score: number; 
-  time_frame: string; 
+  synergy_score: number; // 0-100
+  time_frame: string; // "3-Day" | "5-Day"
   logic_timeline: {
     day: string;
     action: string;
-    psychology: string;
+    psychology: string; // 市场心理描述
   }[];
   synergy_factors: {
-    volume_resonance: number;
-    price_strength: number;
-    capital_alignment: number;
+    volume_resonance: number; // 量能共振
+    price_strength: number;   // 价格强度
+    capital_alignment: number; // 资金合力
   };
   prediction: {
     trend: 'Bullish' | 'Bearish' | 'Neutral';
     probability: string;
-    target_window: string;
+    target_window: string; // 未来几日
     key_observation: string;
-    price_roadmap: {
-      tomorrow: {
-        range: string;
-        high_target: string;
-        low_support: string;
-        action_hint: string;
-      };
-      day_after: {
-        range: string;
-        high_target: string;
-        low_support: string;
-        action_hint: string;
-      };
-    };
   };
-  battle_summary: string;
-  scan_results?: MarketScanItem[]; 
+  battle_summary: string; // 多空博弈总结
 }
 
 export interface BatchStockScore {
   name: string;
   code: string;
-  win_rate: number;
+  win_rate: number; // 0-100
   verdict: 'Immediate' | 'Pullback' | 'Wait' | 'Avoid';
-  verdict_label: string;
-  sector_heat: number;
+  verdict_label: string; // "现价买入", "回踩买入", "观望", "放弃"
+  sector_heat: number; // 0-100
   capital_flow: 'Inflow' | 'Neutral' | 'Outflow';
   technical_score: number;
   logic_summary: string;
-  key_price: string;
+  key_price: string; // 核心入场价
 }
 
 export interface BatchTimingResponse {
@@ -287,7 +242,6 @@ export interface AnalysisResult {
   ladderData?: SectorLadderData; 
   batchTimingData?: BatchTimingResponse;
   klineSynergyData?: KLineSynergyData;
-  chipData?: ChipAnalysisData; // 新增筹码分析数据
 }
 
 export interface TimingEvaluation {
