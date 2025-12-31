@@ -1,4 +1,5 @@
 
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { AnalysisResult, ModelProvider, MarketType, MarketDashboardData, HoldingsSnapshot, PeriodicReviewData, PlanItem, KLineSynergyData, DualBoardScanResponse, MainBoardScanResponse } from "../types";
 
@@ -406,6 +407,7 @@ const periodicReviewSchema = {
     score: { type: Type.NUMBER },
     market_trend: { type: Type.STRING, enum: ["bull", "bear", "sideways"] },
     market_summary: { type: Type.STRING, description: "包含对大盘（如上证指数）的大局解读" },
+    monthly_portfolio_summary: { type: Type.STRING, description: "本月所有持股的综合演进、调仓逻辑及最终表现总结（仅在月度复盘时生成）" },
     highlight: {
       type: Type.OBJECT,
       properties: { title: { type: Type.STRING }, description: { type: Type.STRING } },
@@ -533,12 +535,23 @@ export const fetchPeriodicReview = async (journals: any[], label: string, market
     totalProfit: j.snapshot?.holdings?.reduce((sum: number, h: any) => sum + (h.profit || 0), 0)
   }));
 
+  const isMonthly = label.includes("月");
+  const monthlyInstruction = isMonthly ? `
+    [!!! 月度持股演进强化指令 !!!]:
+    1. **本月全周期复盘**: 请根据提供的历史数据，梳理本月内我所有出现过的持股名称。
+    2. **风格漂移与板块切换**: 分析本月我是否在不同板块间频繁切换？哪些切换是成功的（Alpha 贡献），哪些是由于 FOMO 导致的失败操作。
+    3. **持股清单演进**: 在 'monthly_portfolio_summary' 字段中，提供一个清晰的“本月持仓演变”综述。例如：“月初重仓半导体，月中由于XX政策切换至商业航天，目前主要持有XX进行趋势跟踪”。
+    4. **胜率统计**: 简单统计本月盈利标的与亏损标的的比例，并总结核心赢面或亏损来源。
+  ` : "";
+
   const prompt = `
     作为资深基金经理，基于以下【${label}】的历史多份持仓快照生成阶段性复盘报告。
 
+    ${monthlyInstruction}
+
     [!!! 核心诊断增强指令 !!!]:
-    1. **追涨杀跌行为审计**: 请结合历史股价趋势，审查我是否在股票大幅偏离 20 日均线（正乖离过大）时进行了加仓操作（如工业富联）。如果是，请严厉指出其本质是 FOMO 情绪。
-    2. **情绪化清仓审计**: 请利用 Google Search 审查我清仓的标的（如通宇通讯、卫通）在随后几日的表现。如果我清仓是因为短期板块回调（Beta 下跌）而错失了随后几日的反包行情，请指出这是“情绪化被洗出”，并给出如何识别“良性洗盘”的建议。
+    1. **追涨杀跌行为审计**: 请结合历史股价趋势，审查我是否在股票大幅偏离 20 日均线（正乖离过大）时进行了加仓操作。如果是，请严厉指出其本质是 FOMO 情绪。
+    2. **情绪化清仓审计**: 请利用 Google Search 审查我清仓的标的在随后几日的表现。如果我清仓是因为短期板块回调（Beta 下跌）而错失了随后几日的反包行情，请指出这是“情绪化被洗出”，并给出如何识别“良性洗盘”的建议。
     3. **行业 Beta 过滤**: 分析盈亏变动中，有多少是随大流的 Beta，有多少是由于选股逻辑产生的 Alpha。
     
     【核心任务】

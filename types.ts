@@ -1,4 +1,5 @@
 
+
 export enum ModelProvider {
   GEMINI_INTL = 'Gemini 3 (海外版)',
   HUNYUAN_CN = '混元大模型 (国内版)',
@@ -183,6 +184,7 @@ export interface PeriodicReviewData {
   score: number;
   market_trend: 'bull' | 'bear' | 'sideways';
   market_summary: string;
+  monthly_portfolio_summary?: string;
   highlight: { title: string; description: string };
   lowlight: { title: string; description: string };
   execution: {

@@ -3,7 +3,7 @@ import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapsh
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { parseBrokerageScreenshot, fetchPeriodicReview, extractTradingPlan } from '../services/geminiService';
 import { analyzeImageWithExternal } from '../services/externalLlmService';
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle, Scale, Coins, ShieldAlert, Microscope, MessageSquareQuote, Lightbulb, FileType } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle, Scale, Coins, ShieldAlert, Microscope, MessageSquareQuote, Lightbulb, FileType, BookOpenCheck } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 
@@ -488,7 +488,12 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   };
 
   const handlePrintToPDF = () => {
-    window.print();
+    try {
+      window.print();
+    } catch (e) {
+      console.error("Print call failed", e);
+      alert("浏览器暂不支持此 PDF 导出功能，请尝试手动使用 Ctrl+P。");
+    }
   };
 
   // --- Handlers: Periodic Review ---
@@ -702,6 +707,21 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
               </p>
            </div>
         </div>
+
+        {/* --- 月度强化：持股总结模块 --- */}
+        {data.monthly_portfolio_summary && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-indigo-100 rounded-xl p-6 shadow-sm">
+             <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
+                <BookOpenCheck className="w-6 h-6 text-indigo-600" />
+                本月持股全周期总结与演进 (Monthly Portfolio Summary)
+             </h3>
+             <div className="bg-white p-6 rounded-2xl border border-indigo-100 shadow-inner">
+                <p className="text-slate-700 leading-relaxed font-bold text-sm md:text-base">
+                   {data.monthly_portfolio_summary}
+                </p>
+             </div>
+          </div>
+        )}
 
         {/* 重点新模块：个股专项审计报告 */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 overflow-hidden relative">
@@ -1293,7 +1313,8 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                 </button>
                 <button 
                   onClick={handlePrintToPDF}
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                  title="生成 PDF 报告"
                 >
                   <FileType className="w-3.5 h-3.5" /> 导出 PDF
                 </button>
