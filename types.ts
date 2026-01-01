@@ -41,7 +41,7 @@ export interface MainBoardScanItem {
   cost_price: string;
   trend_momentum: string;
   rating: '起爆' | '锁筹' | '分歧' | '出货' | '潜伏';
-  volume_ratio: string;
+  volume_ratio: string;  // logic: string;
   logic: string;
   target_price: string;
   support_price: string;
@@ -54,14 +54,23 @@ export interface MainBoardScanResponse {
   stocks: MainBoardScanItem[];
 }
 
-// --- NEW: Limit-Up Ladder Types ---
+// --- UPDATED: Limit-Up Ladder Types with Dragon Seed Support ---
+export interface DragonSeed {
+  name: string;
+  code: string;
+  capital_intensity: 'Extreme' | 'High' | 'Normal'; // 资金强度
+  seat_analysis: string; // 席位分析 (如: 章盟主入驻, 机构大买)
+  incubation_logic: string; // 栽培逻辑
+  evolution_stage: 'Seeding' | 'Sprouting' | 'Competing'; // 龙苗阶段
+}
+
 export interface LimitUpLadderSector {
   sector_name: string;
-  sector_type: 'Main' | 'Sub'; // 大类或子类
+  sector_type: 'Main' | 'Sub'; 
   total_count: number;
-  max_height: number; // 最高板数
+  max_height: number;
   ladder_matrix: {
-    height: number; // N板
+    height: number; 
     count: number;
     stocks: { name: string; code: string; logic: string }[];
   }[];
@@ -72,7 +81,8 @@ export interface LimitUpLadderSector {
     strength_score: number;
     reason: string;
   };
-  integrity_score: number; // 梯队完整度 0-100
+  dragon_seeds?: DragonSeed[]; // NEW: 龙苗备选
+  integrity_score: number; 
   market_sentiment: 'Rising' | 'Climax' | 'Diverging' | 'Falling';
 }
 
@@ -320,7 +330,7 @@ export interface AnalysisResult {
   klineSynergyData?: KLineSynergyData;
   dualBoardScanData?: DualBoardScanResponse;
   mainBoardScanData?: MainBoardScanResponse;
-  limitUpLadderData?: LimitUpLadderResponse; // Added for new module
+  limitUpLadderData?: LimitUpLadderResponse; 
 }
 
 export interface TimingEvaluation {
