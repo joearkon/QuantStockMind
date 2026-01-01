@@ -1,5 +1,4 @@
 
-
 export enum ModelProvider {
   GEMINI_INTL = 'Gemini 3 (海外版)',
   HUNYUAN_CN = '混元大模型 (国内版)',
@@ -53,6 +52,35 @@ export interface MainBoardScanResponse {
   market_mood: string;
   hot_sectors: string[];
   stocks: MainBoardScanItem[];
+}
+
+// --- NEW: Limit-Up Ladder Types ---
+export interface LimitUpLadderSector {
+  sector_name: string;
+  sector_type: 'Main' | 'Sub'; // 大类或子类
+  total_count: number;
+  max_height: number; // 最高板数
+  ladder_matrix: {
+    height: number; // N板
+    count: number;
+    stocks: { name: string; code: string; logic: string }[];
+  }[];
+  dragon_leader: {
+    name: string;
+    code: string;
+    consecutive_days: number;
+    strength_score: number;
+    reason: string;
+  };
+  integrity_score: number; // 梯队完整度 0-100
+  market_sentiment: 'Rising' | 'Climax' | 'Diverging' | 'Falling';
+}
+
+export interface LimitUpLadderResponse {
+  scan_time: string;
+  total_limit_ups: number;
+  sectors: LimitUpLadderSector[];
+  market_conclusion: string;
 }
 
 export interface KLineSynergyData {
@@ -292,6 +320,7 @@ export interface AnalysisResult {
   klineSynergyData?: KLineSynergyData;
   dualBoardScanData?: DualBoardScanResponse;
   mainBoardScanData?: MainBoardScanResponse;
+  limitUpLadderData?: LimitUpLadderResponse; // Added for new module
 }
 
 export interface TimingEvaluation {

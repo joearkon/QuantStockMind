@@ -1,10 +1,66 @@
 
-
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { AnalysisResult, ModelProvider, MarketType, MarketDashboardData, HoldingsSnapshot, PeriodicReviewData, PlanItem, KLineSynergyData, DualBoardScanResponse, MainBoardScanResponse } from "../types";
+import { AnalysisResult, ModelProvider, MarketType, MarketDashboardData, HoldingsSnapshot, PeriodicReviewData, PlanItem, KLineSynergyData, DualBoardScanResponse, MainBoardScanResponse, LimitUpLadderResponse } from "../types";
 
 const GEMINI_MODEL_PRIMARY = "gemini-3-flash-preview"; 
 const GEMINI_MODEL_COMPLEX = "gemini-3-pro-preview";
+
+// New: Limit-Up Ladder Schema
+const limitUpLadderSchema = {
+  type: Type.OBJECT,
+  properties: {
+    scan_time: { type: Type.STRING },
+    total_limit_ups: { type: Type.NUMBER },
+    sectors: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          sector_name: { type: Type.STRING },
+          sector_type: { type: Type.STRING, enum: ["Main", "Sub"] },
+          total_count: { type: Type.NUMBER },
+          max_height: { type: Type.NUMBER },
+          ladder_matrix: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                height: { type: Type.NUMBER },
+                count: { type: Type.NUMBER },
+                stocks: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      name: { type: Type.STRING },
+                      code: { type: Type.STRING },
+                      logic: { type: Type.STRING }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          dragon_leader: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              code: { type: Type.STRING },
+              consecutive_days: { type: Type.NUMBER },
+              strength_score: { type: Type.NUMBER },
+              reason: { type: Type.STRING }
+            }
+          },
+          integrity_score: { type: Type.NUMBER },
+          market_sentiment: { type: Type.STRING, enum: ["Rising", "Climax", "Diverging", "Falling"] }
+        },
+        required: ["sector_name", "total_count", "max_height", "ladder_matrix", "dragon_leader", "integrity_score"]
+      }
+    },
+    market_conclusion: { type: Type.STRING }
+  },
+  required: ["scan_time", "total_limit_ups", "sectors", "market_conclusion"]
+};
 
 // Dual Board Scan Schema
 const dualBoardScanSchema = {
@@ -83,6 +139,53 @@ const robustParse = (text: string): any => {
   } catch (e) {
     return null;
   }
+};
+
+/**
+ * NEW: Fetch and analyze Limit-Up Sector Ladder
+ */
+export const fetchLimitUpLadder = async (
+  apiKey: string
+): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey });
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('zh-CN');
+
+  const prompt = `
+    作为顶级 A 股短线量化专家，请利用 googleSearch 实时扫描今日（${dateStr}）全市场的【涨停标的】。
+    
+    【核心任务】
+    1. 归类汇总：将所有涨停股按照所属板块（大类，如：商业航天、低空经济、半导体）以及细分子类进行统计。
+    2. 梯队判研：识别每个板块内是否存在【梯队结构】（如 5板、3板、2板、1板齐全）。梯队越完整，说明该题材持续性越强。
+    3. 寻找龙头：在梯队完整的板块中，识别出连板最高、封板最稳的【灵魂龙头】。
+    
+    【判定标准】
+    - 题材大类与小类：需准确区分，例如“机器人”是宏观主题，“减速器”是子环节。
+    - 梯队完整度：5-3-2-1 结构为满分。
+    
+    请输出严格格式的 JSON。
+  `;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL_PRIMARY,
+    contents: prompt,
+    config: {
+      tools: [{ googleSearch: {} }],
+      responseMimeType: "application/json",
+      responseSchema: limitUpLadderSchema
+    }
+  });
+
+  const parsed = robustParse(response.text || "{}");
+
+  return {
+    content: response.text || "",
+    timestamp: Date.now(),
+    modelUsed: ModelProvider.GEMINI_INTL,
+    isStructured: true,
+    limitUpLadderData: parsed,
+    market: MarketType.CN
+  };
 };
 
 export const fetchDualBoardScanning = async (
@@ -564,7 +667,7 @@ export const fetchPeriodicReview = async (journals: any[], label: string, market
     【历史数据】
     ${JSON.stringify(historyData, null, 2)}
     
-    必须输出严格的 JSON 格式。
+    必须输出严格 JSON 格式。
   `;
 
   const response = await ai.models.generateContent({
@@ -674,7 +777,7 @@ export const fetchSectorLadderAnalysis = async (sectorName: string, market: Mark
     - 凋零特征识别：如果跌破 60 日线或年线，且成交量萎缩，归类为 "Receding" (退潮期)。
     - 梯队识别：清晰拆解一梯队（领涨）、二梯队（中军）、三梯队（补涨）。
 
-    请输出严格的 JSON。
+    请输出严格 JSON 格式。
   `;
 
   const response = await ai.models.generateContent({
