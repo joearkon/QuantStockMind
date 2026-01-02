@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ModelProvider, MarketType, AnalysisResult, LimitUpLadderSector } from '../types';
 import { fetchLimitUpLadder } from '../services/geminiService';
-import { Network, Loader2, Search, ArrowRight, Zap, Target, Flame, ShieldAlert, BarChart3, Rocket, Crown, Star, Layers, Activity, Info, Trophy, ChevronRight, LayoutGrid, Sparkles, UserCheck, ShieldCheck, Gauge, ShieldCheck as ShieldIcon, AlertTriangle } from 'lucide-react';
+import { Network, Loader2, Search, ArrowRight, Zap, Target, Flame, ShieldAlert, BarChart3, Rocket, Crown, Star, Layers, Activity, Info, Trophy, ChevronRight, LayoutGrid } from 'lucide-react';
 
 export const LimitUpLadder: React.FC<{
   currentModel: ModelProvider;
@@ -59,13 +59,6 @@ export const LimitUpLadder: React.FC<{
     }
   };
 
-  const getIntegrityColor = (score: number) => {
-    if (score >= 80) return 'text-emerald-600 bg-emerald-50 border-emerald-100';
-    if (score >= 60) return 'text-blue-600 bg-blue-50 border-blue-100';
-    if (score >= 40) return 'text-amber-600 bg-amber-50 border-amber-100';
-    return 'text-rose-600 bg-rose-50 border-rose-100';
-  };
-
   return (
     <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-20">
       {/* Search Header */}
@@ -77,10 +70,10 @@ export const LimitUpLadder: React.FC<{
                 <div className="p-3 bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-2xl text-white shadow-xl shadow-indigo-100">
                   <Network className="w-8 h-8" />
                 </div>
-                涨停梯队审计与完整度评分
+                涨停题材梯队审计 (Ladder Audit)
               </h2>
               <p className="text-slate-500 text-base max-w-2xl font-medium">
-                基于 **5-3-2-1 阵型** 对全市场板块进行健康度打分。剔除断层严重的伪题材，锁定具备“金字塔合力”的真主线。
+                AI 实时扫描全市场涨停标的，按 **题材板块** 深度聚合。识别 5-3-2-1 **梯队完整度**，锁定绝对主线。
               </p>
             </div>
             
@@ -90,19 +83,19 @@ export const LimitUpLadder: React.FC<{
               className="px-10 h-16 bg-slate-900 text-white rounded-[1.5rem] font-black shadow-2xl hover:bg-slate-800 transition-all flex items-center gap-3 active:scale-95 disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Rocket className="w-6 h-6" />}
-              {loading ? `全市场梯队完整度审计中 (${elapsed}s)...` : '开始梯队完整度打分'}
+              {loading ? `全市场梯队审计中 (${elapsed}s)...` : '今日涨停梯队全扫描'}
             </button>
           </div>
 
           <div className="flex flex-wrap gap-4">
             <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-700 text-xs font-black">
-              <Layers className="w-4 h-4" /> 梯队健康打分
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 text-xs font-black">
-              <ShieldIcon className="w-4 h-4" /> 排除断层陷阱
+              <Layers className="w-4 h-4" /> 题材分类 (大类+细分)
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700 text-xs font-black">
-              <Sparkles className="w-4 h-4" /> 龙苗/种子识别
+              <Trophy className="w-4 h-4" /> 梯队完整度判研
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-100 rounded-xl text-amber-700 text-xs font-black">
+              <Crown className="w-4 h-4" /> 自动锁定灵魂龙头
             </div>
           </div>
         </div>
@@ -122,12 +115,12 @@ export const LimitUpLadder: React.FC<{
              <div className="absolute right-0 top-0 w-1/3 h-full bg-gradient-to-l from-indigo-500/10 to-transparent pointer-events-none"></div>
              <div className="flex flex-col md:flex-row justify-between items-center gap-6 relative z-10">
                 <div className="flex-1">
-                   <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-3">全市场审计快报 (${ladderData.scan_time})</div>
+                   <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-3">全市场涨停审计 · 核心研判 (${ladderData.scan_time})</div>
                    <p className="text-xl font-black italic leading-relaxed text-slate-200">"{ladderData.market_conclusion}"</p>
                 </div>
                 <div className="text-center bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/10 w-40">
                    <div className="text-4xl font-black mb-1">{ladderData.total_limit_ups}</div>
-                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">全场涨停数</div>
+                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">今日涨停总数</div>
                 </div>
              </div>
           </div>
@@ -141,7 +134,7 @@ export const LimitUpLadder: React.FC<{
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${sector.sector_type === 'Main' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                          {sector.sector_type === 'Main' ? '核心题材' : '支线题材'}
+                          {sector.sector_type === 'Main' ? '核心题材' : '子项支线'}
                         </span>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${getSentimentStyle(sector.market_sentiment)}`}>
                           {sector.market_sentiment}
@@ -149,29 +142,20 @@ export const LimitUpLadder: React.FC<{
                       </div>
                       <h3 className="text-2xl font-black text-slate-800">{sector.sector_name}</h3>
                     </div>
-                    
-                    {/* NEW: Integrity Score Gauge */}
-                    <div className="text-right flex items-center gap-4">
-                       <div className="flex flex-col items-end">
-                          <div className={`text-2xl font-black tracking-tighter ${getIntegrityColor(sector.integrity_score || 0).split(' ')[0]}`}>
-                            {sector.integrity_score || '--'}
-                          </div>
-                          <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">完整度得分</div>
-                       </div>
-                       <div className={`px-3 py-1.5 rounded-xl border-2 text-[10px] font-black whitespace-nowrap shadow-sm ${getIntegrityColor(sector.integrity_score || 0)}`}>
-                          {sector.integrity_label || '待评估'}
-                       </div>
+                    <div className="text-right">
+                       <div className="text-3xl font-black text-indigo-600 tracking-tighter">{sector.total_count}只</div>
+                       <div className="text-[10px] font-bold text-slate-400">板块涨停家数</div>
                     </div>
                   </div>
 
-                  {/* Main Dragon Leader */}
+                  {/* Dragon Leader Highlight */}
                   <div className="bg-slate-900 rounded-3xl p-6 text-white mb-8 relative overflow-hidden shadow-xl border-b-4 border-amber-500">
                     <div className="absolute right-0 top-0 p-4 opacity-10">
                       <Crown className="w-16 h-16 text-amber-400" />
                     </div>
                     <div className="flex justify-between items-center mb-4">
                        <div className="flex items-center gap-2 text-amber-400 text-xs font-black uppercase tracking-widest">
-                          <Crown className="w-4 h-4" /> 板块灵魂 (Leader)
+                          <Crown className="w-4 h-4" /> 灵魂龙头 (Dragon)
                        </div>
                        <div className="px-3 py-1 bg-amber-500 text-white text-[10px] font-black rounded-full">强度: {sector.dragon_leader.strength_score}</div>
                     </div>
@@ -182,55 +166,23 @@ export const LimitUpLadder: React.FC<{
                        </div>
                        <div className="text-right">
                           <div className="text-3xl font-black text-rose-500">{sector.dragon_leader.consecutive_days}连板</div>
-                          <div className="text-[10px] font-bold text-slate-500 italic truncate max-w-[120px]">"{sector.dragon_leader.reason}"</div>
+                          <div className="text-[10px] font-bold text-slate-500 italic">"{sector.dragon_leader.reason}"</div>
                        </div>
                     </div>
                   </div>
-
-                  {/* Dragon Incubation Candidates */}
-                  {sector.dragon_seeds && sector.dragon_seeds.length > 0 && (
-                    <div className="mb-8 space-y-3">
-                       <div className="flex items-center gap-2 text-[10px] font-black text-rose-500 uppercase tracking-widest px-2">
-                          <Sparkles className="w-4 h-4 animate-pulse" /> 大资金栽培标的 (Dragon Seeds)
-                       </div>
-                       <div className="grid grid-cols-1 gap-3">
-                          {sector.dragon_seeds.map((seed, sidx) => (
-                             <div key={sidx} className="bg-rose-50/50 border border-rose-100 rounded-2xl p-4 flex flex-col gap-3 group/seed relative overflow-hidden">
-                                <div className="flex justify-between items-start z-10">
-                                   <div className="flex items-center gap-3">
-                                      <div className="font-black text-slate-800 text-lg">{seed.name}</div>
-                                      <div className="text-[10px] font-mono text-slate-400">{seed.code}</div>
-                                      <span className={`px-2 py-0.5 rounded text-[9px] font-black text-white ${
-                                         seed.capital_intensity === 'Extreme' ? 'bg-rose-600' : 'bg-rose-400'
-                                      }`}>强度: {seed.capital_intensity}</span>
-                                   </div>
-                                </div>
-                                <div className="flex items-start gap-2 bg-white/60 p-3 rounded-xl border border-rose-100">
-                                   <UserCheck className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-                                   <div className="text-xs text-slate-600 font-bold leading-relaxed">
-                                      <b>席位动向:</b> {seed.seat_analysis}
-                                   </div>
-                                </div>
-                                <div className="text-xs text-rose-800 font-medium italic">
-                                   💡 <b>栽培逻辑:</b> {seed.incubation_logic}
-                                </div>
-                             </div>
-                          ))}
-                       </div>
-                    </div>
-                  )}
 
                   {/* Ladder Matrix Visualization */}
                   <div className="space-y-4 mb-8">
                      <div className="flex items-center justify-between px-2">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                          <Layers className="w-3.5 h-3.5" /> 5-3-2-1 梯队阵型
+                          <Layers className="w-3.5 h-3.5" /> 梯队矩阵 (Ladder Matrix)
                         </span>
-                        {sector.integrity_score && sector.integrity_score < 40 && (
-                          <span className="text-[9px] font-black text-rose-500 flex items-center gap-1 bg-rose-50 px-2 py-0.5 rounded border border-rose-100 animate-pulse">
-                            <AlertTriangle className="w-3 h-3" /> 存在梯队断层
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                           <span className="text-[10px] font-bold text-slate-500">梯队完整度</span>
+                           <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-indigo-500" style={{width: `${sector.integrity_score}%`}}></div>
+                           </div>
+                        </div>
                      </div>
                      <div className="grid grid-cols-1 gap-2">
                         {sector.ladder_matrix.sort((a, b) => b.height - a.height).map((row, rIdx) => (
@@ -263,10 +215,13 @@ export const LimitUpLadder: React.FC<{
           {/* Guidelines Footer */}
           <div className="flex flex-col md:flex-row gap-6 justify-center items-center py-10">
              <div className="flex items-center gap-3 px-6 py-3 bg-white rounded-full border border-slate-200 text-[10px] text-slate-400 font-black uppercase tracking-[0.3em]">
-                <ShieldIcon className="w-4 h-4 text-emerald-500" /> 完美金字塔：底层厚实，梯队连贯，板块合力最强
+                <Flame className="w-4 h-4 text-rose-500" /> 梯队完整 (5-3-2-1)：说明板块具备中线主线潜力
              </div>
              <div className="flex items-center gap-3 px-6 py-3 bg-white rounded-full border border-slate-200 text-[10px] text-slate-400 font-black uppercase tracking-[0.3em]">
-                <AlertTriangle className="w-4 h-4 text-rose-500" /> 断层风险：高位板孤掌难鸣，中间层缺失，极易崩盘
+                <Star className="w-4 h-4 text-amber-500" /> 灵魂龙头：梯队顶端、具备极强情绪带动力的标的
+             </div>
+             <div className="flex items-center gap-3 px-6 py-3 bg-white rounded-full border border-slate-200 text-[10px] text-slate-400 font-black uppercase tracking-[0.3em]">
+                <Info className="w-4 h-4 text-indigo-500" /> 细分切换：当老题材退潮，需关注新梯队的萌芽
              </div>
           </div>
         </div>
@@ -276,9 +231,9 @@ export const LimitUpLadder: React.FC<{
       {!result && !loading && (
         <div className="py-40 text-center flex flex-col items-center justify-center bg-white rounded-[3rem] border border-dashed border-slate-200">
            <LayoutGrid className="w-20 h-20 text-indigo-100 mb-8" />
-           <p className="text-slate-400 font-black text-2xl tracking-tight">点击“开始打分”，审计梯队完整度</p>
+           <p className="text-slate-400 font-black text-2xl tracking-tight">扫描全市场，研判题材梯队</p>
            <p className="text-slate-300 text-sm mt-4 max-w-md mx-auto leading-relaxed">
-              AI 将根据今日涨停分布，通过数学模型计算板块 **完整度分数**。分数越高，题材的持续性与合力越强。
+              AI 将全网搜索今日涨停标的，为您智能归类板块并拆解梯队结构，识别真正的 **强势主线** 与 **市场龙头**。
            </p>
         </div>
       )}
