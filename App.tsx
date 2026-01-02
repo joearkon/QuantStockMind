@@ -13,7 +13,8 @@ import { KLineMaster } from './components/KLineMaster';
 import { MainBoardMaster } from './components/MainBoardMaster';
 import { LimitUpLadder } from './components/LimitUpLadder';
 import { DragonSignal } from './components/DragonSignal';
-import { StockSynergyAnalysis } from './components/StockSynergyAnalysis'; // New Import
+import { StockSynergyAnalysis } from './components/StockSynergyAnalysis'; 
+import { PatternHunter } from './components/PatternHunter'; // NEW
 import { SettingsModal } from './components/SettingsModal';
 import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS, APP_VERSION } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
@@ -130,6 +131,7 @@ const App: React.FC = () => {
                 <Route path="/market" element={<MarketAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} savedResult={marketResult} onResultUpdate={setMarketResult} savedPeriod={marketPeriod} onPeriodUpdate={setMarketPeriod} />} />
                 <Route path="/dragon-signal" element={<DragonSignal currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/synergy" element={<StockSynergyAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
+                <Route path="/pattern-hunter" element={<PatternHunter currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/holdings" element={<HoldingsReview currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/sector-cycle" element={<SectorCycleAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/batch-timing" element={<BatchTimingAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />

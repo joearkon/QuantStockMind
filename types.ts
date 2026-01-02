@@ -10,13 +10,46 @@ export enum MarketType {
   US = 'US', // US Stocks
 }
 
-// --- NEW: Enhanced Stock Synergy Types for Dragon Identification ---
+// --- NEW: Pattern Verification Interfaces ---
+export interface PatternVerificationResponse {
+  stock_name: string;
+  verdict: '立即伏击' | '继续观察' | '逻辑失效' | '等待放量';
+  confidence_score: number; // 0-100
+  visual_diagnostic: string; // 视觉 K 线诊断结论
+  volume_ratio_verdict: string; // 针对用户输入量比的评价
+  trigger_condition: string; // 确切的买入触发条件
+  stop_loss_point: string; 
+  target_space: string;
+  battle_logic: string; // 终极实战逻辑
+}
+
+// --- NEW: Nanxing Pattern (Volume Vacuum) Interfaces ---
+export interface PatternStockItem {
+  name: string;
+  code: string;
+  current_tier: '二梯队' | '三梯队' | '潜伏期';
+  vacuum_score: number; 
+  volume_ratio_desc: string; 
+  catalyst_alignment: string; 
+  technical_setup: string; 
+  entry_signal_trigger: string; 
+  upside_potential: string; 
+  risk_warning: string;
+}
+
+export interface PatternHunterResponse {
+  sector_context: string;
+  sector_leader: string; 
+  market_stage: string; 
+  stocks: PatternStockItem[];
+}
+
 export interface StockSynergyResponse {
   name: string;
   code: string;
   synergy_score: number; 
   trap_risk_score: number; 
-  dragon_potential_score: number; // 0-100: 龙头基因分
+  dragon_potential_score: number; 
   market_position: '板块灵魂/龙头' | '中军/核心权重' | '跟风/补涨' | '独立行情';
   capital_consistency: '高度一致' | '分歧严重' | '机构接力' | '散户合力';
   turnover_eval: {
@@ -43,10 +76,9 @@ export interface StockSynergyResponse {
   }[];
   battle_verdict: string;
   action_guide: string;
-  chase_safety_index: number; // 0-100: 追涨安全系数
+  chase_safety_index: number; 
 }
 
-// ... existing interfaces (DragonSignalItem, etc.) follow ...
 export interface DragonSignalItem {
   name: string;
   code: string;
@@ -383,7 +415,9 @@ export interface AnalysisResult {
   mainBoardScanData?: MainBoardScanResponse;
   limitUpLadderData?: LimitUpLadderResponse;
   dragonSignalData?: DragonSignalResponse;
-  stockSynergyData?: StockSynergyResponse; 
+  stockSynergyData?: StockSynergyResponse;
+  patternHunterData?: PatternHunterResponse;
+  patternVerificationData?: PatternVerificationResponse; // NEW
 }
 
 export interface TimingEvaluation {

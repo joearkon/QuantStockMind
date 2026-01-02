@@ -74,11 +74,16 @@ export const StockSynergyAnalysis: React.FC<{
   };
 
   const formatConfidence = (val: number) => {
-    if (val === undefined || val === null) return "--";
-    // 处理 AI 可能返回的 0.85 或 85
+    if (val === undefined || val === null) return 0;
     let num = Number(val);
     if (num <= 1 && num > 0) num = num * 100;
     return Math.round(num);
+  };
+
+  const getConfidenceColor = (score: number) => {
+    if (score >= 80) return 'from-rose-500 to-rose-600';
+    if (score >= 60) return 'from-indigo-500 to-indigo-600';
+    return 'from-slate-400 to-slate-500';
   };
 
   return (
@@ -104,7 +109,7 @@ export const StockSynergyAnalysis: React.FC<{
                   value={query}
                   onChange={e => setQuery(e.target.value)}
                   placeholder="输入代码或名称 (如 中国卫星)..."
-                  className="w-full h-14 pl-12 pr-12 bg-white rounded-[1.5rem] border border-slate-200 focus:ring-4 focus:ring-indigo-50 outline-none font-bold text-lg transition-all"
+                  className="w-full h-14 pl-12 pr-4 bg-white rounded-[1.5rem] border border-slate-200 focus:ring-4 focus:ring-indigo-50 outline-none font-bold text-lg transition-all"
                   onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
                 />
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-6 h-6" />
@@ -201,14 +206,29 @@ export const StockSynergyAnalysis: React.FC<{
 
           {/* T+1 Forecast Section */}
           <div className="bg-gradient-to-br from-indigo-50 to-white rounded-[2.5rem] border border-indigo-100 p-8 shadow-sm">
-             <div className="flex justify-between items-start mb-8">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
                 <h3 className="font-black text-indigo-900 text-2xl flex items-center gap-3">
                    <CalendarClock className="w-7 h-7 text-indigo-600" />
                    T+1 预判形态走势 (Next Day Forecast)
                 </h3>
-                <div className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-2xl shadow-lg">
-                   <Sparkles className="w-4 h-4" />
-                   <span className="text-xs font-black uppercase tracking-widest">胜率: {formatConfidence(d.t_plus_1_prediction.confidence)}%</span>
+                
+                {/* Confidence Highlighted Section */}
+                <div className="bg-white px-6 py-4 rounded-3xl border border-indigo-100 shadow-xl flex flex-col gap-2 min-w-[240px]">
+                   <div className="flex justify-between items-end">
+                      <div className="flex items-center gap-2 text-indigo-600">
+                         <Sparkles className="w-4 h-4" />
+                         <span className="text-[10px] font-black uppercase tracking-[0.2em]">Confidence 胜率预估</span>
+                      </div>
+                      <span className="text-2xl font-black text-indigo-900 tracking-tighter">
+                         {formatConfidence(d.t_plus_1_prediction.confidence)}%
+                      </span>
+                   </div>
+                   <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner border border-slate-50">
+                      <div 
+                         className={`h-full bg-gradient-to-r transition-all duration-1000 ease-out rounded-full ${getConfidenceColor(formatConfidence(d.t_plus_1_prediction.confidence))}`}
+                         style={{ width: `${formatConfidence(d.t_plus_1_prediction.confidence)}%` }}
+                      ></div>
+                   </div>
                 </div>
              </div>
              
