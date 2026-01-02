@@ -1,8 +1,7 @@
 
-
 // Fix: Added missing imports and functions required by the application components.
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { AnalysisResult, ModelProvider, MarketType, MarketDashboardData, HoldingsSnapshot, PeriodicReviewData, PlanItem, KLineSynergyData, DualBoardScanResponse, MainBoardScanResponse, LimitUpLadderResponse, StockSynergyResponse, SectorLadderData, JournalEntry, DragonSignalResponse } from "../types";
+import { AnalysisResult, ModelProvider, MarketType, MarketDashboardData, HoldingsSnapshot, PeriodicReviewData, PlanItem, KLineSynergyData, DualBoardScanResponse, MainBoardScanResponse, LimitUpLadderResponse, DragonSignalResponse, StockSynergyResponse, SectorLadderData, JournalEntry } from "../types";
 
 const GEMINI_MODEL_PRIMARY = "gemini-3-flash-preview"; 
 const GEMINI_MODEL_COMPLEX = "gemini-3-pro-preview";
@@ -87,7 +86,6 @@ const marketDashboardSchema = {
         total_volume: { type: Type.STRING },
         volume_delta: { type: Type.STRING },
         volume_trend: { type: Type.STRING, enum: ["expansion", "contraction", "flat"] },
-        net_inflow: { type: Type.STRING },
         capital_mood: { type: Type.STRING }
       },
       required: ["total_volume", "volume_delta", "volume_trend", "capital_mood"]
@@ -357,14 +355,15 @@ const dragonSignalSchema = {
         properties: {
           name: { type: Type.STRING },
           code: { type: Type.STRING },
-          signal_type: { type: Type.STRING, enum: ["龙回头", "一进二", "底部反转", "趋势加速"] },
+          signal_type: { type: Type.STRING, enum: ["龙回头", "一进二", "底部反转", "趋势中继"] },
           energy_score: { type: Type.NUMBER },
           alpha_logic: { type: Type.STRING },
-          key_target: { type: Type.STRING },
+          volume_status: { type: Type.STRING },
           key_support: { type: Type.STRING },
-          volume_status: { type: Type.STRING }
+          key_target: { type: Type.STRING },
+          risk_level: { type: Type.STRING, enum: ["High", "Medium", "Low"] }
         },
-        required: ["name", "code", "signal_type", "energy_score", "alpha_logic", "key_target", "key_support", "volume_status"]
+        required: ["name", "code", "signal_type", "energy_score", "alpha_logic", "volume_status", "key_support", "key_target", "risk_level"]
       }
     }
   },
@@ -420,32 +419,6 @@ export const fetchStockSynergy = async (query: string, base64Image: string | nul
     modelUsed: ModelProvider.GEMINI_INTL,
     isStructured: true,
     stockSynergyData: robustParse(response.text || "{}")
-  };
-};
-
-/**
- * 龙脉信号审计
- */
-export const fetchDragonSignals = async (apiKey: string): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey });
-  const prompt = `扫描全市场龙头股、底部金叉及极值回踩信号。过滤 Alpha 级别催化剂，锁定绝对强势。输出必须严格遵守 JSON。`;
-  
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
-    contents: prompt,
-    config: {
-      tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      responseSchema: dragonSignalSchema
-    }
-  });
-
-  return {
-    content: response.text || "",
-    timestamp: Date.now(),
-    modelUsed: ModelProvider.GEMINI_INTL,
-    isStructured: true,
-    dragonSignalData: robustParse(response.text || "{}")
   };
 };
 
@@ -641,6 +614,28 @@ export const fetchLimitUpLadder = async (apiKey?: string): Promise<AnalysisResul
     modelUsed: ModelProvider.GEMINI_INTL,
     isStructured: true,
     limitUpLadderData: robustParse(response.text || "{}")
+  };
+};
+
+// Fix: Implemented fetchDragonSignals for dragon stock and extreme reversal signaling.
+export const fetchDragonSignals = async (apiKey?: string): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY || "" });
+  const prompt = `扫描全市场龙头股、底部反转、龙回头及竞价超预期信号。`;
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL_PRIMARY,
+    contents: prompt,
+    config: {
+      tools: [{ googleSearch: {} }],
+      responseMimeType: "application/json",
+      responseSchema: dragonSignalSchema
+    }
+  });
+  return {
+    content: response.text || "",
+    timestamp: Date.now(),
+    modelUsed: ModelProvider.GEMINI_INTL,
+    isStructured: true,
+    dragonSignalData: robustParse(response.text || "{}")
   };
 };
 
