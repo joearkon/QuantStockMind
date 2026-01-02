@@ -52,6 +52,33 @@ const patternHunterSchema = {
   required: ["sector_context", "sector_leader", "market_stage", "stocks"]
 };
 
+const holdingsSnapshotSchema = {
+  type: Type.OBJECT,
+  properties: {
+    totalAssets: { type: Type.NUMBER },
+    positionRatio: { type: Type.NUMBER },
+    date: { type: Type.STRING },
+    holdings: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          code: { type: Type.STRING },
+          volume: { type: Type.NUMBER },
+          costPrice: { type: Type.NUMBER },
+          currentPrice: { type: Type.NUMBER },
+          profit: { type: Type.NUMBER },
+          profitRate: { type: Type.STRING },
+          marketValue: { type: Type.NUMBER }
+        },
+        required: ["name", "code", "volume", "costPrice", "currentPrice", "profit", "profitRate", "marketValue"]
+      }
+    }
+  },
+  required: ["totalAssets", "holdings", "date"]
+};
+
 // Robust JSON Parser
 const robustParse = (text: string): any => {
   if (!text) return null;
@@ -150,7 +177,6 @@ export const fetchNanxingPattern = async (sectorQuery: string, apiKey: string): 
   };
 };
 
-// ... (remaining exports stay the same)
 export const fetchGeminiAnalysis = async (prompt: string, isComplex: boolean, apiKey?: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY || "" });
   const response = await ai.models.generateContent({
@@ -247,6 +273,43 @@ export const fetchStockDetailWithImage = async (base64Image: string, query: stri
   return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, market };
 };
 
+/**
+ * 核心功能修复：解析持仓截图
+ */
 export const parseBrokerageScreenshot = async (base64Image: string, apiKey?: string): Promise<HoldingsSnapshot> => {
-  return { totalAssets: 0, date: "", holdings: [] };
+  if (!apiKey) throw new Error("Missing API Key for screenshot parsing.");
+  const ai = new GoogleGenAI({ apiKey });
+
+  const prompt = `
+    你是一位专业的股票账户分析助理。请识别并提取这张持仓截图中的所有关键数据。
+    
+    [提取要求]:
+    1. **总资产**: 提取账户的总资产数值。
+    2. **仓位占比**: 提取或计算目前的仓位百分比（若图中无直接数据，请根据持仓市值/总资产估算）。
+    3. **持仓列表**: 包含标的名称、代码、持仓量（股数）、成本价、当前价、盈亏金额、盈亏比例、市值。
+    4. **日期**: 识别截图中的日期（若无则使用今天）。
+    
+    [输出格式]: 严格按照 JSON 格式输出。
+  `;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL_PRIMARY,
+    contents: {
+      parts: [
+        { text: prompt },
+        { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
+      ]
+    },
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: holdingsSnapshotSchema
+    }
+  });
+
+  const parsed = robustParse(response.text || "{}");
+  if (!parsed || !parsed.holdings) {
+     throw new Error("未能识别到有效的持仓列表，请确保截图清晰且包含持仓表格。");
+  }
+
+  return parsed;
 };
