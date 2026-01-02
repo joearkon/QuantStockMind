@@ -1,4 +1,5 @@
 
+
 export enum ModelProvider {
   GEMINI_INTL = 'Gemini 3 (海外版)',
   HUNYUAN_CN = '混元大模型 (国内版)',
@@ -44,26 +45,6 @@ export interface StockSynergyResponse {
   battle_verdict: string;
   action_guide: string;
   chase_safety_index: number; // 0-100: 追涨安全系数
-}
-
-// ... existing interfaces (DragonSignalItem, etc.) follow ...
-export interface DragonSignalItem {
-  name: string;
-  code: string;
-  signal_type: '龙回头' | '一进二' | '底部反转' | '趋势中继';
-  energy_score: number; 
-  alpha_logic: string;  
-  volume_status: string; 
-  key_support: string;   
-  key_target: string;    
-  risk_level: 'High' | 'Medium' | 'Low';
-}
-
-export interface DragonSignalResponse {
-  scan_time: string;
-  market_pulse: string; 
-  dragon_energy: number; 
-  signals: DragonSignalItem[];
 }
 
 export interface DualBoardScanItem {
@@ -114,6 +95,25 @@ export interface MainBoardScanResponse {
   market_mood: string;
   hot_sectors: string[];
   stocks: MainBoardScanItem[];
+}
+
+// --- Dragon Signal Types ---
+export interface DragonSignalItem {
+  name: string;
+  code: string;
+  signal_type: '龙回头' | '一进二' | '底部反转' | '趋势加速';
+  energy_score: number;
+  alpha_logic: string;
+  key_target: string;
+  key_support: string;
+  volume_status: string;
+}
+
+export interface DragonSignalResponse {
+  scan_time: string;
+  market_pulse: string;
+  dragon_energy: number;
+  signals: DragonSignalItem[];
 }
 
 export interface LimitUpLadderSector {
@@ -382,8 +382,8 @@ export interface AnalysisResult {
   dualBoardScanData?: DualBoardScanResponse;
   mainBoardScanData?: MainBoardScanResponse;
   limitUpLadderData?: LimitUpLadderResponse;
-  dragonSignalData?: DragonSignalResponse;
   stockSynergyData?: StockSynergyResponse; 
+  dragonSignalData?: DragonSignalResponse;
 }
 
 export interface TimingEvaluation {

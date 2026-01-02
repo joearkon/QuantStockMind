@@ -20,8 +20,7 @@ export const NAV_ITEMS = [
   { id: 'market', label: '市场全览', icon: LayoutDashboard },
   { id: 'holdings', label: '持仓复盘', icon: NotebookPen },
   { id: 'stock', label: '个股量化', icon: TrendingUp },
-  { id: 'synergy', label: '标的合力审计', icon: UsersRound }, // New Module
-  { id: 'dragon-signal', label: '龙脉信号审计', icon: Zap },
+  { id: 'synergy', label: '标的合力审计', icon: UsersRound },
   { id: 'limit-up-ladder', label: '涨停题材梯队审计', icon: Network },
   { id: 'kline-master', label: '双创涨停扫描', icon: ScanEye },
   { id: 'main-board-master', label: '沪深主板涨停', icon: Gavel },
