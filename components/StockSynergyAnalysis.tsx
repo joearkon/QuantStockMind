@@ -93,7 +93,7 @@ export const StockSynergyAnalysis: React.FC<{
             标的合力与龙头基因审计
           </h2>
           <p className="text-slate-500 text-base max-w-2xl font-medium mb-10">
-            审计标的是否具备 **“大妖股”基因**（如中国卫星 20->90 逻辑）。AI 将通过视觉形态与全网 Alpha 信号对齐主力真实意图。
+            审计标的是否具备 **“大妖股”基因**（如中国卫星 20 至 90 逻辑）。AI 将通过视觉形态与全网 Alpha 信号对齐主力真实意图。
           </p>
 
           <div className="max-w-2xl flex flex-col gap-4">
@@ -131,7 +131,7 @@ export const StockSynergyAnalysis: React.FC<{
             {imagePreview && (
               <div className="flex items-center gap-4 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl animate-fade-in max-w-xl">
                 <div className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-indigo-200 shrink-0 shadow-sm">
-                  <img src={imagePreview} className="w-full h-full object-cover" />
+                  <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" />
                   <button onClick={() => {setSelectedImage(null); setImagePreview(null);}} className="absolute top-0 right-0 p-1 bg-indigo-600 text-white rounded-bl-lg">
                     <X className="w-3 h-3" />
                   </button>
