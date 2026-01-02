@@ -53,8 +53,23 @@ const stockSynergySchema = {
     },
     main_force_portrait: {
       type: Type.OBJECT,
-      properties: { lead_type: { type: Type.STRING }, entry_cost_est: { type: Type.STRING }, hold_status: { type: Type.STRING } },
+      properties: { 
+        lead_type: { type: Type.STRING }, 
+        entry_cost_est: { type: Type.STRING }, 
+        hold_status: { type: Type.STRING } 
+      },
       required: ["lead_type", "entry_cost_est", "hold_status"]
+    },
+    t_plus_1_prediction: {
+      type: Type.OBJECT,
+      properties: {
+        expected_direction: { type: Type.STRING, enum: ["看涨", "看跌", "高位震荡", "冲高回落", "下杀探底"] },
+        confidence: { type: Type.NUMBER, description: "胜率预估，必须是 0-100 之间的整数" },
+        price_range: { type: Type.STRING },
+        opening_strategy: { type: Type.STRING },
+        logic: { type: Type.STRING }
+      },
+      required: ["expected_direction", "confidence", "price_range", "opening_strategy", "logic"]
     },
     synergy_factors: {
       type: Type.ARRAY,
@@ -67,7 +82,7 @@ const stockSynergySchema = {
     battle_verdict: { type: Type.STRING },
     action_guide: { type: Type.STRING }
   },
-  required: ["name", "code", "synergy_score", "trap_risk_score", "capital_consistency", "turnover_eval", "main_force_portrait", "synergy_factors", "battle_verdict", "action_guide"]
+  required: ["name", "code", "synergy_score", "trap_risk_score", "capital_consistency", "turnover_eval", "main_force_portrait", "t_plus_1_prediction", "synergy_factors", "battle_verdict", "action_guide"]
 };
 
 const dragonSignalSchema = {
@@ -200,7 +215,14 @@ export const fetchStockDetailWithImage = async (base64Image: string, query: stri
  */
 export const fetchStockSynergy = async (query: string, base64Image: string | null, apiKey: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
-  const prompt = `深度审计“${query}”的合力状态。${base64Image ? "参考图片识别 K 线形态。" : ""} 识别主力是锁筹还是诱多。`;
+  const prompt = `
+    对“${query}”执行标的合力审计。
+    [重点研判]：
+    1. 审计主力资金是“真金白银合力锁筹”还是“利用高标热度诱多派发”。
+    2. 【必须】给出 T+1（明天）的形态走势预判，其中胜率(confidence)必须为 0-100 之间的整数（例如 85）。
+    3. 识别主力的预估底仓成本（Entry Cost Est）。
+    ${base64Image ? "参考图片识别 K 线形态。" : ""}
+  `;
   
   const parts: any[] = [{ text: prompt }];
   if (base64Image) parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64Image } });
@@ -208,7 +230,11 @@ export const fetchStockSynergy = async (query: string, base64Image: string | nul
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
     contents: { parts },
-    config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json", responseSchema: stockSynergySchema }
+    config: { 
+      tools: [{ googleSearch: {} }], 
+      responseMimeType: "application/json", 
+      responseSchema: stockSynergySchema 
+    }
   });
 
   return {

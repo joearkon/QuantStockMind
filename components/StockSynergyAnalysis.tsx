@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, MarketType, AnalysisResult } from '../types';
 import { fetchStockSynergy } from '../services/geminiService';
-import { UsersRound, Loader2, Search, Zap, ShieldAlert, Target, Activity, Flame, ArrowRight, ShieldCheck, TrendingUp, Info, UserCheck, Scale, AlertTriangle, Fingerprint, Camera, X, ImageIcon, Eye } from 'lucide-react';
+import { UsersRound, Loader2, Search, Zap, ShieldAlert, Target, Activity, Flame, ArrowRight, ShieldCheck, TrendingUp, Info, UserCheck, Scale, AlertTriangle, Fingerprint, Camera, X, ImageIcon, Eye, CalendarClock, Sparkles, TrendingDown } from 'lucide-react';
 
 export const StockSynergyAnalysis: React.FC<{
   currentModel: ModelProvider;
@@ -60,6 +60,23 @@ export const StockSynergyAnalysis: React.FC<{
   };
 
   const d = result?.stockSynergyData;
+
+  const getDirectionIcon = (dir: string) => {
+    switch (dir) {
+      case '看涨': return <TrendingUp className="w-8 h-8 text-rose-500" />;
+      case '看跌': return <TrendingDown className="w-8 h-8 text-emerald-500" />;
+      case '冲高回落': return <Zap className="w-8 h-8 text-amber-500" />;
+      default: return <Activity className="w-8 h-8 text-blue-500" />;
+    }
+  };
+
+  // Helper to format confidence reliably
+  const formatConfidence = (val: number) => {
+    if (val === undefined || val === null) return "--";
+    // If val is a decimal like 0.85, convert to 85. If it's already 85, keep it.
+    const normalized = val <= 1 && val > 0 ? val * 100 : val;
+    return normalized.toFixed(0);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-20">
@@ -164,6 +181,48 @@ export const StockSynergyAnalysis: React.FC<{
                    <Eye className="w-4 h-4 text-indigo-300" /> 已结合视觉形态校准
                 </div>
              )}
+          </div>
+
+          {/* New T+1 Prediction Section */}
+          <div className="bg-gradient-to-br from-indigo-50 to-white rounded-[2.5rem] border border-indigo-100 p-8 shadow-sm">
+             <div className="flex justify-between items-start mb-8">
+                <h3 className="font-black text-indigo-900 text-2xl flex items-center gap-3">
+                   <CalendarClock className="w-7 h-7 text-indigo-600" />
+                   T+1 预判形态走势 (Next Day Forecast)
+                </h3>
+                <div className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-2xl shadow-lg">
+                   <Sparkles className="w-4 h-4" />
+                   <span className="text-xs font-black uppercase tracking-widest">
+                     胜率预估: {formatConfidence(d.t_plus_1_prediction.confidence)}%
+                   </span>
+                </div>
+             </div>
+             
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="bg-white p-6 rounded-3xl border border-indigo-50 shadow-sm flex flex-col items-center text-center">
+                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">预期走向 (Bias)</div>
+                   {getDirectionIcon(d.t_plus_1_prediction.expected_direction)}
+                   <div className={`text-2xl font-black mt-2 ${
+                      d.t_plus_1_prediction.expected_direction === '看涨' ? 'text-rose-600' : 
+                      d.t_plus_1_prediction.expected_direction === '看跌' ? 'text-emerald-600' : 'text-indigo-600'
+                   }`}>{d.t_plus_1_prediction.expected_direction}</div>
+                </div>
+
+                <div className="bg-white p-6 rounded-3xl border border-indigo-50 shadow-sm">
+                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">次日波弈策略 (Opening Strategy)</div>
+                   <p className="text-sm text-slate-700 font-bold leading-relaxed italic">"{d.t_plus_1_prediction.opening_strategy}"</p>
+                   <div className="mt-4 pt-4 border-t border-slate-50 text-[10px] font-black text-indigo-500 uppercase">
+                      波动空间：{d.t_plus_1_prediction.price_range}
+                   </div>
+                </div>
+
+                <div className="bg-indigo-900 p-6 rounded-3xl shadow-xl flex flex-col justify-center">
+                   <div className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-3">走势演化逻辑 (Logic)</div>
+                   <p className="text-xs text-indigo-50 font-medium leading-relaxed">
+                      {d.t_plus_1_prediction.logic}
+                   </p>
+                </div>
+             </div>
           </div>
 
           {/* Main Gauges */}
@@ -282,8 +341,13 @@ export const StockSynergyAnalysis: React.FC<{
                          <div className="text-[10px] font-black text-slate-400 uppercase mb-1">主导资金性质</div>
                          <div className="text-lg font-black text-slate-800">{d.main_force_portrait.lead_type}</div>
                       </div>
-                      <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                         <div className="text-[10px] font-black text-slate-400 uppercase mb-1">预估入场成本价</div>
+                      <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 relative group/cost">
+                         <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                            预估主力持仓成本
+                            <div className="group-hover/cost:block hidden absolute z-20 bottom-full left-0 mb-2 w-48 p-2 bg-slate-800 text-white text-[9px] rounded-lg shadow-xl font-bold">
+                               这是通过 L2 资金与龙虎榜测算的主力资金平均建仓位，非建议买入价。
+                            </div>
+                         </div>
                          <div className="text-lg font-black text-rose-600">{d.main_force_portrait.entry_cost_est}</div>
                       </div>
                       <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">

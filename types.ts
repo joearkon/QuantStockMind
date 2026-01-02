@@ -14,8 +14,8 @@ export enum MarketType {
 export interface StockSynergyResponse {
   name: string;
   code: string;
-  synergy_score: number; // 0-100
-  trap_risk_score: number; // 0-100
+  synergy_score: number; 
+  trap_risk_score: number; 
   capital_consistency: '高度一致' | '分歧严重' | '机构接力' | '散户合力';
   turnover_eval: {
     current_rate: string;
@@ -27,6 +27,13 @@ export interface StockSynergyResponse {
     entry_cost_est: string;
     hold_status: string;
   };
+  t_plus_1_prediction: {
+    expected_direction: '看涨' | '看跌' | '高位震荡' | '冲高回落' | '下杀探底';
+    confidence: number;
+    price_range: string;
+    opening_strategy: string;
+    logic: string;
+  };
   synergy_factors: {
     label: string;
     score: number;
@@ -36,23 +43,23 @@ export interface StockSynergyResponse {
   action_guide: string;
 }
 
-// --- Dragon Signal Types ---
+// ... rest of the file remains same ...
 export interface DragonSignalItem {
   name: string;
   code: string;
   signal_type: '龙回头' | '一进二' | '底部反转' | '趋势中继';
-  energy_score: number; // 0-100 爆发动能
-  alpha_logic: string;  // 核心炒作逻辑
-  volume_status: string; // 量能状态描述
-  key_support: string;   // 核心防守价
-  key_target: string;    // 预期目标价
+  energy_score: number; 
+  alpha_logic: string;  
+  volume_status: string; 
+  key_support: string;   
+  key_target: string;    
   risk_level: 'High' | 'Medium' | 'Low';
 }
 
 export interface DragonSignalResponse {
   scan_time: string;
-  market_pulse: string; // 市场脉搏一句话
-  dragon_energy: number; // 全局龙头活跃度 0-100
+  market_pulse: string; 
+  dragon_energy: number; 
   signals: DragonSignalItem[];
 }
 
@@ -91,12 +98,11 @@ export interface MainBoardScanItem {
   logic: string;
   target_price: string;
   support_price: string;
-  // --- Enhanced Capital Fields ---
   capital_portrait?: {
     main_type: '游资主导' | '机构抱团' | '散户合力' | '庄股嫌疑';
-    key_players: string[]; // e.g., ["章盟主", "陈小群", "机构席位"]
-    influence_score: number; // 0-100
-    influence_verdict: string; // e.g., "顶级游资锁筹，稳定性高"
+    key_players: string[]; 
+    influence_score: number; 
+    influence_verdict: string; 
   };
 }
 
@@ -374,7 +380,7 @@ export interface AnalysisResult {
   mainBoardScanData?: MainBoardScanResponse;
   limitUpLadderData?: LimitUpLadderResponse;
   dragonSignalData?: DragonSignalResponse;
-  stockSynergyData?: StockSynergyResponse; // Added for synergy analysis
+  stockSynergyData?: StockSynergyResponse; 
 }
 
 export interface TimingEvaluation {
