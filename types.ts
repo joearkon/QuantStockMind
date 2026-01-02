@@ -10,12 +10,14 @@ export enum MarketType {
   US = 'US', // US Stocks
 }
 
-// --- NEW: Stock Synergy Types ---
+// --- NEW: Enhanced Stock Synergy Types for Dragon Identification ---
 export interface StockSynergyResponse {
   name: string;
   code: string;
   synergy_score: number; 
   trap_risk_score: number; 
+  dragon_potential_score: number; // 0-100: 龙头基因分
+  market_position: '板块灵魂/龙头' | '中军/核心权重' | '跟风/补涨' | '独立行情';
   capital_consistency: '高度一致' | '分歧严重' | '机构接力' | '散户合力';
   turnover_eval: {
     current_rate: string;
@@ -41,9 +43,10 @@ export interface StockSynergyResponse {
   }[];
   battle_verdict: string;
   action_guide: string;
+  chase_safety_index: number; // 0-100: 追涨安全系数
 }
 
-// ... rest of the file remains same ...
+// ... existing interfaces (DragonSignalItem, etc.) follow ...
 export interface DragonSignalItem {
   name: string;
   code: string;
