@@ -277,21 +277,20 @@ const robustParse = (text: string): any => {
 
 /**
  * 核心修复：今日涨停题材梯队审计
- * 强化版：增加对 Robotics/AI/低空经济等热点板块的强制扫描
+ * 强化版：增加对节假日的识别，强制定位到最近一个有效交易日（如 12月31日）
  */
 export const fetchLimitUpLadder = async (apiKey?: string): Promise<AnalysisResult> => {
   if (!apiKey) throw new Error("API Key Missing");
   const ai = new GoogleGenAI({ apiKey });
   
   const prompt = `
-    作为资深行情审计师，利用 googleSearch 深度检索【最新交易日】A 股全市场的涨停池。
+    作为资深行情审计师，利用 googleSearch 深度检索 A 股全市场【最新一个有效交易日】（注：若今日是节假日，请自动回溯至最近的开盘日，如 12月31日）的涨停池。
     
     [!!! 核心覆盖要求 !!!]
     1. **全面扫描**：严禁遗漏任何产生 3 只及以上涨停标的的板块。
-    2. **重点关注**：近期热门题材如【机器人/人形机器人】、AI应用、低空经济、商业航天、半导体设备等。
+    2. **重点关注**：近期热门题材如【机器人/人形机器人】、AI应用、低空经济、商业航天等。
     3. **梯队解构**：按题材归类并识别“5-4-3-2-1”梯队结构。
-    4. **龙头锁定**：识别每个题材的灵魂龙头，并给出其精准连板数。
-    5. **大局研判**：评估今日市场是“主线清晰”还是“混沌轮动”。
+    4. **日期对齐**：在 scan_time 字段中明确指出你审计的具体交易日期。
     
     输出必须严格遵守 JSON 格式。
   `;
@@ -316,15 +315,15 @@ export const fetchLimitUpLadder = async (apiKey?: string): Promise<AnalysisResul
 };
 
 /**
- * 修复：双创涨停扫描
+ * 修复：双创涨停扫描 (节假日回溯版)
  */
 export const fetchDualBoardScanning = async (apiKey?: string): Promise<AnalysisResult> => {
   if (!apiKey) throw new Error("API Key Missing");
   const ai = new GoogleGenAI({ apiKey });
   
   const prompt = `
-    扫描今日创业板(300xxx)与科创板(688xxx)的【涨停及大涨】标的。
-    审计封板质量、主力控盘分、扫货成本及次日预期。
+    扫描【最新有效交易日】（若今日休市请回溯至最近开盘日）创业板(300xxx)与科创板(688xxx)的涨停标的。
+    审计封板质量、主力控盘分。
     输出 JSON。
   `;
 
@@ -348,15 +347,16 @@ export const fetchDualBoardScanning = async (apiKey?: string): Promise<AnalysisR
 };
 
 /**
- * 修复：主板涨停扫描
+ * 修复：主板涨停扫描 (节假日回溯版)
  */
 export const fetchMainBoardScanning = async (apiKey?: string): Promise<AnalysisResult> => {
   if (!apiKey) throw new Error("API Key Missing");
   const ai = new GoogleGenAI({ apiKey });
   
   const prompt = `
-    扫描今日沪深主板涨停标的。
+    作为资深交易审计员，检索【最近一个真实交易日】（如 12月31日，请跳过元旦等法定节假日）沪深主板的涨停标的。
     穿透龙虎榜识别主导资金性质（游资大佬或机构）。
+    在 scan_time 中明确标柱数据所属的具体日期。
     输出 JSON。
   `;
 
@@ -380,14 +380,14 @@ export const fetchMainBoardScanning = async (apiKey?: string): Promise<AnalysisR
 };
 
 /**
- * 修复：龙脉信号审计
+ * 修复：龙脉信号审计 (节假日回溯版)
  */
 export const fetchDragonSignals = async (apiKey?: string): Promise<AnalysisResult> => {
   if (!apiKey) throw new Error("API Key Missing");
   const ai = new GoogleGenAI({ apiKey });
   
   const prompt = `
-    审计全市场“龙回头”、“一进二”、“底部反转”信号。
+    审计【最近有效交易日】全市场“龙回头”、“一进二”、“底部反转”信号。
     找出当前市场最具 Alpha 催化力的 5-10 只标的。
     输出 JSON。
   `;
@@ -431,7 +431,7 @@ export const fetchGeminiAnalysis = async (prompt: string, isComplex: boolean, ap
 
 export const fetchMarketDashboard = async (period: 'day' | 'month', market: MarketType, apiKey?: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY || "" });
-  const prompt = `生成${period === 'day' ? '当日' : '本月'}市场快报。请包含指数、成交量、资金轮动、宏观逻辑。输出 JSON。`;
+  const prompt = `生成最近一个交易日（若今日是周末/节假日请自动回溯）的市场快报。包含指数、成交量。输出 JSON。`;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
     contents: prompt,
