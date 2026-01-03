@@ -1,4 +1,3 @@
-
 import { ModelProvider, MarketType } from './types';
 import { LayoutDashboard, TrendingUp, NotebookPen, Radar, UserCheck, Layers, ListChecks, ScanEye, Gavel, Network, Zap, UsersRound, Target, Crosshair } from 'lucide-react';
 
@@ -18,8 +17,8 @@ export const MARKET_OPTIONS = [
 
 export const NAV_ITEMS = [
   { id: 'market', label: '市场全览', icon: LayoutDashboard },
-  { id: 'holdings', label: '持仓复盘', icon: NotebookPen },
   { id: 'dragon-sniper', label: '狙击手战位', icon: Crosshair },
+  { id: 'holdings', label: '持仓复盘', icon: NotebookPen },
   { id: 'stock', label: '个股量化', icon: TrendingUp },
   { id: 'synergy', label: '标的合力审计', icon: UsersRound }, 
   { id: 'limit-up-ladder', label: '涨停题材梯队审计', icon: Network },

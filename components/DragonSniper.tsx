@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ModelProvider, MarketType, AnalysisResult, SnipeTarget, SnipeVerificationResponse, AuctionDecisionResponse, SniperHistoryEntry } from '../types';
@@ -197,7 +196,7 @@ export const DragonSniper: React.FC<{
                 狙击手战位：视觉决胜版 (Dragon Sniper v2.0)
               </h2>
               <p className="text-slate-500 text-base max-w-2xl font-medium leading-relaxed">
-                全链路狙击审计：<b>1. 前日研判</b> -> <b>2. 9:25 竞解决胜 (New)</b> -> <b>3. 战后核验</b>。
+                全链路狙击审计：<b>1. 前日研判</b> &rarr; <b>2. 9:25 竞解决胜 (New)</b> &rarr; <b>3. 战后核验</b>。
               </p>
             </div>
             <div className="flex gap-2">
