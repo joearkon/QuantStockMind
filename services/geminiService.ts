@@ -7,6 +7,64 @@ const GEMINI_MODEL_COMPLEX = "gemini-3-pro-preview";
 
 // --- JSON Schemas ---
 
+const stockSynergySchema = {
+  type: Type.OBJECT,
+  properties: {
+    name: { type: Type.STRING },
+    code: { type: Type.STRING },
+    synergy_score: { type: Type.NUMBER },
+    trap_risk_score: { type: Type.NUMBER },
+    dragon_potential_score: { type: Type.NUMBER },
+    market_position: { type: Type.STRING },
+    capital_consistency: { type: Type.STRING },
+    turnover_eval: {
+      type: Type.OBJECT,
+      properties: {
+        current_rate: { type: Type.STRING },
+        is_sufficient: { type: Type.BOOLEAN },
+        verdict: { type: Type.STRING }
+      },
+      required: ["current_rate", "is_sufficient", "verdict"]
+    },
+    main_force_portrait: {
+      type: Type.OBJECT,
+      properties: {
+        lead_type: { type: Type.STRING },
+        entry_cost_est: { type: Type.STRING },
+        hold_status: { type: Type.STRING }
+      },
+      required: ["lead_type", "entry_cost_est", "hold_status"]
+    },
+    t_plus_1_prediction: {
+      type: Type.OBJECT,
+      properties: {
+        expected_direction: { type: Type.STRING },
+        confidence: { type: Type.NUMBER },
+        price_range: { type: Type.STRING },
+        opening_strategy: { type: Type.STRING },
+        logic: { type: Type.STRING }
+      },
+      required: ["expected_direction", "confidence", "price_range", "opening_strategy", "logic"]
+    },
+    synergy_factors: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          label: { type: Type.STRING },
+          score: { type: Type.NUMBER },
+          description: { type: Type.STRING }
+        },
+        required: ["label", "score", "description"]
+      }
+    },
+    battle_verdict: { type: Type.STRING },
+    action_guide: { type: Type.STRING },
+    chase_safety_index: { type: Type.NUMBER }
+  },
+  required: ["name", "code", "synergy_score", "dragon_potential_score", "market_position", "t_plus_1_prediction", "synergy_factors", "battle_verdict", "action_guide", "chase_safety_index"]
+};
+
 const patternVerificationSchema = {
   type: Type.OBJECT,
   properties: {
@@ -247,13 +305,34 @@ export const fetchDragonSignals = async (apiKey?: string): Promise<AnalysisResul
 
 export const fetchStockSynergy = async (query: string, base64Image: string | null, apiKey: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
-  const parts: any[] = [{ text: `审计股票合力: ${query}` }];
-  if (base64Image) parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64Image } });
+  
+  const prompt = `
+    作为资深题材审计专家，执行【标的合力与妖股基因】深度审计。
+    待审计标的: "${query}"。
+    
+    [!!! 核心指令 !!!]:
+    1. **搜索 Alpha 信号**：联网搜索该股最近的公告、研报、龙虎榜席位动向。
+    2. **基因比对**：将其逻辑与历史大妖股（如中国卫星、海天瑞声等）的起步特征进行对齐。
+    3. **T+1 预判**：基于当前的筹码分布和情绪位置，预测次日的开盘博弈策略。
+    
+    必须输出 JSON 格式。
+  `;
+
+  const parts: any[] = [{ text: prompt }];
+  if (base64Image) {
+    parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64Image } });
+  }
+
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
-    contents: [{ parts }],
-    config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json" }
+    contents: { parts },
+    config: { 
+      tools: [{ googleSearch: {} }], 
+      responseMimeType: "application/json",
+      responseSchema: stockSynergySchema
+    }
   });
+
   return {
     content: response.text || "",
     timestamp: Date.now(),
@@ -268,7 +347,7 @@ export const fetchStockDetailWithImage = async (base64Image: string, query: stri
   const parts = [{ text: `诊断股票: ${query}` }, { inlineData: { mimeType: 'image/jpeg', data: base64Image } }];
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
-    contents: [{ parts }]
+    contents: { parts }
   });
   return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, market };
 };

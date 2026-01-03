@@ -64,7 +64,8 @@ export const StockSynergyAnalysis: React.FC<{
 
   const d = result?.stockSynergyData;
 
-  const getDirectionIcon = (dir: string) => {
+  const getDirectionIcon = (dir: string | undefined) => {
+    if (!dir) return <Activity className="w-8 h-8 text-blue-500" />;
     switch (dir) {
       case '看涨': return <TrendingUp className="w-8 h-8 text-rose-500" />;
       case '看跌': return <TrendingDown className="w-8 h-8 text-emerald-500" />;
@@ -73,7 +74,7 @@ export const StockSynergyAnalysis: React.FC<{
     }
   };
 
-  const formatConfidence = (val: number) => {
+  const formatConfidence = (val: number | undefined) => {
     if (val === undefined || val === null) return 0;
     let num = Number(val);
     if (num <= 1 && num > 0) num = num * 100;
@@ -220,13 +221,13 @@ export const StockSynergyAnalysis: React.FC<{
                          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Confidence 胜率预估</span>
                       </div>
                       <span className="text-2xl font-black text-indigo-900 tracking-tighter">
-                         {formatConfidence(d.t_plus_1_prediction.confidence)}%
+                         {formatConfidence(d.t_plus_1_prediction?.confidence)}%
                       </span>
                    </div>
                    <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner border border-slate-50">
                       <div 
-                         className={`h-full bg-gradient-to-r transition-all duration-1000 ease-out rounded-full ${getConfidenceColor(formatConfidence(d.t_plus_1_prediction.confidence))}`}
-                         style={{ width: `${formatConfidence(d.t_plus_1_prediction.confidence)}%` }}
+                         className={`h-full bg-gradient-to-r transition-all duration-1000 ease-out rounded-full ${getConfidenceColor(formatConfidence(d.t_plus_1_prediction?.confidence))}`}
+                         style={{ width: `${formatConfidence(d.t_plus_1_prediction?.confidence)}%` }}
                       ></div>
                    </div>
                 </div>
@@ -235,25 +236,25 @@ export const StockSynergyAnalysis: React.FC<{
              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div className="bg-white p-6 rounded-3xl border border-indigo-50 shadow-sm flex flex-col items-center text-center">
                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">预期走向 (Bias)</div>
-                   {getDirectionIcon(d.t_plus_1_prediction.expected_direction)}
+                   {getDirectionIcon(d.t_plus_1_prediction?.expected_direction)}
                    <div className={`text-2xl font-black mt-2 ${
-                      d.t_plus_1_prediction.expected_direction === '看涨' ? 'text-rose-600' : 
-                      d.t_plus_1_prediction.expected_direction === '看跌' ? 'text-emerald-600' : 'text-indigo-600'
-                   }`}>{d.t_plus_1_prediction.expected_direction}</div>
+                      d.t_plus_1_prediction?.expected_direction === '看涨' ? 'text-rose-600' : 
+                      d.t_plus_1_prediction?.expected_direction === '看跌' ? 'text-emerald-600' : 'text-indigo-600'
+                   }`}>{d.t_plus_1_prediction?.expected_direction || '--'}</div>
                 </div>
 
                 <div className="bg-white p-6 rounded-3xl border border-indigo-50 shadow-sm">
                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">次日博弈策略 (Strategy)</div>
-                   <p className="text-sm text-slate-700 font-bold leading-relaxed italic">"{d.t_plus_1_prediction.opening_strategy}"</p>
+                   <p className="text-sm text-slate-700 font-bold leading-relaxed italic">"{d.t_plus_1_prediction?.opening_strategy || '--'}"</p>
                    <div className="mt-4 pt-4 border-t border-slate-50 text-[10px] font-black text-indigo-500 uppercase">
-                      波动空间：{d.t_plus_1_prediction.price_range}
+                      波动空间：{d.t_plus_1_prediction?.price_range || '--'}
                    </div>
                 </div>
 
                 <div className="bg-indigo-900 p-6 rounded-3xl shadow-xl flex flex-col justify-center">
                    <div className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-3">走势演化逻辑</div>
                    <p className="text-xs text-indigo-50 font-medium leading-relaxed italic">
-                      {d.t_plus_1_prediction.logic}
+                      {d.t_plus_1_prediction?.logic || '--'}
                    </p>
                 </div>
              </div>
@@ -270,7 +271,7 @@ export const StockSynergyAnalysis: React.FC<{
                       </h3>
                    </div>
                    <div className="p-10 space-y-8">
-                      {d.synergy_factors.map((factor, idx) => (
+                      {d.synergy_factors?.map((factor, idx) => (
                          <div key={idx} className="space-y-3">
                             <div className="flex justify-between items-center">
                                <span className="font-black text-slate-700 flex items-center gap-2">
@@ -311,7 +312,7 @@ export const StockSynergyAnalysis: React.FC<{
                    <div className="space-y-6">
                       <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
                          <div className="text-[10px] font-black text-slate-400 mb-1">主导资金性质</div>
-                         <div className="text-lg font-black text-slate-800">{d.main_force_portrait.lead_type}</div>
+                         <div className="text-lg font-black text-slate-800">{d.main_force_portrait?.lead_type || '--'}</div>
                       </div>
                       <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 group relative">
                          <div className="text-[10px] font-black text-slate-400 mb-1 flex items-center gap-1">
@@ -321,11 +322,11 @@ export const StockSynergyAnalysis: React.FC<{
                                这是通过 L2 资金与龙虎榜测算的主力资金平均建仓位，非建议买入价。
                             </div>
                          </div>
-                         <div className="text-lg font-black text-rose-600">{d.main_force_portrait.entry_cost_est}</div>
+                         <div className="text-lg font-black text-rose-600">{d.main_force_portrait?.entry_cost_est || '--'}</div>
                       </div>
                       <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
                          <div className="text-[10px] font-black text-slate-400 mb-1">目前持筹状态</div>
-                         <div className="text-lg font-black text-slate-800">{d.main_force_portrait.hold_status}</div>
+                         <div className="text-lg font-black text-slate-800">{d.main_force_portrait?.hold_status || '--'}</div>
                       </div>
                    </div>
                 </div>
