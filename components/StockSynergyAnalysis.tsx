@@ -106,7 +106,7 @@ export const StockSynergyAnalysis: React.FC<{
             <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-xl">
               <UsersRound className="w-8 h-8" />
             </div>
-            标的合力与主力成本审计
+            标的合力与龙头基因审计
           </h2>
           <p className="text-slate-500 text-base max-w-2xl font-medium mb-10">
             审计标的是否具备 **“大妖股”基因**（如中国卫星 20 至 90 逻辑）。AI 将计算 **主力持有成本** 并评估当前 **安全垫** 厚度。
@@ -180,32 +180,32 @@ export const StockSynergyAnalysis: React.FC<{
         </div>
       )}
 
-      {d && (
+      {d && d.name && (
         <div className="space-y-8 animate-slide-up">
-          {/* Main Force Cost Dashboard (NEW) */}
+          {/* Main Force Cost Dashboard */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
                 <div className="p-3 bg-indigo-50 rounded-2xl mb-4"><Anchor className="w-6 h-6 text-indigo-600" /></div>
                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">预估主力平均成本</div>
-                <div className="text-3xl font-black text-indigo-600 tracking-tighter">{d.main_force_cost_anchor.estimated_cost}</div>
+                <div className="text-3xl font-black text-indigo-600 tracking-tighter">{d.main_force_cost_anchor?.estimated_cost || '--'}</div>
              </div>
              
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
                 <div className="p-3 bg-emerald-50 rounded-2xl mb-4"><SafetyIcon className="w-6 h-6 text-emerald-600" /></div>
                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">当前安全垫 (Margin)</div>
-                <div className={`text-3xl font-black tracking-tighter ${d.main_force_cost_anchor.safety_margin_percent >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                   {d.main_force_cost_anchor.safety_margin_percent}%
+                <div className={`text-3xl font-black tracking-tighter ${(d.main_force_cost_anchor?.safety_margin_percent ?? 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                   {d.main_force_cost_anchor?.safety_margin_percent ?? '--'}%
                 </div>
              </div>
 
              <div className={`p-8 rounded-[2.5rem] shadow-xl flex flex-col items-center justify-center text-center text-white ${
-                d.main_force_cost_anchor.risk_level === '高危泡沫' ? 'bg-rose-600' : 
-                d.main_force_cost_anchor.risk_level === '成本线下/黄金区' ? 'bg-emerald-600' : 'bg-slate-900'
+                d.main_force_cost_anchor?.risk_level === '高危泡沫' ? 'bg-rose-600' : 
+                d.main_force_cost_anchor?.risk_level === '成本线下/黄金区' ? 'bg-emerald-600' : 'bg-slate-900'
              }`}>
                 <div className="text-[10px] font-black opacity-60 uppercase tracking-[0.3em] mb-2">溢价风险审计</div>
-                <div className="text-2xl font-black mb-2">{d.main_force_cost_anchor.risk_level}</div>
+                <div className="text-2xl font-black mb-2">{d.main_force_cost_anchor?.risk_level || '研判中'}</div>
                 <p className="text-[10px] font-bold opacity-80 leading-relaxed">
-                   {d.main_force_cost_anchor.safety_margin_percent > 30 ? '风险极大：获利盘随时可能引发多杀多。' : '当前位置较安全，具备博弈价值。'}
+                   {(d.main_force_cost_anchor?.safety_margin_percent ?? 0) > 30 ? '风险极大：获利盘随时可能引发多杀多。' : '当前位置较安全，具备博弈价值。'}
                 </p>
              </div>
           </div>
@@ -224,19 +224,19 @@ export const StockSynergyAnalysis: React.FC<{
                       <span className="px-3 py-1 bg-amber-500/20 border border-amber-500/30 rounded-lg text-amber-400 text-[10px] font-black uppercase tracking-widest">
                          战位分析 (Position)
                       </span>
-                      <span className="text-sm font-bold opacity-60">| {d.code}</span>
+                      <span className="text-sm font-bold opacity-60">| {d.code || '----'}</span>
                    </div>
-                   <h3 className="text-3xl font-black">{d.name} · {d.market_position}</h3>
+                   <h3 className="text-3xl font-black">{d.name || '分析标的'} · {d.market_position || '探测中'}</h3>
                 </div>
              </div>
              <div className="bg-white/5 backdrop-blur-xl p-6 rounded-[2rem] border border-white/10 flex items-center gap-8">
                 <div className="text-center">
-                   <div className="text-3xl font-black text-amber-400">{d.dragon_potential_score}%</div>
+                   <div className="text-3xl font-black text-amber-400">{d.dragon_potential_score ?? '--'}%</div>
                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">龙头基因分</div>
                 </div>
                 <div className="w-px h-10 bg-white/10"></div>
                 <div className="text-center">
-                   <div className={`text-3xl font-black ${d.chase_safety_index > 60 ? 'text-emerald-400' : 'text-rose-400'}`}>{d.chase_safety_index}%</div>
+                   <div className={`text-3xl font-black ${(d.chase_safety_index ?? 0) > 60 ? 'text-emerald-400' : 'text-rose-400'}`}>{d.chase_safety_index ?? '--'}%</div>
                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">追涨安全系数</div>
                 </div>
              </div>
@@ -330,10 +330,10 @@ export const StockSynergyAnalysis: React.FC<{
                       最终博弈审计结论
                    </h4>
                    <p className="text-2xl font-black italic leading-relaxed text-indigo-50 mb-8">
-                      "{d.battle_verdict}"
+                      "{d.battle_verdict || '正在汇总审计结论...'}"
                    </p>
                    <div className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/10">
-                      <p className="font-black text-lg text-white leading-relaxed">{d.action_guide}</p>
+                      <p className="font-black text-lg text-white leading-relaxed">{d.action_guide || '操作指南准备中...'}</p>
                    </div>
                 </div>
              </div>
@@ -366,15 +366,15 @@ export const StockSynergyAnalysis: React.FC<{
 
                 {/* Chase Safety Card */}
                 <div className={`rounded-[2.5rem] p-8 border shadow-xl flex flex-col items-center justify-center text-center ${
-                  d.chase_safety_index > 60 ? 'bg-emerald-50 border-emerald-100 text-emerald-900' : 'bg-rose-50 border-rose-100 text-rose-900'
+                  (d.chase_safety_index ?? 0) > 60 ? 'bg-emerald-50 border-emerald-100 text-emerald-900' : 'bg-rose-50 border-rose-100 text-rose-900'
                 }`}>
                    <div className="p-4 bg-white rounded-full shadow-lg mb-4">
-                      {d.chase_safety_index > 60 ? <SafetyIcon className="w-10 h-10 text-emerald-600" /> : <AlertTriangle className="w-10 h-10 text-rose-600" />}
+                      {(d.chase_safety_index ?? 0) > 60 ? <SafetyIcon className="w-10 h-10 text-emerald-600" /> : <AlertTriangle className="w-10 h-10 text-rose-600" />}
                    </div>
                    <div className="text-sm font-black uppercase tracking-[0.2em] mb-2">追涨安全性审计</div>
-                   <div className="text-4xl font-black mb-2">{d.chase_safety_index}%</div>
+                   <div className="text-4xl font-black mb-2">{d.chase_safety_index ?? '--'}%</div>
                    <p className="text-xs font-bold opacity-70">
-                      {d.chase_safety_index > 60 ? '当前处于主升加速段，具备博弈价值。' : '当前处于情绪高位分歧点，谨慎追涨。'}
+                      {(d.chase_safety_index ?? 0) > 60 ? '当前处于主升加速段，具备博弈价值。' : '当前处于情绪高位分歧点，谨慎追涨。'}
                    </p>
                 </div>
              </div>

@@ -81,7 +81,7 @@ const dragonSniperSchema = {
   type: Type.OBJECT,
   properties: {
     detected_main_theme: { type: Type.STRING },
-    theme_cycle_stage: { type: Type.STRING, enum: ["萌芽启动", "主升过热", "分歧博弈", "衰多冰点"] },
+    theme_cycle_stage: { type: Type.STRING, enum: ["萌芽启动", "主升过热", "分歧博弈", "衰退冰点"] },
     market_sentiment_audit: { type: Type.STRING },
     overall_verdict: { type: Type.STRING, enum: ["立即准备", "观望为主", "今日无机会"] },
     risk_warning: { type: Type.STRING },
@@ -139,14 +139,46 @@ const snipeVerificationSchema = {
   required: ["actual_auction", "actual_opening", "actual_result", "is_success", "battle_review", "market_synchronization"]
 };
 
+/**
+ * Robust JSON Parser 4.0 - Copied from enhanced logic to ensure reliability
+ */
 const robustParse = (text: string): any => {
   if (!text) return null;
   let clean = text.trim();
+
+  // 1. Remove Markdown code block markers
   clean = clean.replace(/^```[a-z]*\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
+
+  // 2. Locate JSON boundaries
   const firstBrace = clean.search(/[{[]/);
-  const lastIndex = Math.max(clean.lastIndexOf('}'), clean.lastIndexOf(']'));
-  if (firstBrace !== -1 && lastIndex !== -1) clean = clean.substring(firstBrace, lastIndex + 1);
-  try { return JSON.parse(clean); } catch (e) { return null; }
+  const lastCurly = clean.lastIndexOf('}');
+  const lastSquare = clean.lastIndexOf(']');
+  const lastIndex = Math.max(lastCurly, lastSquare);
+
+  if (firstBrace !== -1 && lastIndex !== -1 && lastIndex > firstBrace) {
+    clean = clean.substring(firstBrace, lastIndex + 1);
+  }
+
+  // 3. Try initial parse
+  try {
+    return JSON.parse(clean);
+  } catch (e) {
+    // 4. Aggressive fix logic
+    try {
+      clean = clean.replace(/\/\*[\s\S]*?\*\//g, ''); // Remove comments
+      clean = clean.replace(/(^|[^:])\/\/.*$/gm, '$1'); 
+      clean = clean.replace(/[\u201C\u201D\u2018\u2019]/g, '"'); // Normalize quotes
+      clean = clean.replace(/}\s*{/g, '}, {'); // Add missing commas between objects
+      clean = clean.replace(/]\s*\[/g, '], [');
+      clean = clean.replace(/,\s*}/g, '}'); // Remove trailing commas
+      clean = clean.replace(/,\s*]/g, ']');
+      clean = clean.replace(/：/g, ':').replace(/，/g, ','); // Chinese punctuation
+      return JSON.parse(clean);
+    } catch (finalError) {
+      console.error("Gemini Service Parse Error:", finalError);
+      return null;
+    }
+  }
 };
 
 /**
@@ -229,12 +261,18 @@ export const fetchStockSynergy = async (query: string, base64Image: string | nul
     }
   });
 
+  const parsed = robustParse(response.text || "");
+  
+  if (!parsed || !parsed.name) {
+    throw new Error("模型返回数据不完整或解析失败，请尝试重新审计。");
+  }
+
   return {
     content: response.text || "",
     timestamp: Date.now(),
     modelUsed: ModelProvider.GEMINI_INTL,
     isStructured: true,
-    stockSynergyData: robustParse(response.text || "{}")
+    stockSynergyData: parsed
   };
 };
 
