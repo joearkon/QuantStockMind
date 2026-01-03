@@ -1,270 +1,73 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { AnalysisResult, ModelProvider, MarketType, MarketDashboardData, HoldingsSnapshot, PeriodicReviewData, PlanItem, KLineSynergyData, DualBoardScanResponse, MainBoardScanResponse, LimitUpLadderResponse, DragonSignalResponse, StockSynergyResponse, SectorLadderData, JournalEntry, PatternHunterResponse, PatternVerificationResponse } from "../types";
+import { AnalysisResult, ModelProvider, MarketType, MarketDashboardData, HoldingsSnapshot, PeriodicReviewData, PlanItem, KLineSynergyData, DualBoardScanResponse, MainBoardScanResponse, LimitUpLadderResponse, DragonSignalResponse, StockSynergyResponse, SectorLadderData, JournalEntry, PatternHunterResponse, PatternVerificationResponse, DragonSniperResponse, SnipeVerificationResponse, AuctionDecisionResponse } from "../types";
 
 const GEMINI_MODEL_PRIMARY = "gemini-3-flash-preview"; 
-const GEMINI_MODEL_COMPLEX = "gemini-3-pro-preview";
 
 // --- JSON Schemas ---
 
-const limitUpLadderSchema = {
+const dragonSniperSchema = {
   type: Type.OBJECT,
   properties: {
-    scan_time: { type: Type.STRING },
-    total_limit_ups: { type: Type.NUMBER },
-    market_conclusion: { type: Type.STRING },
-    sectors: {
+    detected_main_theme: { type: Type.STRING },
+    theme_cycle_stage: { type: Type.STRING, enum: ["萌芽启动", "主升过热", "分歧博弈", "衰退冰点"] },
+    market_sentiment_audit: { type: Type.STRING },
+    overall_verdict: { type: Type.STRING, enum: ["立即准备", "观望为主", "今日无机会"] },
+    risk_warning: { type: Type.STRING },
+    selected_targets: {
       type: Type.ARRAY,
       items: {
         type: Type.OBJECT,
         properties: {
-          sector_name: { type: Type.STRING },
-          sector_type: { type: Type.STRING, enum: ["Main", "Sub"] },
-          total_count: { type: Type.NUMBER },
-          max_height: { type: Type.NUMBER },
-          integrity_score: { type: Type.NUMBER },
-          market_sentiment: { type: Type.STRING, enum: ["Rising", "Climax", "Diverging", "Falling"] },
-          dragon_leader: {
+          name: { type: Type.STRING },
+          code: { type: Type.STRING },
+          reason_for_board: { type: Type.STRING },
+          theme_purity: { type: Type.NUMBER },
+          snipe_logic: { type: Type.STRING },
+          trigger_conditions: {
             type: Type.OBJECT,
             properties: {
-              name: { type: Type.STRING },
-              code: { type: Type.STRING },
-              consecutive_days: { type: Type.NUMBER },
-              strength_score: { type: Type.NUMBER },
-              reason: { type: Type.STRING }
+              auction_volume: { type: Type.STRING },
+              opening_strategy: { type: Type.STRING },
+              volume_ratio_target: { type: Type.STRING }
             },
-            required: ["name", "code", "consecutive_days", "strength_score", "reason"]
+            required: ["auction_volume", "opening_strategy", "volume_ratio_target"]
           },
-          ladder_matrix: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                height: { type: Type.NUMBER },
-                count: { type: Type.NUMBER },
-                stocks: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      name: { type: Type.STRING },
-                      code: { type: Type.STRING },
-                      logic: { type: Type.STRING }
-                    },
-                    required: ["name", "code", "logic"]
-                  }
-                }
-              },
-              required: ["height", "count", "stocks"]
-            }
-          }
+          stop_loss: { type: Type.STRING },
+          confidence: { type: Type.NUMBER }
         },
-        required: ["sector_name", "sector_type", "total_count", "dragon_leader", "ladder_matrix", "integrity_score", "market_sentiment"]
+        required: ["name", "code", "reason_for_board", "theme_purity", "snipe_logic", "trigger_conditions", "stop_loss", "confidence"]
       }
     }
   },
-  required: ["scan_time", "total_limit_ups", "market_conclusion", "sectors"]
+  required: ["detected_main_theme", "theme_cycle_stage", "market_sentiment_audit", "overall_verdict", "selected_targets", "risk_warning"]
 };
 
-const boardScanSchema = {
+const auctionDecisionSchema = {
   type: Type.OBJECT,
   properties: {
-    scan_time: { type: Type.STRING },
-    market_mood: { type: Type.STRING },
-    hot_sectors: { type: Type.ARRAY, items: { type: Type.STRING } },
-    stocks: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          name: { type: Type.STRING },
-          code: { type: Type.STRING },
-          board: { type: Type.STRING },
-          control_score: { type: Type.NUMBER },
-          cost_price: { type: Type.STRING },
-          trend_momentum: { type: Type.STRING },
-          rating: { type: Type.STRING, enum: ["起爆", "锁筹", "分歧", "出货", "潜伏"] },
-          volume_ratio: { type: Type.STRING },
-          logic: { type: Type.STRING },
-          target_price: { type: Type.STRING },
-          support_price: { type: Type.STRING },
-          limit_up_type: { type: Type.STRING },
-          consecutive_days: { type: Type.NUMBER },
-          capital_portrait: {
-            type: Type.OBJECT,
-            properties: {
-              main_type: { type: Type.STRING },
-              key_players: { type: Type.ARRAY, items: { type: Type.STRING } },
-              influence_verdict: { type: Type.STRING }
-            }
-          }
-        },
-        required: ["name", "code", "control_score", "cost_price", "rating", "logic"]
-      }
-    }
+    verdict: { type: Type.STRING, enum: ["立即出击", "持续观察", "逻辑失效/放弃"] },
+    match_score: { type: Type.NUMBER },
+    reasoning: { type: Type.STRING },
+    suggested_entry_type: { type: Type.STRING },
+    risk_factor: { type: Type.STRING }
   },
-  required: ["scan_time", "market_mood", "stocks"]
+  required: ["verdict", "match_score", "reasoning", "suggested_entry_type", "risk_factor"]
 };
 
-const dragonSignalSchema = {
+const snipeVerificationSchema = {
   type: Type.OBJECT,
   properties: {
-    scan_time: { type: Type.STRING },
-    market_pulse: { type: Type.STRING },
-    dragon_energy: { type: Type.NUMBER },
-    signals: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          name: { type: Type.STRING },
-          code: { type: Type.STRING },
-          signal_type: { type: Type.STRING, enum: ["龙回头", "一进二", "底部反转", "趋势中继"] },
-          energy_score: { type: Type.NUMBER },
-          alpha_logic: { type: Type.STRING },
-          volume_status: { type: Type.STRING },
-          key_support: { type: Type.STRING },
-          key_target: { type: Type.STRING },
-          risk_level: { type: Type.STRING, enum: ["High", "Medium", "Low"] }
-        },
-        required: ["name", "code", "signal_type", "energy_score", "alpha_logic", "key_support", "key_target"]
-      }
-    }
+    actual_auction: { type: Type.STRING },
+    actual_opening: { type: Type.STRING },
+    actual_result: { type: Type.STRING },
+    is_success: { type: Type.BOOLEAN },
+    battle_review: { type: Type.STRING },
+    market_synchronization: { type: Type.STRING }
   },
-  required: ["scan_time", "market_pulse", "dragon_energy", "signals"]
+  required: ["actual_auction", "actual_opening", "actual_result", "is_success", "battle_review", "market_synchronization"]
 };
 
-const stockSynergySchema = {
-  type: Type.OBJECT,
-  properties: {
-    name: { type: Type.STRING },
-    code: { type: Type.STRING },
-    synergy_score: { type: Type.NUMBER },
-    trap_risk_score: { type: Type.NUMBER },
-    dragon_potential_score: { type: Type.NUMBER },
-    market_position: { type: Type.STRING },
-    capital_consistency: { type: Type.STRING },
-    turnover_eval: {
-      type: Type.OBJECT,
-      properties: {
-        current_rate: { type: Type.STRING },
-        is_sufficient: { type: Type.BOOLEAN },
-        verdict: { type: Type.STRING }
-      },
-      required: ["current_rate", "is_sufficient", "verdict"]
-    },
-    main_force_portrait: {
-      type: Type.OBJECT,
-      properties: {
-        lead_type: { type: Type.STRING },
-        entry_cost_est: { type: Type.STRING },
-        hold_status: { type: Type.STRING }
-      },
-      required: ["lead_type", "entry_cost_est", "hold_status"]
-    },
-    t_plus_1_prediction: {
-      type: Type.OBJECT,
-      properties: {
-        expected_direction: { type: Type.STRING },
-        confidence: { type: Type.NUMBER },
-        price_range: { type: Type.STRING },
-        opening_strategy: { type: Type.STRING },
-        logic: { type: Type.STRING }
-      },
-      required: ["expected_direction", "confidence", "price_range", "opening_strategy", "logic"]
-    },
-    synergy_factors: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          label: { type: Type.STRING },
-          score: { type: Type.NUMBER },
-          description: { type: Type.STRING }
-        },
-        required: ["label", "score", "description"]
-      }
-    },
-    battle_verdict: { type: Type.STRING },
-    action_guide: { type: Type.STRING },
-    chase_safety_index: { type: Type.NUMBER }
-  },
-  required: ["name", "code", "synergy_score", "dragon_potential_score", "market_position", "t_plus_1_prediction", "synergy_factors", "battle_verdict", "action_guide", "chase_safety_index"]
-};
-
-const patternVerificationSchema = {
-  type: Type.OBJECT,
-  properties: {
-    stock_name: { type: Type.STRING },
-    verdict: { type: Type.STRING, enum: ["立即伏击", "继续观察", "逻辑失效", "等待放量"] },
-    confidence_score: { type: Type.NUMBER },
-    visual_diagnostic: { type: Type.STRING },
-    volume_ratio_verdict: { type: Type.STRING },
-    trigger_condition: { type: Type.STRING },
-    stop_loss_point: { type: Type.STRING },
-    target_space: { type: Type.STRING },
-    battle_logic: { type: Type.STRING }
-  },
-  required: ["stock_name", "verdict", "confidence_score", "visual_diagnostic", "volume_ratio_verdict", "trigger_condition", "stop_loss_point", "target_space", "battle_logic"]
-};
-
-const patternHunterSchema = {
-  type: Type.OBJECT,
-  properties: {
-    sector_context: { type: Type.STRING },
-    sector_leader: { type: Type.STRING },
-    market_stage: { type: Type.STRING },
-    stocks: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          name: { type: Type.STRING },
-          code: { type: Type.STRING },
-          current_tier: { type: Type.STRING, enum: ["二梯队", "三梯队", "潜伏期"] },
-          vacuum_score: { type: Type.NUMBER },
-          volume_ratio_desc: { type: Type.STRING },
-          catalyst_alignment: { type: Type.STRING },
-          technical_setup: { type: Type.STRING },
-          entry_signal_trigger: { type: Type.STRING },
-          upside_potential: { type: Type.STRING },
-          risk_warning: { type: Type.STRING }
-        },
-        required: ["name", "code", "current_tier", "vacuum_score", "volume_ratio_desc", "catalyst_alignment", "technical_setup", "entry_signal_trigger", "upside_potential", "risk_warning"]
-      }
-    }
-  },
-  required: ["sector_context", "sector_leader", "market_stage", "stocks"]
-};
-
-const holdingsSnapshotSchema = {
-  type: Type.OBJECT,
-  properties: {
-    totalAssets: { type: Type.NUMBER },
-    positionRatio: { type: Type.NUMBER },
-    date: { type: Type.STRING },
-    holdings: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          name: { type: Type.STRING },
-          code: { type: Type.STRING },
-          volume: { type: Type.NUMBER },
-          costPrice: { type: Type.NUMBER },
-          currentPrice: { type: Type.NUMBER },
-          profit: { type: Type.NUMBER },
-          profitRate: { type: Type.STRING },
-          marketValue: { type: Type.NUMBER }
-        },
-        required: ["name", "code", "volume", "costPrice", "currentPrice", "profit", "profitRate", "marketValue"]
-      }
-    }
-  },
-  required: ["totalAssets", "holdings", "date"]
-};
-
-// Robust JSON Parser
 const robustParse = (text: string): any => {
   if (!text) return null;
   let clean = text.trim();
@@ -276,176 +79,157 @@ const robustParse = (text: string): any => {
 };
 
 /**
- * 核心修复：今日涨停题材梯队审计
- * 强化版：增加对节假日的识别，强制定位到最近一个有效交易日（如 12月31日）
+ * 集合竞价决胜审计 (New)
  */
+export const fetchAuctionDecision = async (
+  stockInfo: string,
+  base64AuctionImg: string,
+  strategy: string,
+  apiKey: string
+): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const prompt = `
+    作为顶级游资操盘手，对标的 "${stockInfo}" 进行【9:25 集合竞价终极出击审计】。
+    
+    【前一日制定的狙击策略】
+    ${strategy}
+    
+    【审计指令】
+    1. 识别上传的“集合竞价截图”中的：挂单金额（试撮合）、竞价涨幅、最后三分钟量能变化。
+    2. 对比前一日策略中的“竞价金额”与“量比锚点”。
+    3. 给出终极指令：符合预期则【立即出击】，低于预期则【放弃/观察】。
+    
+    必须输出 JSON。
+  `;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL_PRIMARY,
+    contents: {
+      parts: [
+        { text: prompt },
+        { inlineData: { mimeType: 'image/jpeg', data: base64AuctionImg } }
+      ]
+    },
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: auctionDecisionSchema
+    }
+  });
+
+  return {
+    content: response.text || "",
+    timestamp: Date.now(),
+    modelUsed: ModelProvider.GEMINI_INTL,
+    isStructured: true,
+    auctionDecisionData: robustParse(response.text || "{}")
+  };
+};
+
+export const fetchDragonSniperAnalysis = async (
+  candidateStocks: string, 
+  userTheme: string, 
+  candidateImage: string | null,
+  sentimentImage: string | null, 
+  apiKey: string
+): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey });
+  const prompt = `作为顶级游资狙击手，执行【主线切换与次日打板】深度审计。用户预设: "${userTheme || '未指定'}"。必须输出 JSON。`;
+  const parts: any[] = [{ text: prompt }];
+  if (candidateImage) parts.push({ inlineData: { mimeType: 'image/jpeg', data: candidateImage } });
+  if (sentimentImage) parts.push({ inlineData: { mimeType: 'image/jpeg', data: sentimentImage } });
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL_PRIMARY,
+    contents: { parts },
+    config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json", responseSchema: dragonSniperSchema }
+  });
+  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, dragonSniperData: robustParse(response.text || "{}") };
+};
+
+export const verifySnipeSuccess = async (stockInfo: string, scanDate: number, strategy: string, apiKey: string): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey });
+  const dateStr = new Date(scanDate).toLocaleDateString('zh-CN');
+  const prompt = `核验标的 "${stockInfo}" 在 "${dateStr}" 次日的真实表现。必须输出 JSON。`;
+  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: prompt, config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json", responseSchema: snipeVerificationSchema } });
+  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, snipeVerificationData: robustParse(response.text || "{}") };
+};
+
+// ... (Rest of existing fetchers)
 export const fetchLimitUpLadder = async (apiKey?: string): Promise<AnalysisResult> => {
   if (!apiKey) throw new Error("API Key Missing");
   const ai = new GoogleGenAI({ apiKey });
-  
-  const prompt = `
-    作为资深行情审计师，利用 googleSearch 深度检索 A 股全市场【最新一个有效交易日】（注：若今日是节假日，请自动回溯至最近的开盘日，如 12月31日）的涨停池。
-    
-    [!!! 核心覆盖要求 !!!]
-    1. **全面扫描**：严禁遗漏任何产生 3 只及以上涨停标的的板块。
-    2. **重点关注**：近期热门题材如【机器人/人形机器人】、AI应用、低空经济、商业航天等。
-    3. **梯队解构**：按题材归类并识别“5-4-3-2-1”梯队结构。
-    4. **日期对齐**：在 scan_time 字段中明确指出你审计的具体交易日期。
-    
-    输出必须严格遵守 JSON 格式。
-  `;
-
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
-    contents: prompt,
-    config: {
-      tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      responseSchema: limitUpLadderSchema
-    }
-  });
-
-  return {
-    content: response.text || "",
-    timestamp: Date.now(),
-    modelUsed: ModelProvider.GEMINI_INTL,
-    isStructured: true,
-    limitUpLadderData: robustParse(response.text || "{}")
-  };
+  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: "扫描涨停池。输出 JSON。", config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json" } });
+  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, limitUpLadderData: robustParse(response.text || "{}") };
 };
 
-/**
- * 修复：双创涨停扫描 (节假日回溯版)
- */
 export const fetchDualBoardScanning = async (apiKey?: string): Promise<AnalysisResult> => {
   if (!apiKey) throw new Error("API Key Missing");
   const ai = new GoogleGenAI({ apiKey });
-  
-  const prompt = `
-    扫描【最新有效交易日】（若今日休市请回溯至最近开盘日）创业板(300xxx)与科创板(688xxx)的涨停标的。
-    审计封板质量、主力控盘分。
-    输出 JSON。
-  `;
-
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
-    contents: prompt,
-    config: {
-      tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      responseSchema: boardScanSchema
-    }
-  });
-
-  return {
-    content: response.text || "",
-    timestamp: Date.now(),
-    modelUsed: ModelProvider.GEMINI_INTL,
-    isStructured: true,
-    dualBoardScanData: robustParse(response.text || "{}")
-  };
+  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: "扫描双创。输出 JSON。", config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json" } });
+  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, dualBoardScanData: robustParse(response.text || "{}") };
 };
 
-/**
- * 修复：主板涨停扫描 (节假日回溯版)
- */
 export const fetchMainBoardScanning = async (apiKey?: string): Promise<AnalysisResult> => {
   if (!apiKey) throw new Error("API Key Missing");
   const ai = new GoogleGenAI({ apiKey });
-  
-  const prompt = `
-    作为资深交易审计员，检索【最近一个真实交易日】（如 12月31日，请跳过元旦等法定节假日）沪深主板的涨停标的。
-    穿透龙虎榜识别主导资金性质（游资大佬或机构）。
-    在 scan_time 中明确标柱数据所属的具体日期。
-    输出 JSON。
-  `;
-
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
-    contents: prompt,
-    config: {
-      tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      responseSchema: boardScanSchema
-    }
-  });
-
-  return {
-    content: response.text || "",
-    timestamp: Date.now(),
-    modelUsed: ModelProvider.GEMINI_INTL,
-    isStructured: true,
-    mainBoardScanData: robustParse(response.text || "{}")
-  };
+  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: "扫描主板。输出 JSON。", config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json" } });
+  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, mainBoardScanData: robustParse(response.text || "{}") };
 };
 
-/**
- * 修复：龙脉信号审计 (节假日回溯版)
- */
 export const fetchDragonSignals = async (apiKey?: string): Promise<AnalysisResult> => {
   if (!apiKey) throw new Error("API Key Missing");
   const ai = new GoogleGenAI({ apiKey });
-  
-  const prompt = `
-    审计【最近有效交易日】全市场“龙回头”、“一进二”、“底部反转”信号。
-    找出当前市场最具 Alpha 催化力的 5-10 只标的。
-    输出 JSON。
-  `;
+  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: "信号扫描。输出 JSON。", config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json" } });
+  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, dragonSignalData: robustParse(response.text || "{}") };
+};
 
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
-    contents: prompt,
-    config: {
-      tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      responseSchema: dragonSignalSchema
-    }
-  });
+export const fetchStockSynergy = async (query: string, base64Image: string | null, apiKey: string): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey });
+  const prompt = `合力审计: "${query}"。`;
+  const parts: any[] = [{ text: prompt }];
+  if (base64Image) parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64Image } });
+  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: { parts }, config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json" } });
+  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, stockSynergyData: robustParse(response.text || "{}") };
+};
 
-  return {
-    content: response.text || "",
-    timestamp: Date.now(),
-    modelUsed: ModelProvider.GEMINI_INTL,
-    isStructured: true,
-    dragonSignalData: robustParse(response.text || "{}")
-  };
+export const fetchNanxingPattern = async (query: string, apiKey?: string): Promise<AnalysisResult> => {
+  if (!apiKey) throw new Error("API Key Missing");
+  const ai = new GoogleGenAI({ apiKey });
+  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: `地量探测: ${query}`, config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json" } });
+  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, patternHunterData: robustParse(response.text || "{}") };
+};
+
+export const fetchPatternVerification = async (stockInfo: string, volumeRatio: string, base64Image: string | null, apiKey?: string): Promise<AnalysisResult> => {
+  if (!apiKey) throw new Error("API Key Missing");
+  const ai = new GoogleGenAI({ apiKey });
+  const parts: any[] = [{ text: `验证: ${stockInfo}` }];
+  if (base64Image) parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64Image } });
+  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: { parts }, config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json" } });
+  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, patternVerificationData: robustParse(response.text || "{}") };
 };
 
 export const fetchGeminiAnalysis = async (prompt: string, isComplex: boolean, apiKey?: string): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY || "" });
-  const response = await ai.models.generateContent({
-    model: isComplex ? GEMINI_MODEL_COMPLEX : GEMINI_MODEL_PRIMARY,
-    contents: prompt,
-    config: { tools: [{ googleSearch: {} }] }
-  });
-  return {
-    content: response.text || "",
-    groundingSource: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
-      uri: chunk.web?.uri || "",
-      title: chunk.web?.title || ""
-    })).filter((s: any) => s.uri),
-    timestamp: Date.now(),
-    modelUsed: ModelProvider.GEMINI_INTL
-  };
+  const ai = new GoogleGenAI({ apiKey: apiKey || "" });
+  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: prompt, config: { tools: [{ googleSearch: {} }] } });
+  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL };
 };
 
 export const fetchMarketDashboard = async (period: 'day' | 'month', market: MarketType, apiKey?: string): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY || "" });
-  const prompt = `生成最近一个交易日（若今日是周末/节假日请自动回溯）的市场快报。包含指数、成交量。输出 JSON。`;
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
-    contents: prompt,
-    config: {
-        tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json"
-    }
-  });
+  const ai = new GoogleGenAI({ apiKey: apiKey || "" });
+  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: "市场快报", config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json" } });
   return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, structuredData: robustParse(response.text || "{}"), market };
+};
+
+export const parseBrokerageScreenshot = async (base64Image: string, apiKey?: string): Promise<HoldingsSnapshot> => {
+  if (!apiKey) throw new Error("Missing API Key");
+  const ai = new GoogleGenAI({ apiKey });
+  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: { parts: [{ text: "识别持仓" }, { inlineData: { mimeType: 'image/jpeg', data: base64Image } }] }, config: { responseMimeType: "application/json" } });
+  return robustParse(response.text || "{}");
 };
 
 export const fetchPeriodicReview = async (journals: JournalEntry[], periodLabel: string, market: MarketType, apiKey?: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey: apiKey || "" });
-  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: "请对这些持仓记录进行阶段性总结" });
+  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: "复盘记录" });
   return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL };
 };
 
@@ -459,157 +243,9 @@ export const fetchSectorLadderAnalysis = async (query: string, market: MarketTyp
   return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL };
 };
 
-export const fetchStockSynergy = async (query: string, base64Image: string | null, apiKey: string): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey });
-  
-  const prompt = `
-    作为资深题材审计专家，执行【标的合力与妖股基因】深度审计。
-    待审计标的: "${query}"。
-    必须输出 JSON 格式。
-  `;
-
-  const parts: any[] = [{ text: prompt }];
-  if (base64Image) {
-    parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64Image } });
-  }
-
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
-    contents: { parts },
-    config: { 
-      tools: [{ googleSearch: {} }], 
-      responseMimeType: "application/json",
-      responseSchema: stockSynergySchema
-    }
-  });
-
-  return {
-    content: response.text || "",
-    timestamp: Date.now(),
-    modelUsed: ModelProvider.GEMINI_INTL,
-    isStructured: true,
-    stockSynergyData: robustParse(response.text || "{}")
-  };
-};
-
 export const fetchStockDetailWithImage = async (base64Image: string, query: string, market: MarketType, apiKey: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
-  const parts = [{ text: `诊断股票: ${query}` }, { inlineData: { mimeType: 'image/jpeg', data: base64Image } }];
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
-    contents: { parts }
-  });
+  const parts = [{ text: `诊断: ${query}` }, { inlineData: { mimeType: 'image/jpeg', data: base64Image } }];
+  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: { parts } });
   return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, market };
-};
-
-/**
- * 核心功能修复：解析持仓截图
- */
-export const parseBrokerageScreenshot = async (base64Image: string, apiKey?: string): Promise<HoldingsSnapshot> => {
-  if (!apiKey) throw new Error("Missing API Key for screenshot parsing.");
-  const ai = new GoogleGenAI({ apiKey });
-
-  const prompt = `
-    请识别这张持仓截图中的数据。输出 JSON 格式.
-  `;
-
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
-    contents: {
-      parts: [
-        { text: prompt },
-        { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
-      ]
-    },
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: holdingsSnapshotSchema
-    }
-  });
-
-  const parsed = robustParse(response.text || "{}");
-  if (!parsed || !parsed.holdings) {
-     throw new Error("未能识别到有效的持仓列表");
-  }
-
-  return parsed;
-};
-
-// --- Pattern Hunter Exports ---
-
-/**
- * 核心功能：南兴模式（地量猎手）探测
- */
-export const fetchNanxingPattern = async (query: string, apiKey?: string): Promise<AnalysisResult> => {
-  if (!apiKey) throw new Error("API Key Missing");
-  const ai = new GoogleGenAI({ apiKey });
-  
-  const prompt = `
-    作为资深题材审计专家，深度探测当前市场中符合“南兴股份模式”（二三梯队、地量真空、非ST、非僵尸股）的标的。
-    板块范围: "${query || '全市场'}"。
-    必须通过 googleSearch 检索最新数据。
-    输出 JSON。
-  `;
-
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
-    contents: prompt,
-    config: {
-      tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      responseSchema: patternHunterSchema
-    }
-  });
-
-  return {
-    content: response.text || "",
-    timestamp: Date.now(),
-    modelUsed: ModelProvider.GEMINI_INTL,
-    isStructured: true,
-    patternHunterData: robustParse(response.text || "{}")
-  };
-};
-
-/**
- * 核心功能：南兴模式终极实战审计
- */
-export const fetchPatternVerification = async (stockInfo: string, volumeRatio: string, base64Image: string | null, apiKey?: string): Promise<AnalysisResult> => {
-  if (!apiKey) throw new Error("API Key Missing");
-  const ai = new GoogleGenAI({ apiKey });
-  
-  const prompt = `
-    针对标的 "${stockInfo}" 执行终极实战模式审计。
-    用户输入的实时量比为: "${volumeRatio}"。
-    ${base64Image ? "【视觉辅助】我上传了最新的 K 线截图，请以此作为最高优先级对齐股价和形态，废弃任何陈旧的搜索数据。" : "请通过 googleSearch 检索最新研报与股价。"}
-    
-    【核心审计逻辑】
-    1. 判定其地量结构是否真实有效。
-    2. 评估其爆发确定性。
-    3. 给出精确的买入触发点、止损位与博弈逻辑。
-    
-    输出 JSON。
-  `;
-
-  const parts: any[] = [{ text: prompt }];
-  if (base64Image) {
-    parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64Image } });
-  }
-
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
-    contents: { parts },
-    config: {
-      tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      responseSchema: patternVerificationSchema
-    }
-  });
-
-  return {
-    content: response.text || "",
-    timestamp: Date.now(),
-    modelUsed: ModelProvider.GEMINI_INTL,
-    isStructured: true,
-    patternVerificationData: robustParse(response.text || "{}")
-  };
 };

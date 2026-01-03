@@ -10,322 +10,130 @@ export enum MarketType {
   US = 'US', // US Stocks
 }
 
-// --- NEW: Pattern Verification Interfaces ---
-export interface PatternVerificationResponse {
-  stock_name: string;
-  verdict: '立即伏击' | '继续观察' | '逻辑失效' | '等待放量';
-  confidence_score: number; // 0-100
-  visual_diagnostic: string; // 视觉 K 线诊断结论
-  volume_ratio_verdict: string; // 针对用户输入量比的评价
-  trigger_condition: string; // 确切的买入触发条件
-  stop_loss_point: string; 
-  target_space: string;
-  battle_logic: string; // 终极实战逻辑
-}
-
-// --- NEW: Nanxing Pattern (Volume Vacuum) Interfaces ---
-export interface PatternStockItem {
+// --- NEW: Dragon Sniper Interfaces ---
+export interface SnipeTarget {
   name: string;
   code: string;
-  current_tier: '二梯队' | '三梯队' | '潜伏期';
-  vacuum_score: number; 
-  volume_ratio_desc: string; 
-  catalyst_alignment: string; 
-  technical_setup: string; 
-  entry_signal_trigger: string; 
-  upside_potential: string; 
+  reason_for_board: string; 
+  theme_purity: number; 
+  snipe_logic: string; 
+  trigger_conditions: {
+    auction_volume: string; 
+    opening_strategy: string; 
+    volume_ratio_target: string; 
+  };
+  stop_loss: string;
+  confidence: number;
+}
+
+export interface AuctionDecisionResponse {
+  verdict: '立即出击' | '持续观察' | '逻辑失效/放弃';
+  match_score: number; // 0-100 匹配度
+  reasoning: string; // 为什么做出此决定
+  suggested_entry_type: string; // 排单/半路/打板
+  risk_factor: string; // 竞价中暴露的额外风险
+}
+
+export interface SnipeVerificationResponse {
+  actual_auction: string; 
+  actual_opening: string; 
+  actual_result: string; 
+  is_success: boolean; 
+  battle_review: string; 
+  market_synchronization: string; 
+}
+
+export interface DragonSniperResponse {
+  detected_main_theme: string; 
+  theme_cycle_stage: '萌芽启动' | '主升过热' | '分歧博弈' | '衰退冰点'; 
+  market_sentiment_audit: string; 
+  selected_targets: SnipeTarget[];
+  overall_verdict: '立即准备' | '观望为主' | '今日无机会';
   risk_warning: string;
 }
 
-export interface PatternHunterResponse {
-  sector_context: string;
-  sector_leader: string; 
-  market_stage: string; 
-  stocks: PatternStockItem[];
-}
-
-export interface StockSynergyResponse {
-  name: string;
-  code: string;
-  synergy_score: number; 
-  trap_risk_score: number; 
-  dragon_potential_score: number; 
-  market_position: '板块灵魂/龙头' | '中军/核心权重' | '跟风/补涨' | '独立行情';
-  capital_consistency: '高度一致' | '分歧严重' | '机构接力' | '散户合力';
-  turnover_eval: {
-    current_rate: string;
-    is_sufficient: boolean;
-    verdict: string;
-  };
-  main_force_portrait: {
-    lead_type: string;
-    entry_cost_est: string;
-    hold_status: string;
-  };
-  t_plus_1_prediction: {
-    expected_direction: '看涨' | '看跌' | '高位震荡' | '冲高回落' | '下杀探底';
-    confidence: number;
-    price_range: string;
-    opening_strategy: string;
-    logic: string;
-  };
-  synergy_factors: {
-    label: string;
-    score: number;
-    description: string;
-  }[];
-  battle_verdict: string;
-  action_guide: string;
-  chase_safety_index: number; 
-}
-
-export interface DragonSignalItem {
-  name: string;
-  code: string;
-  signal_type: '龙回头' | '一进二' | '底部反转' | '趋势中继';
-  energy_score: number; 
-  alpha_logic: string;  
-  volume_status: string; 
-  key_support: string;   
-  key_target: string;    
-  risk_level: 'High' | 'Medium' | 'Low';
-}
-
-export interface DragonSignalResponse {
-  scan_time: string;
-  market_pulse: string; 
-  dragon_energy: number; 
-  signals: DragonSignalItem[];
-}
-
-export interface DualBoardScanItem {
-  name: string;
-  code: string;
-  board: '创业板' | '科创板';
-  control_score: number;
-  cost_price: string;
-  trend_momentum: string;
-  rating: '起爆' | '锁筹' | '分歧' | '出货' | '潜伏';
-  volume_ratio: string;
-  logic: string;
-  target_price: string;
-  support_price: string;
-}
-
-export interface DualBoardScanResponse {
-  scan_time: string;
-  market_mood: string;
-  hot_sectors: string[];
-  stocks: DualBoardScanItem[];
-}
-
-export interface MainBoardScanItem {
-  name: string;
-  code: string;
-  board: '沪市主板' | '深市主板';
-  limit_up_type: '首板' | '连板';
-  consecutive_days: number;
-  control_score: number;
-  cost_price: string;
-  trend_momentum: string;
-  rating: '起爆' | '锁筹' | '分歧' | '出货' | '潜伏';
-  volume_ratio: string;
-  logic: string;
-  target_price: string;
-  support_price: string;
-  capital_portrait?: {
-    main_type: '游资主导' | '机构抱团' | '散户合力' | '庄股嫌疑';
-    key_players: string[]; 
-    influence_score: number; 
-    influence_verdict: string; 
-  };
-}
-
-export interface MainBoardScanResponse {
-  scan_time: string;
-  market_mood: string;
-  hot_sectors: string[];
-  stocks: MainBoardScanItem[];
-}
-
-export interface LimitUpLadderSector {
-  sector_name: string;
-  sector_type: 'Main' | 'Sub';
-  total_count: number;
-  max_height: number;
-  ladder_matrix: {
-    height: number;
-    count: number;
-    stocks: { name: string; code: string; logic: string }[];
-  }[];
-  dragon_leader: {
-    name: string;
-    code: string;
-    consecutive_days: number;
-    strength_score: number;
-    reason: string;
-  };
-  integrity_score: number;
-  market_sentiment: 'Rising' | 'Climax' | 'Diverging' | 'Falling';
-}
-
-export interface LimitUpLadderResponse {
-  scan_time: string;
-  total_limit_ups: number;
-  sectors: LimitUpLadderSector[];
-  market_conclusion: string;
-}
-
-export interface KLineSynergyData {
-  pattern_name: string;
-  synergy_score: number;
-  time_frame: string;
-  logic_timeline: {
-    day: string;
-    action: string;
-    psychology: string;
-  }[];
-  synergy_factors: {
-    volume_resonance: number;
-    price_strength: number;
-    capital_alignment: number;
-  };
-  prediction: {
-    trend: 'Bullish' | 'Bearish' | 'Neutral';
-    probability: string;
-    target_window: string;
-    key_observation: string;
-  };
-  battle_summary: string;
-}
-
-export interface BatchStockScore {
-  name: string;
-  code: string;
-  win_rate: number;
-  verdict: 'Immediate' | 'Pullback' | 'Wait' | 'Avoid';
-  verdict_label: string;
-  sector_heat: number;
-  capital_flow: 'Inflow' | 'Neutral' | 'Outflow';
-  technical_score: number;
-  logic_summary: string;
-  key_price: string;
-}
-
-export interface BatchTimingResponse {
-  market_context: string;
-  overall_risk_score: number;
-  stocks: BatchStockScore[];
-}
-
-export interface SectorLadderData {
-  sector_name: string;
-  cycle_stage: 'Starting' | 'Growing' | 'Climax' | 'End' | 'Receding';
-  stage_label: string;
-  risk_score: number;
-  ladder: {
-    tier: string;
-    stocks: { 
-      name: string; 
-      code: string; 
-      price: string;
-      status: 'Leading' | 'Stagnant' | 'Following' | 'Weakening'; 
-      performance: string;
-      health_score: number;
-      logic: string 
-    }[];
-  }[];
-  structural_integrity: {
-    synergy_score: number;
-    verdict: string;
-    is_divergent: boolean;
-  };
-  support_points: string[];
-  warning_signals: string[];
-  action_advice: string;
-}
-
-export interface MarketDashboardData {
-  data_date?: string; 
-  market_indices?: MarketIndex[];
-  market_volume?: MarketVolumeData;
-  market_sentiment: {
-    score: number;
-    summary: string;
-    trend: 'bullish' | 'bearish' | 'neutral';
-  };
-  capital_rotation: {
-    inflow_sectors: string[];
-    inflow_reason: string;
-    outflow_sectors: string[];
-    outflow_reason: string;
-    rotation_logic: string; 
-    top_inflow_stocks?: string[]; 
-  };
-  macro_logic?: {
-    policy_focus: string;
-    external_impact?: string;
-    core_verdict?: string;
-    macro_event?: string;
-    impact_level?: 'High' | 'Medium' | 'Low';
-  };
-  institutional_signals?: {
-    dragon_tiger_summary: string;
-    lh_top_10?: { name: string; net_buy: string; logic: string }[]; 
-    block_trade_activity: string;
-    active_money_flow_trend: string;
-  };
-  deep_logic?: {
-    policy_driver: string;
-    external_environment: string;
-    market_valuation: string;
-  };
-  hot_topics?: string[];
-  allocation_model?: any;
-}
-
-export interface MarketIndex {
-  name: string;
-  value: string;
-  change: string;
-  direction: 'up' | 'down';
-  percent: string;
-}
-
-export interface MarketVolumeData {
-  total_volume: string;     
-  volume_delta: string;     
-  volume_trend: 'expansion' | 'contraction' | 'flat'; 
-  net_inflow: string;       
-  capital_mood: string;
-  active_buy_spread?: string; 
+export interface SniperHistoryEntry {
+  id: string;
+  timestamp: number;
+  marketData: DragonSniperResponse;
+  decisions: Record<number, AuctionDecisionResponse>;
+  verifications: Record<number, SnipeVerificationResponse>;
 }
 
 export interface PeriodicReviewData {
   score: number;
-  market_trend: 'bull' | 'bear' | 'sideways';
+  market_trend: 'bull' | 'bear' | 'neutral';
   market_summary: string;
   monthly_portfolio_summary?: string;
-  highlight: { title: string; description: string };
-  lowlight: { title: string; description: string };
+  stock_diagnostics: {
+    name: string;
+    verdict: string;
+    issues: string[];
+  }[];
+  highlight: {
+    title: string;
+    description: string;
+  };
+  lowlight: {
+    title: string;
+    description: string;
+  };
   execution: {
     score: number;
     details: string;
     good_behaviors: string[];
     bad_behaviors: string[];
   };
-  stock_diagnostics: {
-    name: string;
-    issues: string[];
-    verdict: string;
-  }[];
-  next_period_focus: string[];
   improvement_advice: string[];
+  next_period_focus: string[];
+}
+
+export interface KLineSynergyData {
+  [key: string]: any;
+}
+
+export interface SectorLadderData {
+  risk_score: number;
+  cycle_stage: string;
+  stage_label: string;
+  sector_name: string;
+  action_advice: string;
+  ladder: {
+    tier: string;
+    stocks: {
+      name: string;
+      code: string;
+      price: string;
+      performance: string;
+      status: string;
+      health_score: number;
+      logic: string;
+    }[];
+  }[];
+  warning_signals: string[];
+  support_points: string[];
+  structural_integrity: {
+    synergy_score: number;
+    is_divergent: boolean;
+    verdict: string;
+  };
+}
+
+export interface HoldingItemDetailed {
+  name: string;
+  code: string;
+  volume: number;
+  costPrice: number;
+  currentPrice: number;
+  profit: number;
+  profitRate: string;
+  marketValue: number;
+  horizon?: 'short' | 'medium' | 'long';
 }
 
 export interface OpportunityResponse {
-  policy_theme?: string;
-  analysis_summary?: string;
+  policy_theme: string;
+  analysis_summary: string;
   supply_chain_matrix?: {
     user_holding: string;
     opportunities: {
@@ -360,42 +168,197 @@ export interface ForesightReport {
     event_name: string;
     theme_label: string;
     logic_chain: string;
-    opportunity_level: 'High' | 'Medium' | 'Low';
+    opportunity_level: string;
     suggested_stocks: string[];
   }[];
   rotation_warning: string;
   macro_policy_insight: string;
 }
 
-export interface InstitutionalInsightData {
-  detailed_signals: {
-    lh_list: string;
-    block_trades: string;
-    spread_trend: string;
+export interface BatchStockScore {
+  name: string;
+  code: string;
+  win_rate: number;
+  verdict: 'Immediate' | 'Pullback' | 'Wait' | 'Avoid';
+  verdict_label: string;
+  sector_heat: number;
+  capital_flow: 'Inflow' | 'Neutral' | 'Outflow';
+  technical_score: number;
+  logic_summary: string;
+  key_price: string;
+}
+
+export interface DualBoardScanItem {
+  name: string;
+  code: string;
+  board: string;
+  control_score: number;
+  cost_price: string;
+  trend_momentum: string;
+  rating: string;
+  target_price: string;
+  support_price: string;
+  logic: string;
+}
+
+export interface MainBoardScanItem {
+  name: string;
+  code: string;
+  board: string;
+  limit_up_type: string;
+  consecutive_days: number;
+  capital_portrait: {
+    main_type: string;
+    key_players: string[];
+    influence_verdict: string;
   };
-  top_surveyed_sectors: {
-    sector_name: string;
-    intensity: number;
-    top_stocks: string[];
+  control_score: number;
+  rating: string;
+  target_price: string;
+}
+
+export interface LimitUpLadderSector {
+  sector_name: string;
+  sector_type: string;
+  market_sentiment: string;
+  total_count: number;
+  integrity_score: number;
+  dragon_leader: {
+    name: string;
+    code: string;
+    strength_score: number;
+    consecutive_days: number;
     reason: string;
+  };
+  ladder_matrix: {
+    height: number;
+    count: number;
+    stocks: {
+      name: string;
+      logic: string;
+    }[];
   }[];
-  key_institution_views: {
-    institution_name: string;
-    sentiment: 'bullish' | 'bearish' | 'neutral';
-    viewpoint: string;
-    target_sector: string;
+}
+
+export interface DragonSignalItem {
+  name: string;
+  code: string;
+  signal_type: string;
+  energy_score: number;
+  alpha_logic: string;
+  key_target: string;
+  key_support: string;
+  volume_status: string;
+}
+
+// --- NEW: Pattern Hunter Interfaces ---
+export interface PatternVerificationResponse {
+  stock_name: string;
+  verdict: '立即伏击' | '继续观察' | '逻辑失效' | '等待放量';
+  confidence_score: number; 
+  visual_diagnostic: string; 
+  volume_ratio_verdict: string; 
+  trigger_condition: string; 
+  stop_loss_point: string; 
+  target_space: string;
+  battle_logic: string; 
+}
+
+export interface PatternStockItem {
+  name: string;
+  code: string;
+  current_tier: '二梯队' | '三梯队' | '潜伏期';
+  vacuum_score: number; 
+  volume_ratio_desc: string; 
+  catalyst_alignment: string; 
+  technical_setup: string; 
+  entry_signal_trigger: string; 
+  upside_potential: string; 
+  risk_warning: string;
+}
+
+export interface PatternHunterResponse {
+  sector_context: string;
+  sector_leader: string; 
+  market_stage: string; 
+  stocks: PatternStockItem[];
+}
+
+export interface StockSynergyResponse {
+  name: string;
+  code: string;
+  synergy_score: number; 
+  trap_risk_score: number; 
+  dragon_potential_score: number; 
+  market_position: string;
+  capital_consistency: string;
+  turnover_eval: {
+    current_rate: string;
+    is_sufficient: boolean;
+    verdict: string;
+  };
+  main_force_portrait: {
+    lead_type: string;
+    entry_cost_est: string;
+    hold_status: string;
+  };
+  t_plus_1_prediction: {
+    expected_direction: string;
+    confidence: number;
+    price_range: string;
+    opening_strategy: string;
+    logic: string;
+  };
+  synergy_factors: {
+    label: string;
+    score: number;
+    description: string;
   }[];
-  smart_money_trends: {
-    signal_type: string;
-    concept_name: string;
-    flow_status: 'net_inflow' | 'net_outflow';
-    key_driver: string;
-  }[];
+  battle_verdict: string;
+  action_guide: string;
+  chase_safety_index: number; 
+}
+
+export interface DragonSignalResponse {
+  scan_time: string;
+  market_pulse: string; 
+  dragon_energy: number; 
+  signals: DragonSignalItem[];
+}
+
+export interface DualBoardScanResponse {
+  scan_time: string;
+  market_mood: string;
+  hot_sectors: string[];
+  stocks: DualBoardScanItem[];
+}
+
+export interface MainBoardScanResponse {
+  scan_time: string;
+  market_mood: string;
+  hot_sectors: string[];
+  stocks: MainBoardScanItem[];
+}
+
+export interface LimitUpLadderResponse {
+  scan_time: string;
+  total_limit_ups: number;
+  sectors: LimitUpLadderSector[];
+  market_conclusion: string;
+}
+
+export interface MarketDashboardData {
+  data_date?: string; 
+  market_indices?: any[];
+  market_volume?: any;
+  market_sentiment: any;
+  capital_rotation: any;
+  macro_logic?: any;
 }
 
 export interface AnalysisResult {
   content: string; 
-  groundingSource?: GroundingSource[];
+  groundingSource?: any[];
   timestamp: number;
   modelUsed: ModelProvider;
   isStructured?: boolean;
@@ -405,11 +368,11 @@ export interface AnalysisResult {
   historyData?: any;
   opportunityData?: OpportunityResponse;
   foresightData?: ForesightReport;
-  institutionalData?: InstitutionalInsightData;
-  timingData?: TimingEvaluation;
-  hotlistData?: InstitutionalHotlist;
+  institutionalData?: any;
+  timingData?: any;
+  hotlistData?: any;
   ladderData?: SectorLadderData; 
-  batchTimingData?: BatchTimingResponse;
+  batchTimingData?: any;
   klineSynergyData?: KLineSynergyData;
   dualBoardScanData?: DualBoardScanResponse;
   mainBoardScanData?: MainBoardScanResponse;
@@ -417,35 +380,10 @@ export interface AnalysisResult {
   dragonSignalData?: DragonSignalResponse;
   stockSynergyData?: StockSynergyResponse;
   patternHunterData?: PatternHunterResponse;
-  patternVerificationData?: PatternVerificationResponse; // NEW
-}
-
-export interface TimingEvaluation {
-  action: 'Buy' | 'Wait' | 'Sell' | 'Reduce';
-  position_score: number;
-  entry_logic: string;
-  entry_price_window: string;
-  stop_loss: string;
-  target_profit: string;
-  kline_analysis: string;
-}
-
-export interface InstitutionalHotlist {
-  summary: string;
-  ranking: {
-    name: string;
-    code: string;
-    visit_frequency: string;
-    institution_count: number;
-    core_logic: string;
-    potential_rating: 'High' | 'Medium';
-  }[];
-  sector_heat: { name: string; value: number }[];
-}
-
-export interface GroundingSource {
-  uri: string;
-  title: string;
+  patternVerificationData?: PatternVerificationResponse;
+  dragonSniperData?: DragonSniperResponse;
+  snipeVerificationData?: SnipeVerificationResponse;
+  auctionDecisionData?: AuctionDecisionResponse; // NEW
 }
 
 export interface UserSettings {
@@ -458,7 +396,7 @@ export interface JournalEntry {
   timestamp: number;
   snapshot: any;
   analysis: any;
-  note?: string; 
+  note?: string;
 }
 
 export interface PlanItem {
@@ -480,19 +418,7 @@ export interface DailyTradingPlan {
 
 export interface HoldingsSnapshot {
   totalAssets: number;
-  positionRatio?: number; 
+  positionRatio: number;
   date: string;
   holdings: any[];
-}
-
-export interface HoldingItemDetailed {
-  name: string;
-  code: string;
-  volume: number;
-  costPrice: number;
-  currentPrice: number;
-  profit: number;
-  profitRate: string;
-  marketValue: number;
-  horizon?: 'short' | 'medium' | 'long';
 }
