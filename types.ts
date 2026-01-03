@@ -287,6 +287,7 @@ export interface PatternHunterResponse {
 export interface StockSynergyResponse {
   name: string;
   code: string;
+  used_current_price: string; // AI 最终采用的现价（视觉提取或搜索结果）
   synergy_score: number; 
   trap_risk_score: number; 
   dragon_potential_score: number; 

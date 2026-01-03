@@ -11,6 +11,7 @@ const stockSynergySchema = {
   properties: {
     name: { type: Type.STRING },
     code: { type: Type.STRING },
+    used_current_price: { type: Type.STRING },
     synergy_score: { type: Type.NUMBER },
     trap_risk_score: { type: Type.NUMBER },
     dragon_potential_score: { type: Type.NUMBER },
@@ -71,7 +72,7 @@ const stockSynergySchema = {
     chase_safety_index: { type: Type.NUMBER }
   },
   required: [
-    "name", "code", "synergy_score", "trap_risk_score", "dragon_potential_score", "market_position", 
+    "name", "code", "used_current_price", "synergy_score", "trap_risk_score", "dragon_potential_score", "market_position", 
     "capital_consistency", "main_force_cost_anchor", "turnover_eval", "main_force_portrait", 
     "t_plus_1_prediction", "synergy_factors", "battle_verdict", "action_guide", "chase_safety_index"
   ]
@@ -239,11 +240,11 @@ export const fetchStockSynergy = async (query: string, base64Image: string | nul
   const prompt = `
     作为顶级游资操盘手，对标的 "${query}" 进行【合力与主力成本深度审计】。
     
-    【研判要求】
-    1. 计算【主力成本安全锚点】：通过联网搜索该标的最近 20 个交易日的“筹码密集区”和“机构席位/大宗交易平均价”。
-    2. 计算【安全垫 (Safety Margin)】：当前价与预估成本的距离百分比。
-    3. 识别其是否具备“大妖股基因”：对标其所在的行业地位和 Alpha 催化力。
-    4. 如果上传了 K 线截图，请优先校准视觉上的主力吸筹区。
+    【核心审计准则 - 严禁忽略】
+    1. 【视觉现价优先】：如果用户上传了 K 线/分时图截图，你必须通过 OCR 准确提取图中的【最新实时股价】。将其作为计算安全垫的“绝对现价（used_current_price）”。
+    2. 【拒绝陈旧数据】：联网搜索到的价格可能存在 15 分钟以上的延迟，严禁使用延迟价格覆盖用户截图中展现的实时价格。
+    3. 【主力成本锚点】：通过联网搜索该标的最近 20 个交易日的“筹码密集区”和“机构席位/大宗交易平均价”。
+    4. 【安全垫计算】：公式必须为 (截图现价 - 预估成本) / 预估成本。
     
     必须输出 JSON。
   `;

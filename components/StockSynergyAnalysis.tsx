@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, MarketType, AnalysisResult } from '../types';
 import { fetchStockSynergy } from '../services/geminiService';
-import { UsersRound, Loader2, Search, Zap, ShieldAlert, Target, Activity, Flame, ArrowRight, ShieldCheck, TrendingUp, Info, UserCheck, Scale, AlertTriangle, Fingerprint, Camera, X, ImageIcon, Eye, CalendarClock, Sparkles, TrendingDown, Crown, ShieldCheck as SafetyIcon, Anchor, ShieldQuestion } from 'lucide-react';
+import { UsersRound, Loader2, Search, Zap, ShieldAlert, Target, Activity, Flame, ArrowRight, ShieldCheck, TrendingUp, Info, UserCheck, Scale, AlertTriangle, Fingerprint, Camera, X, ImageIcon, Eye, CalendarClock, Sparkles, TrendingDown, Crown, ShieldCheck as SafetyIcon, Anchor, ShieldQuestion, MapPin } from 'lucide-react';
 
 export const StockSynergyAnalysis: React.FC<{
   currentModel: ModelProvider;
@@ -77,7 +77,7 @@ export const StockSynergyAnalysis: React.FC<{
   const formatConfidence = (val: number | undefined) => {
     if (val === undefined || val === null) return 0;
     let num = Number(val);
-    if (num <= 1 && num > 0) num = num * 100;
+    if (num > 0 && num < 1.0) num = num * 100;
     return Math.round(num);
   };
 
@@ -85,16 +85,6 @@ export const StockSynergyAnalysis: React.FC<{
     if (score >= 80) return 'from-rose-500 to-rose-600';
     if (score >= 60) return 'from-indigo-500 to-indigo-600';
     return 'from-slate-400 to-slate-500';
-  };
-
-  const getRiskLevelStyle = (level: string | undefined) => {
-    switch (level) {
-      case '成本线下/黄金区': return 'bg-emerald-500 text-white shadow-emerald-100';
-      case '低风险': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case '高危泡沫': return 'bg-rose-600 text-white shadow-rose-100 animate-pulse';
-      case '中等溢价': return 'bg-amber-100 text-amber-700 border-amber-200';
-      default: return 'bg-slate-100 text-slate-500';
-    }
   };
 
   return (
@@ -109,7 +99,7 @@ export const StockSynergyAnalysis: React.FC<{
             标的合力与龙头基因审计
           </h2>
           <p className="text-slate-500 text-base max-w-2xl font-medium mb-10">
-            审计标的是否具备 **“大妖股”基因**（如中国卫星 20 至 90 逻辑）。AI 将计算 **主力持有成本** 并评估当前 **安全垫** 厚度。
+            审计标的是否具备 **“大妖股”基因**。AI 将通过视觉 OCR 提取图中 **最新现价** 并计算 **主力持有成本**。
           </p>
 
           <div className="max-w-2xl flex flex-col gap-4">
@@ -156,7 +146,7 @@ export const StockSynergyAnalysis: React.FC<{
                   <div className="flex items-center gap-2 text-indigo-700 font-black mb-1">
                     <Eye className="w-4 h-4" /> 多模态视觉审计已就绪
                   </div>
-                  <p className="text-xs text-indigo-600 font-medium italic">AI 将在研判过程中强制对齐截图中的实时量价形态。</p>
+                  <p className="text-xs text-indigo-600 font-medium italic">AI 将强行锁定图片中的现价，并废弃联网搜索到的陈旧价格。</p>
                 </div>
               </div>
             )}
@@ -175,7 +165,7 @@ export const StockSynergyAnalysis: React.FC<{
         <div className="py-20 flex flex-col items-center justify-center bg-white rounded-[3rem] border border-dashed border-slate-200 animate-pulse">
            <Fingerprint className="w-16 h-16 text-indigo-200 mb-6 animate-bounce" />
            <p className="text-slate-500 font-black text-xl tracking-tight">
-             正在计算主力平均持仓成本并审计合力基因... ({elapsed}s)
+             正在视觉提取图中现价并探测主力成本... ({elapsed}s)
            </p>
         </div>
       )}
@@ -184,8 +174,13 @@ export const StockSynergyAnalysis: React.FC<{
         <div className="space-y-8 animate-slide-up">
           {/* Main Force Cost Dashboard */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                <div className="p-3 bg-indigo-50 rounded-2xl mb-4"><Anchor className="w-6 h-6 text-indigo-600" /></div>
+             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-2">
+                   <div className="px-2 py-1 bg-indigo-50 text-indigo-600 text-[9px] font-black rounded-bl-lg flex items-center gap-1">
+                      <MapPin className="w-2.5 h-2.5" /> AI 锚定现价: {d.used_current_price}
+                   </div>
+                </div>
+                <div className="p-3 bg-indigo-50 rounded-2xl mb-4 mt-2"><Anchor className="w-6 h-6 text-indigo-600" /></div>
                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">预估主力平均成本</div>
                 <div className="text-3xl font-black text-indigo-600 tracking-tighter">{d.main_force_cost_anchor?.estimated_cost || '--'}</div>
              </div>
