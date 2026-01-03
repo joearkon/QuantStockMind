@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, MarketType, AnalysisResult } from '../types';
 import { fetchStockSynergy } from '../services/geminiService';
-import { UsersRound, Loader2, Search, Zap, ShieldAlert, Target, Activity, Flame, ArrowRight, ShieldCheck, TrendingUp, Info, UserCheck, Scale, AlertTriangle, Fingerprint, Camera, X, ImageIcon, Eye, CalendarClock, Sparkles, TrendingDown, Crown, ShieldCheck as SafetyIcon } from 'lucide-react';
+import { UsersRound, Loader2, Search, Zap, ShieldAlert, Target, Activity, Flame, ArrowRight, ShieldCheck, TrendingUp, Info, UserCheck, Scale, AlertTriangle, Fingerprint, Camera, X, ImageIcon, Eye, CalendarClock, Sparkles, TrendingDown, Crown, ShieldCheck as SafetyIcon, Anchor, ShieldQuestion } from 'lucide-react';
 
 export const StockSynergyAnalysis: React.FC<{
   currentModel: ModelProvider;
@@ -87,6 +87,16 @@ export const StockSynergyAnalysis: React.FC<{
     return 'from-slate-400 to-slate-500';
   };
 
+  const getRiskLevelStyle = (level: string | undefined) => {
+    switch (level) {
+      case '成本线下/黄金区': return 'bg-emerald-500 text-white shadow-emerald-100';
+      case '低风险': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case '高危泡沫': return 'bg-rose-600 text-white shadow-rose-100 animate-pulse';
+      case '中等溢价': return 'bg-amber-100 text-amber-700 border-amber-200';
+      default: return 'bg-slate-100 text-slate-500';
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-20">
       {/* Header */}
@@ -96,10 +106,10 @@ export const StockSynergyAnalysis: React.FC<{
             <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-xl">
               <UsersRound className="w-8 h-8" />
             </div>
-            标的合力与龙头基因审计
+            标的合力与主力成本审计
           </h2>
           <p className="text-slate-500 text-base max-w-2xl font-medium mb-10">
-            审计标的是否具备 **“大妖股”基因**（如中国卫星 20 至 90 逻辑）。AI 将通过视觉形态与全网 Alpha 信号对齐主力真实意图。
+            审计标的是否具备 **“大妖股”基因**（如中国卫星 20 至 90 逻辑）。AI 将计算 **主力持有成本** 并评估当前 **安全垫** 厚度。
           </p>
 
           <div className="max-w-2xl flex flex-col gap-4">
@@ -165,14 +175,41 @@ export const StockSynergyAnalysis: React.FC<{
         <div className="py-20 flex flex-col items-center justify-center bg-white rounded-[3rem] border border-dashed border-slate-200 animate-pulse">
            <Fingerprint className="w-16 h-16 text-indigo-200 mb-6 animate-bounce" />
            <p className="text-slate-500 font-black text-xl tracking-tight">
-             正在执行合力审计与历史波段回溯... ({elapsed}s)
+             正在计算主力平均持仓成本并审计合力基因... ({elapsed}s)
            </p>
-           {selectedImage && <p className="text-indigo-400 text-sm mt-2 font-bold flex items-center gap-2 animate-pulse"><ImageIcon className="w-4 h-4"/> 正在分析视觉 K 线与主力成本分层</p>}
         </div>
       )}
 
       {d && (
         <div className="space-y-8 animate-slide-up">
+          {/* Main Force Cost Dashboard (NEW) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                <div className="p-3 bg-indigo-50 rounded-2xl mb-4"><Anchor className="w-6 h-6 text-indigo-600" /></div>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">预估主力平均成本</div>
+                <div className="text-3xl font-black text-indigo-600 tracking-tighter">{d.main_force_cost_anchor.estimated_cost}</div>
+             </div>
+             
+             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
+                <div className="p-3 bg-emerald-50 rounded-2xl mb-4"><SafetyIcon className="w-6 h-6 text-emerald-600" /></div>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">当前安全垫 (Margin)</div>
+                <div className={`text-3xl font-black tracking-tighter ${d.main_force_cost_anchor.safety_margin_percent >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                   {d.main_force_cost_anchor.safety_margin_percent}%
+                </div>
+             </div>
+
+             <div className={`p-8 rounded-[2.5rem] shadow-xl flex flex-col items-center justify-center text-center text-white ${
+                d.main_force_cost_anchor.risk_level === '高危泡沫' ? 'bg-rose-600' : 
+                d.main_force_cost_anchor.risk_level === '成本线下/黄金区' ? 'bg-emerald-600' : 'bg-slate-900'
+             }`}>
+                <div className="text-[10px] font-black opacity-60 uppercase tracking-[0.3em] mb-2">溢价风险审计</div>
+                <div className="text-2xl font-black mb-2">{d.main_force_cost_anchor.risk_level}</div>
+                <p className="text-[10px] font-bold opacity-80 leading-relaxed">
+                   {d.main_force_cost_anchor.safety_margin_percent > 30 ? '风险极大：获利盘随时可能引发多杀多。' : '当前位置较安全，具备博弈价值。'}
+                </p>
+             </div>
+          </div>
+
           {/* Dragon Status Banner */}
           <div className="bg-indigo-950 rounded-[3rem] p-8 text-white shadow-2xl flex flex-col md:flex-row justify-between items-center gap-8 overflow-hidden relative">
              <div className="absolute right-0 top-0 p-4 opacity-5 pointer-events-none">
@@ -213,7 +250,6 @@ export const StockSynergyAnalysis: React.FC<{
                    T+1 预判形态走势 (Next Day Forecast)
                 </h3>
                 
-                {/* Confidence Highlighted Section */}
                 <div className="bg-white px-6 py-4 rounded-3xl border border-indigo-100 shadow-xl flex flex-col gap-2 min-w-[240px]">
                    <div className="flex justify-between items-end">
                       <div className="flex items-center gap-2 text-indigo-600">
@@ -318,9 +354,6 @@ export const StockSynergyAnalysis: React.FC<{
                          <div className="text-[10px] font-black text-slate-400 mb-1 flex items-center gap-1">
                             预估主力持仓成本
                             <Info className="w-3 h-3 cursor-help" />
-                            <div className="absolute z-20 bottom-full left-0 mb-2 w-48 p-2 bg-slate-800 text-white text-[9px] rounded-lg shadow-xl font-bold hidden group-hover:block">
-                               这是通过 L2 资金与龙虎榜测算的主力资金平均建仓位，非建议买入价。
-                            </div>
                          </div>
                          <div className="text-lg font-black text-rose-600">{d.main_force_portrait?.entry_cost_est || '--'}</div>
                       </div>
@@ -342,17 +375,6 @@ export const StockSynergyAnalysis: React.FC<{
                    <div className="text-4xl font-black mb-2">{d.chase_safety_index}%</div>
                    <p className="text-xs font-bold opacity-70">
                       {d.chase_safety_index > 60 ? '当前处于主升加速段，具备博弈价值。' : '当前处于情绪高位分歧点，谨慎追涨。'}
-                   </p>
-                </div>
-
-                {/* Risk Warning */}
-                <div className="bg-amber-50 rounded-[2.5rem] border border-amber-100 p-8 shadow-sm">
-                   <div className="flex items-center gap-3 mb-6 text-amber-700">
-                      <AlertTriangle className="w-5 h-5" />
-                      <span className="font-black text-sm uppercase tracking-widest">审计警示</span>
-                   </div>
-                   <p className="text-sm text-amber-900 font-bold leading-relaxed">
-                      AI 正在深度回溯其历史成长逻辑（参考中国卫星案例）。若当前价位较主力成本溢价超 50% 且缩量封板，请警惕缩量见顶风险。
                    </p>
                 </div>
              </div>

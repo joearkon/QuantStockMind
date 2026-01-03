@@ -292,6 +292,11 @@ export interface StockSynergyResponse {
   dragon_potential_score: number; 
   market_position: string;
   capital_consistency: string;
+  main_force_cost_anchor: {
+    estimated_cost: string; // 主力成本位
+    safety_margin_percent: number; // 当前价格相对于成本的安全垫 (%)
+    risk_level: '低风险' | '中等溢价' | '高危泡沫' | '成本线下/黄金区';
+  };
   turnover_eval: {
     current_rate: string;
     is_sufficient: boolean;

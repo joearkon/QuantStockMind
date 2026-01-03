@@ -6,11 +6,82 @@ const GEMINI_MODEL_PRIMARY = "gemini-3-flash-preview";
 
 // --- JSON Schemas ---
 
+const stockSynergySchema = {
+  type: Type.OBJECT,
+  properties: {
+    name: { type: Type.STRING },
+    code: { type: Type.STRING },
+    synergy_score: { type: Type.NUMBER },
+    trap_risk_score: { type: Type.NUMBER },
+    dragon_potential_score: { type: Type.NUMBER },
+    market_position: { type: Type.STRING },
+    capital_consistency: { type: Type.STRING },
+    main_force_cost_anchor: {
+      type: Type.OBJECT,
+      properties: {
+        estimated_cost: { type: Type.STRING },
+        safety_margin_percent: { type: Type.NUMBER },
+        risk_level: { type: Type.STRING, enum: ["低风险", "中等溢价", "高危泡沫", "成本线下/黄金区"] }
+      },
+      required: ["estimated_cost", "safety_margin_percent", "risk_level"]
+    },
+    turnover_eval: {
+      type: Type.OBJECT,
+      properties: {
+        current_rate: { type: Type.STRING },
+        is_sufficient: { type: Type.BOOLEAN },
+        verdict: { type: Type.STRING }
+      },
+      required: ["current_rate", "is_sufficient", "verdict"]
+    },
+    main_force_portrait: {
+      type: Type.OBJECT,
+      properties: {
+        lead_type: { type: Type.STRING },
+        entry_cost_est: { type: Type.STRING },
+        hold_status: { type: Type.STRING }
+      },
+      required: ["lead_type", "entry_cost_est", "hold_status"]
+    },
+    t_plus_1_prediction: {
+      type: Type.OBJECT,
+      properties: {
+        expected_direction: { type: Type.STRING },
+        confidence: { type: Type.NUMBER },
+        price_range: { type: Type.STRING },
+        opening_strategy: { type: Type.STRING },
+        logic: { type: Type.STRING }
+      },
+      required: ["expected_direction", "confidence", "price_range", "opening_strategy", "logic"]
+    },
+    synergy_factors: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          label: { type: Type.STRING },
+          score: { type: Type.NUMBER },
+          description: { type: Type.STRING }
+        },
+        required: ["label", "score", "description"]
+      }
+    },
+    battle_verdict: { type: Type.STRING },
+    action_guide: { type: Type.STRING },
+    chase_safety_index: { type: Type.NUMBER }
+  },
+  required: [
+    "name", "code", "synergy_score", "trap_risk_score", "dragon_potential_score", "market_position", 
+    "capital_consistency", "main_force_cost_anchor", "turnover_eval", "main_force_portrait", 
+    "t_plus_1_prediction", "synergy_factors", "battle_verdict", "action_guide", "chase_safety_index"
+  ]
+};
+
 const dragonSniperSchema = {
   type: Type.OBJECT,
   properties: {
     detected_main_theme: { type: Type.STRING },
-    theme_cycle_stage: { type: Type.STRING, enum: ["萌芽启动", "主升过热", "分歧博弈", "衰退冰点"] },
+    theme_cycle_stage: { type: Type.STRING, enum: ["萌芽启动", "主升过热", "分歧博弈", "衰多冰点"] },
     market_sentiment_audit: { type: Type.STRING },
     overall_verdict: { type: Type.STRING, enum: ["立即准备", "观望为主", "今日无机会"] },
     risk_warning: { type: Type.STRING },
@@ -88,21 +159,7 @@ export const fetchAuctionDecision = async (
   apiKey: string
 ): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
-  
-  const prompt = `
-    作为顶级游资操盘手，对标的 "${stockInfo}" 进行【9:25 集合竞价终极出击审计】。
-    
-    【前一日制定的狙击策略】
-    ${strategy}
-    
-    【审计指令】
-    1. 识别上传的“集合竞价截图”中的：挂单金额（试撮合）、竞价涨幅、最后三分钟量能变化。
-    2. 对比前一日策略中的“竞价金额”与“量比锚点”。
-    3. 给出终极指令：符合预期则【立即出击】，低于预期则【放弃/观察】。
-    
-    必须输出 JSON。
-  `;
-
+  const prompt = `对标的 "${stockInfo}" 进行【9:25 集合竞价终极出击审计】。策略：${strategy}。必须输出 JSON。`;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
     contents: {
@@ -111,19 +168,9 @@ export const fetchAuctionDecision = async (
         { inlineData: { mimeType: 'image/jpeg', data: base64AuctionImg } }
       ]
     },
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: auctionDecisionSchema
-    }
+    config: { responseMimeType: "application/json", responseSchema: auctionDecisionSchema }
   });
-
-  return {
-    content: response.text || "",
-    timestamp: Date.now(),
-    modelUsed: ModelProvider.GEMINI_INTL,
-    isStructured: true,
-    auctionDecisionData: robustParse(response.text || "{}")
-  };
+  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, auctionDecisionData: robustParse(response.text || "{}") };
 };
 
 export const fetchDragonSniperAnalysis = async (
@@ -154,6 +201,43 @@ export const verifySnipeSuccess = async (stockInfo: string, scanDate: number, st
   return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, snipeVerificationData: robustParse(response.text || "{}") };
 };
 
+export const fetchStockSynergy = async (query: string, base64Image: string | null, apiKey: string): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const prompt = `
+    作为顶级游资操盘手，对标的 "${query}" 进行【合力与主力成本深度审计】。
+    
+    【研判要求】
+    1. 计算【主力成本安全锚点】：通过联网搜索该标的最近 20 个交易日的“筹码密集区”和“机构席位/大宗交易平均价”。
+    2. 计算【安全垫 (Safety Margin)】：当前价与预估成本的距离百分比。
+    3. 识别其是否具备“大妖股基因”：对标其所在的行业地位和 Alpha 催化力。
+    4. 如果上传了 K 线截图，请优先校准视觉上的主力吸筹区。
+    
+    必须输出 JSON。
+  `;
+
+  const parts: any[] = [{ text: prompt }];
+  if (base64Image) parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64Image } });
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL_PRIMARY,
+    contents: { parts },
+    config: { 
+      tools: [{ googleSearch: {} }], 
+      responseMimeType: "application/json",
+      responseSchema: stockSynergySchema
+    }
+  });
+
+  return {
+    content: response.text || "",
+    timestamp: Date.now(),
+    modelUsed: ModelProvider.GEMINI_INTL,
+    isStructured: true,
+    stockSynergyData: robustParse(response.text || "{}")
+  };
+};
+
 // ... (Rest of existing fetchers)
 export const fetchLimitUpLadder = async (apiKey?: string): Promise<AnalysisResult> => {
   if (!apiKey) throw new Error("API Key Missing");
@@ -181,15 +265,6 @@ export const fetchDragonSignals = async (apiKey?: string): Promise<AnalysisResul
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: "信号扫描。输出 JSON。", config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json" } });
   return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, dragonSignalData: robustParse(response.text || "{}") };
-};
-
-export const fetchStockSynergy = async (query: string, base64Image: string | null, apiKey: string): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey });
-  const prompt = `合力审计: "${query}"。`;
-  const parts: any[] = [{ text: prompt }];
-  if (base64Image) parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64Image } });
-  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: { parts }, config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json" } });
-  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, stockSynergyData: robustParse(response.text || "{}") };
 };
 
 export const fetchNanxingPattern = async (query: string, apiKey?: string): Promise<AnalysisResult> => {
