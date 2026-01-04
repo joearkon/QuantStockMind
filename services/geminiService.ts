@@ -78,6 +78,27 @@ const stockSynergySchema = {
   ]
 };
 
+const planExtractionSchema = {
+  type: Type.OBJECT,
+  properties: {
+    summary: { type: Type.STRING },
+    items: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          symbol: { type: Type.STRING },
+          action: { type: Type.STRING, enum: ['buy', 'sell', 'hold', 'monitor', 't_trade'] },
+          price_target: { type: Type.STRING },
+          reason: { type: Type.STRING }
+        },
+        required: ["symbol", "action", "reason"]
+      }
+    }
+  },
+  required: ["summary", "items"]
+};
+
 const dragonSniperSchema = {
   type: Type.OBJECT,
   properties: {
@@ -277,6 +298,48 @@ export const fetchStockSynergy = async (query: string, base64Image: string | nul
   };
 };
 
+export const extractTradingPlan = async (analysisContent: string, apiKey?: string): Promise<{ items: PlanItem[], summary: string }> => {
+  if (!apiKey) throw new Error("API Key Missing");
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const prompt = `
+    你是一位精通结构化提取的量化助手。请从下方的【诊断报告】中提取所有明确的交易指令，并生成明日交易计划表。
+    
+    【指令映射规则】:
+    - "加仓"、"买入" -> Mapping to 'buy'
+    - "减仓"、"卖出"、"清仓" -> Mapping to 'sell'
+    - "做T" -> Mapping to 't_trade'
+    - "锁仓"、"持有" -> Mapping to 'hold'
+    - "观望"、"待定" -> Mapping to 'monitor'
+    
+    【报告全文】:
+    ${analysisContent}
+    
+    必须输出 JSON。
+  `;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: planExtractionSchema
+    }
+  });
+
+  const parsed = robustParse(response.text || "{}");
+  if (!parsed || !parsed.items) return { items: [], summary: "未能从报告中提取到有效交易指令。" };
+
+  return {
+    summary: parsed.summary,
+    items: parsed.items.map((it: any) => ({
+      ...it,
+      id: crypto.randomUUID(),
+      status: 'pending'
+    }))
+  };
+};
+
 // ... (Rest of existing fetchers)
 export const fetchLimitUpLadder = async (apiKey?: string): Promise<AnalysisResult> => {
   if (!apiKey) throw new Error("API Key Missing");
@@ -345,10 +408,6 @@ export const fetchPeriodicReview = async (journals: JournalEntry[], periodLabel:
   const ai = new GoogleGenAI({ apiKey: apiKey || "" });
   const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: "复盘记录" });
   return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL };
-};
-
-export const extractTradingPlan = async (analysisContent: string, apiKey?: string): Promise<{ items: PlanItem[], summary: string }> => {
-  return { items: [], summary: "" };
 };
 
 export const fetchSectorLadderAnalysis = async (query: string, market: MarketType, apiKey?: string): Promise<AnalysisResult> => {
