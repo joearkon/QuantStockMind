@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, MarketType, AnalysisResult } from '../types';
 import { fetchStockSynergy } from '../services/geminiService';
-import { UsersRound, Loader2, Search, Zap, ShieldAlert, Target, Activity, Flame, ArrowRight, ShieldCheck, TrendingUp, Info, UserCheck, Scale, AlertTriangle, Fingerprint, Camera, X, ImageIcon, Eye, CalendarClock, Sparkles, TrendingDown, Crown, ShieldCheck as SafetyIcon, Anchor, ShieldQuestion, MapPin } from 'lucide-react';
+import { UsersRound, Loader2, Search, Zap, ShieldAlert, Target, Activity, Flame, ArrowRight, ShieldCheck, TrendingUp, Info, UserCheck, Scale, AlertTriangle, Fingerprint, Camera, X, ImageIcon, Eye, CalendarClock, Sparkles, TrendingDown, Crown, ShieldCheck as SafetyIcon, Anchor, ShieldQuestion, MapPin, Wallet } from 'lucide-react';
 
 export const StockSynergyAnalysis: React.FC<{
   currentModel: ModelProvider;
@@ -16,10 +16,15 @@ export const StockSynergyAnalysis: React.FC<{
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
 
-  // Image Upload State
+  // Image 1: Market Data (Required)
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Image 2: Holdings Data (Optional)
+  const [holdingsImage, setHoldingsImage] = useState<string | null>(null);
+  const [holdingsPreview, setHoldingsPreview] = useState<string | null>(null);
+  const holdingsInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let interval: any;
@@ -30,14 +35,19 @@ export const StockSynergyAnalysis: React.FC<{
     return () => clearInterval(interval);
   }, [loading]);
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>, isHoldings: boolean = false) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
         const fullData = reader.result as string;
-        setImagePreview(fullData);
-        setSelectedImage(fullData.split(',')[1]);
+        if (isHoldings) {
+          setHoldingsPreview(fullData);
+          setHoldingsImage(fullData.split(',')[1]);
+        } else {
+          setImagePreview(fullData);
+          setSelectedImage(fullData.split(',')[1]);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -53,7 +63,7 @@ export const StockSynergyAnalysis: React.FC<{
     setError(null);
     setResult(null);
     try {
-      const data = await fetchStockSynergy(query, selectedImage, settings.geminiKey);
+      const data = await fetchStockSynergy(query, selectedImage, holdingsImage, settings.geminiKey);
       setResult(data);
     } catch (err: any) {
       setError(err.message || "合力审计失败，请检查网络或图片格式");
@@ -99,57 +109,87 @@ export const StockSynergyAnalysis: React.FC<{
             标的合力与龙头基因审计
           </h2>
           <p className="text-slate-500 text-base max-w-2xl font-medium mb-10">
-            审计标的是否具备 **“大妖股”基因**。AI 将通过视觉 OCR 提取图中 **最新现价** 并计算 **主力持有成本**。
+            审计标的是否具备 **“大妖股”基因**。AI 将强力对齐图中 **最新现价**，如上传 **持仓截图** 则会给出更个性化的操作指令。
           </p>
 
-          <div className="max-w-2xl flex flex-col gap-4">
-            <div className="flex gap-3 p-2 bg-slate-100 rounded-[2rem] border border-slate-200">
+          <div className="max-w-4xl flex flex-col gap-6">
+            <div className="flex gap-3 p-2 bg-slate-100 rounded-[2.5rem] border border-slate-200">
               <div className="relative flex-1">
                 <input 
                   type="text" 
                   value={query}
                   onChange={e => setQuery(e.target.value)}
                   placeholder="输入代码或名称 (如 中国卫星)..."
-                  className="w-full h-14 pl-12 pr-4 bg-white rounded-[1.5rem] border border-slate-200 focus:ring-4 focus:ring-indigo-50 outline-none font-bold text-lg transition-all"
+                  className="w-full h-14 pl-12 pr-4 bg-white rounded-[1.8rem] border border-slate-200 focus:ring-4 focus:ring-indigo-50 outline-none font-bold text-lg transition-all"
                   onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
                 />
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-6 h-6" />
                 
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageSelect} />
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-colors ${selectedImage ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-indigo-600'}`}
-                  title="上传 K 线截图进行形态辅助审计"
-                >
-                  <Camera className="w-6 h-6" />
-                </button>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, false)} />
+                   <button 
+                     onClick={() => fileInputRef.current?.click()}
+                     className={`p-2.5 rounded-xl transition-all ${selectedImage ? 'text-indigo-600 bg-indigo-50 border border-indigo-200' : 'text-slate-400 hover:text-indigo-600 border border-transparent'}`}
+                     title="上传 K 线截图进行价格对齐 (推荐)"
+                   >
+                     <Camera className="w-6 h-6" />
+                   </button>
+
+                   <input type="file" ref={holdingsInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, true)} />
+                   <button 
+                     onClick={() => holdingsInputRef.current?.click()}
+                     className={`p-2.5 rounded-xl transition-all ${holdingsImage ? 'text-emerald-600 bg-emerald-50 border border-emerald-200' : 'text-slate-400 hover:text-emerald-600 border border-transparent'}`}
+                     title="上传持仓截图获得个性化建议 (可选)"
+                   >
+                     <Wallet className="w-6 h-6" />
+                   </button>
+                </div>
               </div>
               <button 
                 onClick={handleAnalyze}
                 disabled={loading || !query}
-                className="px-10 h-14 bg-indigo-600 text-white rounded-[1.5rem] font-black shadow-xl hover:bg-indigo-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                className="px-12 h-14 bg-indigo-600 text-white rounded-[1.8rem] font-black shadow-xl hover:bg-indigo-700 transition-all flex items-center gap-2 disabled:opacity-50"
               >
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
                 执行审计
               </button>
             </div>
 
-            {imagePreview && (
-              <div className="flex items-center gap-4 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl animate-fade-in max-w-xl">
-                <div className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-indigo-200 shrink-0 shadow-sm">
-                  <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" />
-                  <button onClick={() => {setSelectedImage(null); setImagePreview(null);}} className="absolute top-0 right-0 p-1 bg-indigo-600 text-white rounded-bl-lg">
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 text-indigo-700 font-black mb-1">
-                    <Eye className="w-4 h-4" /> 多模态视觉审计已就绪
+            <div className="flex flex-wrap gap-4">
+              {imagePreview && (
+                <div className="flex items-center gap-4 p-3 bg-indigo-50 border border-indigo-100 rounded-2xl animate-fade-in shrink-0">
+                  <div className="relative w-16 h-16 rounded-xl overflow-hidden border-2 border-indigo-200 shrink-0 shadow-sm">
+                    <img src={imagePreview} className="w-full h-full object-cover" alt="K-Line Preview" />
+                    <button onClick={() => {setSelectedImage(null); setImagePreview(null);}} className="absolute top-0 right-0 p-1 bg-indigo-600 text-white rounded-bl-lg">
+                      <X className="w-3 h-3" />
+                    </button>
                   </div>
-                  <p className="text-xs text-indigo-600 font-medium italic">AI 将强行锁定图片中的现价，并废弃联网搜索到的陈旧价格。</p>
+                  <div>
+                    <div className="flex items-center gap-1.5 text-indigo-700 font-black text-xs">
+                      <Eye className="w-3.5 h-3.5" /> 形态审计已就绪
+                    </div>
+                    <p className="text-[10px] text-indigo-600 font-bold italic">视觉锁定最新现价</p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {holdingsPreview && (
+                <div className="flex items-center gap-4 p-3 bg-emerald-50 border border-emerald-100 rounded-2xl animate-fade-in shrink-0">
+                  <div className="relative w-16 h-16 rounded-xl overflow-hidden border-2 border-emerald-200 shrink-0 shadow-sm">
+                    <img src={holdingsPreview} className="w-full h-full object-cover" alt="Holdings Preview" />
+                    <button onClick={() => {setHoldingsImage(null); setHoldingsPreview(null);}} className="absolute top-0 right-0 p-1 bg-emerald-600 text-white rounded-bl-lg">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 text-emerald-700 font-black text-xs">
+                      <ShieldCheck className="w-3.5 h-3.5" /> 持仓策略已就绪
+                    </div>
+                    <p className="text-[10px] text-emerald-600 font-bold italic">AI 将匹配您的真实成本</p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -165,7 +205,7 @@ export const StockSynergyAnalysis: React.FC<{
         <div className="py-20 flex flex-col items-center justify-center bg-white rounded-[3rem] border border-dashed border-slate-200 animate-pulse">
            <Fingerprint className="w-16 h-16 text-indigo-200 mb-6 animate-bounce" />
            <p className="text-slate-500 font-black text-xl tracking-tight">
-             正在视觉提取图中现价并探测主力成本... ({elapsed}s)
+             {holdingsImage ? "正在跨图片比对持仓成本与量价形态..." : "正在视觉提取图中现价并探测主力成本..."} ({elapsed}s)
            </p>
         </div>
       )}
@@ -320,9 +360,12 @@ export const StockSynergyAnalysis: React.FC<{
                    </div>
                 </div>
 
-                <div className="bg-indigo-900 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden">
-                   <h4 className="text-xs font-black text-indigo-400 uppercase tracking-[0.3em] mb-6 flex items-center gap-2">
-                      最终博弈审计结论
+                <div className={`rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden transition-all ${holdingsImage ? 'bg-emerald-950 text-white' : 'bg-indigo-900 text-white'}`}>
+                   <div className="absolute right-0 top-0 p-4 opacity-10 pointer-events-none">
+                     {holdingsImage ? <Wallet className="w-40 h-40" /> : <UsersRound className="w-40 h-40" />}
+                   </div>
+                   <h4 className="text-xs font-black opacity-60 uppercase tracking-[0.3em] mb-6 flex items-center gap-2">
+                      {holdingsImage ? '【已适配持仓数据】最终博弈审计结论' : '最终博弈审计结论'}
                    </h4>
                    <p className="text-2xl font-black italic leading-relaxed text-indigo-50 mb-8">
                       "{d.battle_verdict || '正在汇总审计结论...'}"

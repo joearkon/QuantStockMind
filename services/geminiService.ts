@@ -255,23 +255,29 @@ export const verifySnipeSuccess = async (stockInfo: string, scanDate: number, st
   return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, snipeVerificationData: robustParse(response.text || "{}") };
 };
 
-export const fetchStockSynergy = async (query: string, base64Image: string | null, apiKey: string): Promise<AnalysisResult> => {
+export const fetchStockSynergy = async (
+  query: string, 
+  base64MarketImage: string | null, 
+  base64HoldingsImage: string | null, 
+  apiKey: string
+): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
   
   const prompt = `
     作为顶级游资操盘手，对标的 "${query}" 进行【合力与主力成本深度审计】。
     
     【核心审计准则 - 严禁忽略】
-    1. 【视觉现价优先】：如果用户上传了 K 线/分时图截图，你必须通过 OCR 准确提取图中的【最新实时股价】。将其作为计算安全垫的“绝对现价（used_current_price）”。
-    2. 【拒绝陈旧数据】：联网搜索到的价格可能存在 15 分钟以上的延迟，严禁使用延迟价格覆盖用户截图中展现的实时价格。
-    3. 【主力成本锚点】：通过联网搜索该标的最近 20 个交易日的“筹码密集区”和“机构席位/大宗交易平均价”。
+    1. 【视觉现价锚定】：必须从上传的第一张图片（K线/分时图）中 OCR 识别【最新股价】，设为 used_current_price。
+    2. 【持仓深度适配】：如果提供了第二张图片（持仓截图），请通过 OCR 识别用户的【持仓均价】、【持股数量】和【当前盈亏状态】。
+    3. 【个性化建议】：在 action_guide 中，结合用户的真实成本和该标的的主力成本区间，给出极其具体的加仓、减仓、锁仓或止损点位指令。
     4. 【安全垫计算】：公式必须为 (截图现价 - 预估成本) / 预估成本。
     
     必须输出 JSON。
   `;
 
   const parts: any[] = [{ text: prompt }];
-  if (base64Image) parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64Image } });
+  if (base64MarketImage) parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64MarketImage } });
+  if (base64HoldingsImage) parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64HoldingsImage } });
 
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,

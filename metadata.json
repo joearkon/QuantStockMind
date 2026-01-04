@@ -1,6 +1,6 @@
 {
   "name": "QuantMind A-Share Assistant股票量化助手",
-  "version": "1.11.0",
+  "version": "1.14.0",
   "description": "Professional A-share quantitative suite with Dragon Signal Audit, multi-model AI insights, and real-time market synergy analysis.",
   "requestFramePermissions": [
     "camera"
