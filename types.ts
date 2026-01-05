@@ -10,18 +10,56 @@ export enum MarketType {
   US = 'US', // US Stocks
 }
 
+// --- NEW: Stock Synergy Types ---
+export interface StockSynergyResponse {
+  name: string;
+  code: string;
+  used_current_price: string; // 识别到的现价
+  synergy_score: number; // 合力分 (0-100)
+  trap_risk_score: number; // 陷阱风险 (0-100)
+  dragon_potential_score: number; // 成妖潜力 (0-100)
+  market_position: string; // 市场定位 (如: 领涨龙头, 分歧领跌)
+  capital_consistency: string; // 资金一致性评级
+  main_force_cost_anchor: {
+    estimated_cost: string; // 主力预估成本
+    safety_margin_percent: number; // 安全垫比例
+    risk_level: string; // 风险等级
+  };
+  turnover_eval: {
+    current_rate: string;
+    is_sufficient: boolean;
+    verdict: string;
+  };
+  main_force_portrait: {
+    lead_type: string; // 游资主导/机构主导
+    entry_cost_est: string;
+    hold_status: string; // 锁筹/锁仓/跑路中
+  };
+  t_plus_1_prediction: {
+    expected_direction: string; // 竞价高开/平开/低开
+    confidence: number;
+    price_range: string;
+    opening_strategy: string; // 具体开盘博弈动作
+    logic: string;
+  };
+  synergy_factors: { label: string; score: number; description: string }[];
+  battle_verdict: string; // 总博弈结论
+  action_guide: string; // 实战指令建议
+  chase_safety_index: number; // 追涨安全指数
+}
+
 export interface DualBoardScanItem {
   name: string;
   code: string;
   board: '创业板' | '科创板';
-  control_score: number; // 0-100 主力控盘分
-  cost_price: string;    // 主力核心成本
-  trend_momentum: string; // 短期趋势动能 (如: 强力进攻, 缩量洗盘, 平台突破)
+  control_score: number; 
+  cost_price: string;    
+  trend_momentum: string; 
   rating: '起爆' | '锁筹' | '分歧' | '出货' | '潜伏';
-  volume_ratio: string;  // 量比
-  logic: string;         // 控盘逻辑简述
-  target_price: string;  // 明日压力位
-  support_price: string; // 明日支撑位
+  volume_ratio: string;  
+  logic: string;         
+  target_price: string;  
+  support_price: string; 
 }
 
 export interface DualBoardScanResponse {
@@ -36,12 +74,12 @@ export interface MainBoardScanItem {
   code: string;
   board: '沪市主板' | '深市主板';
   limit_up_type: '首板' | '连板';
-  consecutive_days: number; // 连板天数，首板为1
+  consecutive_days: number; 
   control_score: number;
   cost_price: string;
   trend_momentum: string;
   rating: '起爆' | '锁筹' | '分歧' | '出货' | '潜伏';
-  volume_ratio: string;  // logic: string;
+  volume_ratio: string;  
   logic: string;
   target_price: string;
   support_price: string;
@@ -54,14 +92,13 @@ export interface MainBoardScanResponse {
   stocks: MainBoardScanItem[];
 }
 
-// --- UPDATED: Limit-Up Ladder Types with Dragon Seed Support ---
 export interface DragonSeed {
   name: string;
   code: string;
-  capital_intensity: 'Extreme' | 'High' | 'Normal'; // 资金强度
-  seat_analysis: string; // 席位分析 (如: 章盟主入驻, 机构大买)
-  incubation_logic: string; // 栽培逻辑
-  evolution_stage: 'Seeding' | 'Sprouting' | 'Competing'; // 龙苗阶段
+  capital_intensity: 'Extreme' | 'High' | 'Normal'; 
+  seat_analysis: string; 
+  incubation_logic: string; 
+  evolution_stage: 'Seeding' | 'Sprouting' | 'Competing'; 
 }
 
 export interface LimitUpLadderSector {
@@ -81,7 +118,7 @@ export interface LimitUpLadderSector {
     strength_score: number;
     reason: string;
   };
-  dragon_seeds?: DragonSeed[]; // NEW: 龙苗备选
+  dragon_seeds?: DragonSeed[]; 
   integrity_score: number; 
   market_sentiment: 'Rising' | 'Climax' | 'Diverging' | 'Falling';
 }
@@ -95,38 +132,38 @@ export interface LimitUpLadderResponse {
 
 export interface KLineSynergyData {
   pattern_name: string;
-  synergy_score: number; // 0-100
-  time_frame: string; // "3-Day" | "5-Day"
+  synergy_score: number; 
+  time_frame: string; 
   logic_timeline: {
     day: string;
     action: string;
-    psychology: string; // 市场心理描述
+    psychology: string; 
   }[];
   synergy_factors: {
-    volume_resonance: number; // 量能共振
-    price_strength: number;   // 价格强度
-    capital_alignment: number; // 资金合力
+    volume_resonance: number; 
+    price_strength: number;   
+    capital_alignment: number; 
   };
   prediction: {
     trend: 'Bullish' | 'Bearish' | 'Neutral';
     probability: string;
-    target_window: string; // 未来几日
+    target_window: string; 
     key_observation: string;
   };
-  battle_summary: string; // 多空博弈总结
+  battle_summary: string; 
 }
 
 export interface BatchStockScore {
   name: string;
   code: string;
-  win_rate: number; // 0-100
+  win_rate: number; 
   verdict: 'Immediate' | 'Pullback' | 'Wait' | 'Avoid';
-  verdict_label: string; // "现价买入", "回踩买入", "观望", "放弃"
-  sector_heat: number; // 0-100
+  verdict_label: string; 
+  sector_heat: number; 
   capital_flow: 'Inflow' | 'Neutral' | 'Outflow';
   technical_score: number;
   logic_summary: string;
-  key_price: string; // 核心入场价
+  key_price: string; 
 }
 
 export interface BatchTimingResponse {
@@ -331,6 +368,7 @@ export interface AnalysisResult {
   dualBoardScanData?: DualBoardScanResponse;
   mainBoardScanData?: MainBoardScanResponse;
   limitUpLadderData?: LimitUpLadderResponse; 
+  stockSynergyData?: StockSynergyResponse; // NEW
 }
 
 export interface TimingEvaluation {
