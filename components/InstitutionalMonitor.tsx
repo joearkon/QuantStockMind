@@ -60,7 +60,7 @@ export const InstitutionalMonitor: React.FC<InstitutionalMonitorProps> = ({
                   机构席位与高频资金动向
                </h2>
                <p className="text-slate-500 text-sm max-w-2xl">
-                  重点监测：<b>龙虎榜机构席位</b>、<b>大宗交易溢价率</b>、<b>分时资金主动买卖差</b>。AI 优先分析“净额趋势”而非单一绝对值。
+                  重点监测：<b>龙虎榜机构席位</b>、<b>大宗交易溢价率</b>、<b>分时资金主动买卖差</b>。AI 优先分析“净额趋势”而非单一绝对值。资金审计权重：净买入额 &gt; 大单占比 &gt; 游资席位。
                </p>
             </div>
             
@@ -216,7 +216,7 @@ export const InstitutionalMonitor: React.FC<InstitutionalMonitorProps> = ({
            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-5 flex items-start gap-3">
               <Info className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
               <div className="text-sm text-indigo-900 leading-relaxed">
-                 <b>监控要点提醒</b>：盘中关注“净流入趋势”加速情况，大宗交易若出现高溢价，往往暗示后续有重大利好或机构抢筹。龙虎榜机构席位占比超过 30% 时，该股具备中线妖性。
+                 <b>监控要点提醒</b>：盘中关注“净流入趋势”加速情况，大宗交易若出现高溢价，往往暗示后续有重大利好或机构抢筹。龙虎榜机构席位占比超过 30% 时，该股具备极强的“跨分歧”连板能力。
               </div>
            </div>
         </div>

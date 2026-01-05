@@ -103,7 +103,7 @@ export const MainBoardMaster: React.FC<{
                 沪深主板涨停猎手 (Main Board Hunter)
               </h2>
               <p className="text-slate-500 text-base max-w-2xl font-medium">
-                AI 实时扫描主板 10% 涨停标的。引入 **龙虎榜资金分布审计**：净买入额 > 大单占比 > 游资席位。
+                AI 实时扫描主板 10% 涨停标的。引入 **龙虎榜资金分布审计**：净买入额 &gt; 大单占比 &gt; 游资席位。
               </p>
             </div>
             
