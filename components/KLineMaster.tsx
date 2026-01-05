@@ -90,7 +90,7 @@ export const KLineMaster: React.FC<{
                 双创涨停控盘猎手 (Limit-Up Hunter)
               </h2>
               <p className="text-slate-500 text-base max-w-2xl font-medium">
-                AI 实时锁定今日 **创业板** 与 **科创板** 封板标的。深度透视 **大资金介入金额**、**龙虎榜席位** 与 **连板基因**。
+                AI 实时锁定今日 **创业板** 与 **科创板** 封板标的。深度透视 **涨停高度**、**大资金介入金额** 与 **龙虎榜席位**。
               </p>
             </div>
             
@@ -109,7 +109,7 @@ export const KLineMaster: React.FC<{
               <Coins className="w-4 h-4" /> 净买入金额优先
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-100 rounded-xl text-amber-700 text-xs font-black">
-              <Zap className="w-4 h-4" /> 连板天数角标
+              <Zap className="w-4 h-4" /> 20cm高度列
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-700 text-xs font-black">
               <UserCheck className="w-4 h-4" /> 游资席位审计
@@ -146,13 +146,15 @@ export const KLineMaster: React.FC<{
                 <table className="w-full text-left border-collapse">
                    <thead>
                       <tr className="bg-slate-50/80 text-[11px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">
-                         <th className="px-8 py-5">标的 (代码 / 连板)</th>
+                         <th className="px-8 py-5">标的 (代码 / 板块)</th>
+                         <th className="px-6 py-5 cursor-pointer hover:text-rose-600 transition-colors" onClick={() => {setSortKey('consecutive_days'); setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');}}>
+                            高度 {sortKey === 'consecutive_days' && (sortOrder === 'desc' ? '↓' : '↑')}
+                         </th>
                          <th className="px-6 py-5 cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => {setSortKey('control_score'); setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');}}>
                             强度分 {sortKey === 'control_score' && (sortOrder === 'desc' ? '↓' : '↑')}
                          </th>
                          <th className="px-6 py-5">资金审计 (Net / Order)</th>
                          <th className="px-6 py-5">参与席位 / 操盘战法</th>
-                         <th className="px-6 py-5">次日博弈区间</th>
                          <th className="px-6 py-5 text-right">操盘逻辑</th>
                       </tr>
                    </thead>
@@ -167,9 +169,6 @@ export const KLineMaster: React.FC<{
                                   <div>
                                      <div className="font-black text-slate-800 text-lg group-hover:text-rose-600 transition-colors flex items-center gap-2">
                                        {stock.name}
-                                       {stock.consecutive_days > 1 && (
-                                         <span className="px-1.5 py-0.5 bg-rose-500 text-white text-[9px] rounded-full animate-pulse">{stock.consecutive_days}板</span>
-                                       )}
                                      </div>
                                      <div className="flex items-center gap-2 mt-0.5">
                                         <div className="text-[10px] font-mono text-slate-400">{stock.code}</div>
@@ -179,6 +178,23 @@ export const KLineMaster: React.FC<{
                                      </div>
                                   </div>
                                </div>
+                            </td>
+                            <td className="px-6 py-6">
+                               {stock.consecutive_days > 1 ? (
+                                 <div className="inline-flex flex-col items-center">
+                                   <span className="px-3 py-1 bg-rose-600 text-white text-xs font-black rounded-lg shadow-sm animate-pulse border border-rose-700">
+                                      {stock.consecutive_days} 连板
+                                   </span>
+                                   <span className="text-[8px] font-bold text-rose-400 mt-1 uppercase">20% Limit Up</span>
+                                 </div>
+                               ) : (
+                                 <div className="inline-flex flex-col items-center">
+                                   <span className="px-3 py-1 bg-indigo-50 text-indigo-700 text-xs font-black rounded-lg border border-indigo-100">
+                                      首板启动
+                                   </span>
+                                   <span className="text-[8px] font-bold text-slate-400 mt-1 uppercase">New Cycle</span>
+                                 </div>
+                               )}
                             </td>
                             <td className="px-6 py-6 text-center">
                                <div className={`inline-flex items-center justify-center w-14 h-14 rounded-2xl border-2 text-xl shadow-sm ${getScoreColor(stock.control_score)}`}>
@@ -205,12 +221,6 @@ export const KLineMaster: React.FC<{
                                }`}>
                                   {getRatingIcon(stock.rating)}
                                   {stock.rating}
-                               </div>
-                            </td>
-                            <td className="px-6 py-6">
-                               <div className="flex flex-col gap-1">
-                                  <div className="text-[10px] font-black text-rose-600">压力: {stock.target_price}</div>
-                                  <div className="text-[10px] font-black text-emerald-600">支撑: {stock.support_price}</div>
                                </div>
                             </td>
                             <td className="px-6 py-6 text-right">
