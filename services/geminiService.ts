@@ -19,7 +19,6 @@ import {
 
 const GEMINI_MODEL_PRIMARY = "gemini-3-flash-preview"; 
 
-// --- NEW: Synergy Schema ---
 const stockSynergySchema = {
   type: Type.OBJECT,
   properties: {
@@ -92,13 +91,84 @@ const stockSynergySchema = {
   ]
 };
 
+const capitalDetailSchema = {
+  type: Type.OBJECT,
+  properties: {
+    net_buy_amount: { type: Type.STRING, description: "今日龙虎榜或主力买卖净额" },
+    large_order_ratio: { type: Type.STRING, description: "主力大单介入占比" },
+    seats: { type: Type.ARRAY, items: { type: Type.STRING }, description: "核心参与席位或游资名称" }
+  },
+  required: ["net_buy_amount", "large_order_ratio", "seats"]
+};
+
+const dualBoardScanSchema = { 
+  type: Type.OBJECT, 
+  properties: { 
+    scan_time: { type: Type.STRING }, 
+    market_mood: { type: Type.STRING }, 
+    hot_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, 
+    stocks: { 
+      type: Type.ARRAY, 
+      items: { 
+        type: Type.OBJECT, 
+        properties: { 
+          name: { type: Type.STRING }, 
+          code: { type: Type.STRING }, 
+          board: { type: Type.STRING, enum: ['创业板', '科创板'] }, 
+          consecutive_days: { type: Type.NUMBER },
+          control_score: { type: Type.NUMBER }, 
+          cost_price: { type: Type.STRING }, 
+          trend_momentum: { type: Type.STRING }, 
+          rating: { type: Type.STRING, enum: ['起爆', '锁筹', '分歧', '出货', '潜伏'] }, 
+          volume_ratio: { type: Type.STRING }, 
+          logic: { type: Type.STRING }, 
+          target_price: { type: Type.STRING }, 
+          support_price: { type: Type.STRING },
+          capital_detail: capitalDetailSchema
+        },
+        required: ["name", "code", "consecutive_days", "control_score", "capital_detail"]
+      } 
+    } 
+  } 
+};
+
+const mainBoardScanSchema = { 
+  type: Type.OBJECT, 
+  properties: { 
+    scan_time: { type: Type.STRING }, 
+    market_mood: { type: Type.STRING }, 
+    hot_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, 
+    stocks: { 
+      type: Type.ARRAY, 
+      items: { 
+        type: Type.OBJECT, 
+        properties: { 
+          name: { type: Type.STRING }, 
+          code: { type: Type.STRING }, 
+          board: { type: Type.STRING, enum: ['沪市主板', '深市主板'] }, 
+          limit_up_type: { type: Type.STRING, enum: ['首板', '连板'] }, 
+          consecutive_days: { type: Type.NUMBER }, 
+          control_score: { type: Type.NUMBER }, 
+          cost_price: { type: Type.STRING }, 
+          trend_momentum: { type: Type.STRING }, 
+          rating: { type: Type.STRING, enum: ['起爆', '锁筹', '分歧', '出货', '潜伏'] }, 
+          volume_ratio: { type: Type.STRING }, 
+          logic: { type: Type.STRING }, 
+          target_price: { type: Type.STRING }, 
+          support_price: { type: Type.STRING },
+          capital_detail: capitalDetailSchema
+        },
+        required: ["name", "code", "consecutive_days", "control_score", "capital_detail"]
+      } 
+    } 
+  } 
+};
+
 const marketDashboardSchema = { type: Type.OBJECT, properties: { data_date: { type: Type.STRING }, market_indices: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, value: { type: Type.STRING }, change: { type: Type.STRING }, percent: { type: Type.STRING }, direction: { type: Type.STRING, enum: ['up', 'down'] } } } }, market_volume: { type: Type.OBJECT, properties: { total_volume: { type: Type.STRING }, volume_delta: { type: Type.STRING }, volume_trend: { type: Type.STRING, enum: ['expansion', 'contraction', 'flat'] }, capital_mood: { type: Type.STRING } } }, market_sentiment: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, summary: { type: Type.STRING }, trend: { type: Type.STRING, enum: ['bullish', 'bearish', 'neutral'] } } }, capital_rotation: { type: Type.OBJECT, properties: { inflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, outflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, rotation_logic: { type: Type.STRING } } }, macro_logic: { type: Type.OBJECT, properties: { policy_focus: { type: Type.STRING }, external_impact: { type: Type.STRING }, core_verdict: { type: Type.STRING } } } } };
 const holdingsSnapshotSchema = { type: Type.OBJECT, properties: { totalAssets: { type: Type.NUMBER }, positionRatio: { type: Type.NUMBER }, date: { type: Type.STRING }, holdings: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, volume: { type: Type.NUMBER }, costPrice: { type: Type.NUMBER }, currentPrice: { type: Type.NUMBER }, profit: { type: Type.NUMBER }, profitRate: { type: Type.STRING }, marketValue: { type: Type.NUMBER } } } } } };
 const periodicReviewSchema = { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, market_trend: { type: Type.STRING, enum: ['bull', 'bear', 'sideways'] }, market_summary: { type: Type.STRING }, monthly_portfolio_summary: { type: Type.STRING }, highlight: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, description: { type: Type.STRING } } }, lowlight: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, description: { type: Type.STRING } } }, execution: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, details: { type: Type.STRING }, good_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } }, bad_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } } } }, stock_diagnostics: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, issues: { type: Type.ARRAY, items: { type: Type.STRING } }, verdict: { type: Type.STRING } } } }, next_period_focus: { type: Type.ARRAY, items: { type: Type.STRING } }, improvement_advice: { type: Type.ARRAY, items: { type: Type.STRING } } } };
 const tradingPlanSchema = { type: Type.OBJECT, properties: { items: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { symbol: { type: Type.STRING }, action: { type: Type.STRING, enum: ['buy', 'sell', 'hold', 'monitor', 't_trade'] }, price_target: { type: Type.STRING }, reason: { type: Type.STRING } } } }, summary: { type: Type.STRING } } };
 const limitUpLadderSchema = { type: Type.OBJECT, properties: { scan_time: { type: Type.STRING }, total_limit_ups: { type: Type.NUMBER }, sectors: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { sector_name: { type: Type.STRING }, sector_type: { type: Type.STRING, enum: ["Main", "Sub"] }, total_count: { type: Type.NUMBER }, max_height: { type: Type.NUMBER }, ladder_matrix: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { height: { type: Type.NUMBER }, count: { type: Type.NUMBER }, stocks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, logic: { type: Type.STRING } } } } } } }, dragon_leader: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, consecutive_days: { type: Type.NUMBER }, strength_score: { type: Type.NUMBER }, reason: { type: Type.STRING } } }, dragon_seeds: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, capital_intensity: { type: Type.STRING, enum: ["Extreme", "High", "Normal"] }, seat_analysis: { type: Type.STRING }, incubation_logic: { type: Type.STRING }, evolution_stage: { type: Type.STRING, enum: ["Seeding", "Sprouting", "Competing"] } } } }, integrity_score: { type: Type.NUMBER }, market_sentiment: { type: Type.STRING, enum: ["Rising", "Climax", "Diverging", "Falling"] } }, required: ["sector_name", "total_count", "max_height", "ladder_matrix", "dragon_leader", "integrity_score"] } }, market_conclusion: { type: Type.STRING } }, required: ["scan_time", "total_limit_ups", "sectors", "market_conclusion"] };
-const dualBoardScanSchema = { type: Type.OBJECT, properties: { scan_time: { type: Type.STRING }, market_mood: { type: Type.STRING }, hot_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, stocks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, board: { type: Type.STRING, enum: ['创业板', '科创板'] }, control_score: { type: Type.NUMBER }, cost_price: { type: Type.STRING }, trend_momentum: { type: Type.STRING }, rating: { type: Type.STRING, enum: ['起爆', '锁筹', '分歧', '出货', '潜伏'] }, volume_ratio: { type: Type.STRING }, logic: { type: Type.STRING }, target_price: { type: Type.STRING }, support_price: { type: Type.STRING } } } } } };
-const mainBoardScanSchema = { type: Type.OBJECT, properties: { scan_time: { type: Type.STRING }, market_mood: { type: Type.STRING }, hot_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, stocks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, board: { type: Type.STRING, enum: ['沪市主板', '深市主板'] }, limit_up_type: { type: Type.STRING, enum: ['首板', '连板'] }, consecutive_days: { type: Type.NUMBER }, control_score: { type: Type.NUMBER }, cost_price: { type: Type.STRING }, trend_momentum: { type: Type.STRING }, rating: { type: Type.STRING, enum: ['起爆', '锁筹', '分歧', '出货', '潜伏'] }, volume_ratio: { type: Type.STRING }, logic: { type: Type.STRING }, target_price: { type: Type.STRING }, support_price: { type: Type.STRING } } } } } };
 const sectorLadderSchema = { type: Type.OBJECT, properties: { sector_name: { type: Type.STRING }, cycle_stage: { type: Type.STRING, enum: ['Starting', 'Growing', 'Climax', 'End', 'Receding'] }, stage_label: { type: Type.STRING }, risk_score: { type: Type.NUMBER }, ladder: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { tier: { type: Type.STRING }, stocks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, price: { type: Type.STRING }, status: { type: Type.STRING, enum: ['Leading', 'Stagnant', 'Following', 'Weakening'] }, performance: { type: Type.STRING }, health_score: { type: Type.NUMBER }, logic: { type: Type.STRING } } } } } } }, structural_integrity: { type: Type.OBJECT, properties: { synergy_score: { type: Type.NUMBER }, verdict: { type: Type.STRING }, is_divergent: { type: Type.BOOLEAN } } }, support_points: { type: Type.ARRAY, items: { type: Type.STRING } }, warning_signals: { type: Type.ARRAY, items: { type: Type.STRING } }, action_advice: { type: Type.STRING } } };
 
 const robustParse = (text: string): any => {
@@ -148,9 +218,11 @@ export const fetchLimitUpLadder = async (apiKey: string): Promise<AnalysisResult
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN');
   const prompt = `
+    【指令升级：全市场全量扫描】
     作为顶级 A 股短线量化专家，请利用 googleSearch 实时扫描今日（${dateStr}）全市场的涨停数据。
-    [重要指令]：当前市场可能是普涨行情，请务必检索“全市场涨停复盘”页面，获取至少 20-30 只核心领涨标的，并按照 5板、4板、3板、2板、首板 建立完整的梯队矩阵。
-    不要只抓取前 5 只，请尽可能覆盖当前市场所有的主线板块。
+    [重要提示]：如果今日是大盘普涨行情，涨停家数可能高达数百家。请务必检索“今日涨停板复盘”或“今日涨停家数汇总”类实时深度复盘页面。
+    [目标]：请返回至少 25-30 只核心领涨标的，必须覆盖 5板、4板、3板、2板 及 首板 的所有核心主线（如机器人、AI、低空经济等）。
+    严禁仅返回 5 只标的。即使 JSON 会变长，也要确保梯队完整度。
   `;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
@@ -166,8 +238,12 @@ export const fetchDualBoardScanning = async (apiKey: string): Promise<AnalysisRe
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN');
   const prompt = `
+    【双创大资金深度审计】
     作为顶级 A 股量化短线专家，请利用 googleSearch 实时扫描今日（${dateStr}）**创业板** 和 **科创板** 的【涨停封板】标的。
-    [指令]：请通过全网搜索“今日双创涨停名单”，捕捉至少 15-20 只 20% 涨停标的，并评估其控盘分。不要遗漏次新股和高标股。
+    [核心要求]：请通过全网搜索“今日双创龙虎榜”或“今日双创资金流向汇总”，捕捉至少 15-20 只 20% 涨停标的。
+    对于每一只标的，必须返回其【连板天数（consecutive_days）】和【大资金介入细节】。
+    [资金审计优先级]：1. 净买入金额（千万/亿级） 2. 大单主动买入占比 3. 是否有顶级游资/机构席位。
+    严禁漏报主要板块的龙头。
   `;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
@@ -183,10 +259,12 @@ export const fetchMainBoardScanning = async (apiKey: string): Promise<AnalysisRe
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN');
   const prompt = `
+    【主板大资金全量扫描】
     作为顶级 A 股量化短线专家，请利用 googleSearch 实时扫描今日（${dateStr}）**沪深主板** 的【涨停封板】标的。
-    [核心指令]：今日大盘普涨，涨停家数较多。请务必搜索“今日沪深涨停板分析”或“涨停揭秘”类实时汇总数据。
-    请至少返回 20 只最具代表性的主板涨停标的（覆盖连板高标和新启动的首板龙头）。
-    必须按照 10% 涨停规则进行严格过滤。
+    [核心指令]：今日大盘普涨，请务必搜索“今日沪深涨停板深度复盘”和“今日龙虎榜机构席位”，获取全量名单。
+    请返回至少 25 只最具代表性的主板涨停标的，包含其【连板天数】和【资金细节】。
+    [资金审计指标]：净买入额（net_buy_amount）、大单占比（large_order_ratio）、参与席位（seats）。
+    严禁只返回少量标的。必须遵循 10% 涨停规则。
   `;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,

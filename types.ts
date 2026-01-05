@@ -14,16 +14,16 @@ export enum MarketType {
 export interface StockSynergyResponse {
   name: string;
   code: string;
-  used_current_price: string; // 识别到的现价
-  synergy_score: number; // 合力分 (0-100)
-  trap_risk_score: number; // 陷阱风险 (0-100)
-  dragon_potential_score: number; // 成妖潜力 (0-100)
-  market_position: string; // 市场定位 (如: 领涨龙头, 分歧领跌)
-  capital_consistency: string; // 资金一致性评级
+  used_current_price: string; 
+  synergy_score: number; 
+  trap_risk_score: number; 
+  dragon_potential_score: number; 
+  market_position: string; 
+  capital_consistency: string; 
   main_force_cost_anchor: {
-    estimated_cost: string; // 主力预估成本
-    safety_margin_percent: number; // 安全垫比例
-    risk_level: string; // 风险等级
+    estimated_cost: string; 
+    safety_margin_percent: number; 
+    risk_level: string; 
   };
   turnover_eval: {
     current_rate: string;
@@ -31,27 +31,28 @@ export interface StockSynergyResponse {
     verdict: string;
   };
   main_force_portrait: {
-    lead_type: string; // 游资主导/机构主导
+    lead_type: string; 
     entry_cost_est: string;
-    hold_status: string; // 锁筹/锁仓/跑路中
+    hold_status: string; 
   };
   t_plus_1_prediction: {
-    expected_direction: string; // 竞价高开/平开/低开
+    expected_direction: string; 
     confidence: number;
     price_range: string;
-    opening_strategy: string; // 具体开盘博弈动作
+    opening_strategy: string; 
     logic: string;
   };
   synergy_factors: { label: string; score: number; description: string }[];
-  battle_verdict: string; // 总博弈结论
-  action_guide: string; // 实战指令建议
-  chase_safety_index: number; // 追涨安全指数
+  battle_verdict: string; 
+  action_guide: string; 
+  chase_safety_index: number; 
 }
 
 export interface DualBoardScanItem {
   name: string;
   code: string;
   board: '创业板' | '科创板';
+  consecutive_days: number; // 新增：连板天数
   control_score: number; 
   cost_price: string;    
   trend_momentum: string; 
@@ -60,6 +61,11 @@ export interface DualBoardScanItem {
   logic: string;         
   target_price: string;  
   support_price: string; 
+  capital_detail: { // 新增：资金介入细节
+    net_buy_amount: string; // 净买入金额
+    large_order_ratio: string; // 大单占比
+    seats: string[]; // 核心席位/游资
+  };
 }
 
 export interface DualBoardScanResponse {
@@ -83,6 +89,11 @@ export interface MainBoardScanItem {
   logic: string;
   target_price: string;
   support_price: string;
+  capital_detail: { // 新增：主板资金细节
+    net_buy_amount: string;
+    large_order_ratio: string;
+    seats: string[];
+  };
 }
 
 export interface MainBoardScanResponse {
@@ -368,7 +379,7 @@ export interface AnalysisResult {
   dualBoardScanData?: DualBoardScanResponse;
   mainBoardScanData?: MainBoardScanResponse;
   limitUpLadderData?: LimitUpLadderResponse; 
-  stockSynergyData?: StockSynergyResponse; // NEW
+  stockSynergyData?: StockSynergyResponse; 
 }
 
 export interface TimingEvaluation {
