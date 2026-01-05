@@ -4,7 +4,7 @@ import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapsh
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { parseBrokerageScreenshot, fetchPeriodicReview, extractTradingPlan } from '../services/geminiService';
 import { analyzeImageWithExternal } from '../services/externalLlmService';
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle, Scale, Coins, ShieldAlert, Microscope, MessageSquareQuote, Lightbulb, FileType, BookOpenCheck } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle, Scale, Coins, ShieldAlert, Microscope, MessageSquareQuote, Lightbulb, FileType, BookOpenCheck, Gauge } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 
@@ -136,6 +136,8 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           setError(err.message || "识别失败，请重试或手动输入");
         } finally {
           setParsing(false);
+          // 运行正常时重置 input 方便下次上传
+          if (fileInputRef.current) fileInputRef.current.value = "";
         }
       };
       reader.readAsDataURL(file);
@@ -229,7 +231,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       1. 当前真实日期是 ${todayFullStr}。
       2. 现实世界刚刚跨入 2026 年（元旦假期刚结束）。
       3. 所有的“开门红”策略、年度行情复盘及建议，必须围绕 **2026 年** 展开。
-      4. **严禁提及 2027 年的远景展望**。在当前 2026 年初的时间节点，讨论 2027 年为时尚早，请务必聚焦于 2026 年的全年机会。
+      4. **严禁提及 2027 年的远景展望**。在当前 2026 年初的时间节点，讨论 2027 年为时尚早。
 
       === 今日概况 ===
       - 总资产: ${snapshot.totalAssets} 元
@@ -238,11 +240,13 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       ${currentHoldingsText}
       
       请联网搜索行情，输出报告包含:
-      ## 1. 盈亏诊断与实战压力
-      ## 2. K线形态与关键点位 (需给出止盈止损建议价)
-      ## 3. 实战指令 (加仓/减仓/做T/锁仓)
-      ## 4. 持仓配比优化建议
-      ## 5. 账户总方针
+      ## 0. 今日战术操作评分 (0-100分，基于今日买卖点位、风险控制、知行合一程度打分，并给出打分理由)
+      ## 1. 大盘环境与账户波动审计 (解析当日指数波动对个人账户损益的实际冲击、账户 Alpha 与 Beta 表现归因)
+      ## 2. 盈亏诊断与实战压力
+      ## 3. K线形态与关键点位 (需给出止盈止损建议价)
+      ## 4. 实战指令 (加仓/减仓/做T/锁仓)
+      ## 5. 持仓配比优化建议
+      ## 6. 账户总方针
     `;
 
     try {
@@ -829,7 +833,17 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           let iconBg = "bg-slate-100";
           let cardBorder = "border-slate-200";
 
-          if (title.includes("回顾") || title.includes("验证")) {
+          if (title.includes("评分") || title.includes("Score")) {
+            Icon = Trophy;
+            headerColor = "text-amber-700";
+            iconBg = "bg-amber-100";
+            cardBorder = "border-amber-100";
+          } else if (title.includes("波动") || title.includes("审计") || title.includes("冲击") || title.includes("Volatility")) {
+            Icon = Activity;
+            headerColor = "text-rose-700";
+            iconBg = "bg-rose-100";
+            cardBorder = "border-rose-100";
+          } else if (title.includes("回顾") || title.includes("验证")) {
             Icon = GitCompare;
             headerColor = "text-indigo-700";
             iconBg = "bg-indigo-100";
@@ -840,7 +854,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
             iconBg = "bg-rose-100";
             cardBorder = "border-rose-100";
           } else if (title.includes("K线") || title.includes("关键") || title.includes("波浪")) {
-            Icon = Activity;
+            Icon = Gauge;
             headerColor = "text-blue-700";
             iconBg = "bg-blue-100";
             cardBorder = "border-blue-100";
@@ -859,16 +873,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
             headerColor = "text-violet-700";
             iconBg = "bg-violet-100";
             cardBorder = "border-violet-100";
-          } else if (title.includes("大盘") || title.includes("Context")) {
-            Icon = TrendingUp;
-            headerColor = "text-amber-700";
-            iconBg = "bg-amber-100";
-            cardBorder = "border-amber-100";
-          } else if (title.includes("审计") || title.includes("Audit")) {
-            Icon = AlertTriangle;
-            headerColor = "text-red-700";
-            iconBg = "bg-red-100";
-            cardBorder = "border-red-100";
           }
 
           return (
@@ -888,7 +892,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all disabled:opacity-70 no-print"
                    >
                      {generatingPlan ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <ListTodo className="w-3.5 h-3.5"/>}
-                     生成明日计划表 (导出MD/Word)
+                     生成明日计划
                    </button>
                 )}
               </div>
@@ -897,7 +901,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                   const trimmed = line.trim();
                   if (!trimmed) return <div key={i} className="h-2"></div>;
 
-                  const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有|补救|执行力|知行不一|放量|缩量|股数|仓位|权重|配比|过轻|过重)/g;
+                  const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有|补救|执行力|知行不一|放量|缩量|股数|仓位|权重|配比|过轻|过重|满分|高分|及格|低分|大幅波动|回撤|冲击|2026)/g;
                   let processedLine = trimmed.replace(
                     highlightRegex, 
                     '<span class="font-bold text-white bg-indigo-500 px-1 py-0.5 rounded text-xs mx-0.5 shadow-sm">$1</span>'
@@ -921,7 +925,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                   if (trimmed.startsWith('-') || trimmed.startsWith('* ')) {
                      return (
                        <div key={i} className="flex gap-3 mb-3 items-start group">
-                          <div className={`mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0 group-hover:scale-125 transition-transform ${title.includes("建议") ? 'bg-emerald-400' : title.includes("数量") ? 'bg-orange-400' : 'bg-slate-400'}`}></div>
+                          <div className={`mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0 group-hover:scale-125 transition-transform ${title.includes("评分") ? 'bg-amber-400' : title.includes("波动") ? 'bg-rose-400' : title.includes("建议") ? 'bg-emerald-400' : title.includes("数量") ? 'bg-orange-400' : 'bg-slate-400'}`}></div>
                           <p className="flex-1 text-slate-700 leading-relaxed text-sm sm:text-base" dangerouslySetInnerHTML={{ __html: processedLine.replace(/^[-*]\s+/, '') }}></p>
                        </div>
                      );
@@ -982,7 +986,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
               智能持仓复盘 (Portfolio Review)
             </h2>
             <p className="text-sm text-slate-500 mt-1">
-              上传交易软件截图 (如同花顺、东方财富) 或手动录入，AI 结合成本为您诊断止盈止损点位。
+              上传交易软件截图 (如同花顺、东方财富) 或手动录入，AI 结合成本、大盘波动为您深度诊断评分。
             </p>
           </div>
           <div className="flex gap-2">
