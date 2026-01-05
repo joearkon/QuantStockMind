@@ -92,7 +92,6 @@ const stockSynergySchema = {
   ]
 };
 
-// ... (existing schemas remain the same)
 const marketDashboardSchema = { type: Type.OBJECT, properties: { data_date: { type: Type.STRING }, market_indices: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, value: { type: Type.STRING }, change: { type: Type.STRING }, percent: { type: Type.STRING }, direction: { type: Type.STRING, enum: ['up', 'down'] } } } }, market_volume: { type: Type.OBJECT, properties: { total_volume: { type: Type.STRING }, volume_delta: { type: Type.STRING }, volume_trend: { type: Type.STRING, enum: ['expansion', 'contraction', 'flat'] }, capital_mood: { type: Type.STRING } } }, market_sentiment: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, summary: { type: Type.STRING }, trend: { type: Type.STRING, enum: ['bullish', 'bearish', 'neutral'] } } }, capital_rotation: { type: Type.OBJECT, properties: { inflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, outflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, rotation_logic: { type: Type.STRING } } }, macro_logic: { type: Type.OBJECT, properties: { policy_focus: { type: Type.STRING }, external_impact: { type: Type.STRING }, core_verdict: { type: Type.STRING } } } } };
 const holdingsSnapshotSchema = { type: Type.OBJECT, properties: { totalAssets: { type: Type.NUMBER }, positionRatio: { type: Type.NUMBER }, date: { type: Type.STRING }, holdings: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, volume: { type: Type.NUMBER }, costPrice: { type: Type.NUMBER }, currentPrice: { type: Type.NUMBER }, profit: { type: Type.NUMBER }, profitRate: { type: Type.STRING }, marketValue: { type: Type.NUMBER } } } } } };
 const periodicReviewSchema = { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, market_trend: { type: Type.STRING, enum: ['bull', 'bear', 'sideways'] }, market_summary: { type: Type.STRING }, monthly_portfolio_summary: { type: Type.STRING }, highlight: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, description: { type: Type.STRING } } }, lowlight: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, description: { type: Type.STRING } } }, execution: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, details: { type: Type.STRING }, good_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } }, bad_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } } } }, stock_diagnostics: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, issues: { type: Type.ARRAY, items: { type: Type.STRING } }, verdict: { type: Type.STRING } } } }, next_period_focus: { type: Type.ARRAY, items: { type: Type.STRING } }, improvement_advice: { type: Type.ARRAY, items: { type: Type.STRING } } } };
@@ -102,7 +101,6 @@ const dualBoardScanSchema = { type: Type.OBJECT, properties: { scan_time: { type
 const mainBoardScanSchema = { type: Type.OBJECT, properties: { scan_time: { type: Type.STRING }, market_mood: { type: Type.STRING }, hot_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, stocks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, board: { type: Type.STRING, enum: ['沪市主板', '深市主板'] }, limit_up_type: { type: Type.STRING, enum: ['首板', '连板'] }, consecutive_days: { type: Type.NUMBER }, control_score: { type: Type.NUMBER }, cost_price: { type: Type.STRING }, trend_momentum: { type: Type.STRING }, rating: { type: Type.STRING, enum: ['起爆', '锁筹', '分歧', '出货', '潜伏'] }, volume_ratio: { type: Type.STRING }, logic: { type: Type.STRING }, target_price: { type: Type.STRING }, support_price: { type: Type.STRING } } } } } };
 const sectorLadderSchema = { type: Type.OBJECT, properties: { sector_name: { type: Type.STRING }, cycle_stage: { type: Type.STRING, enum: ['Starting', 'Growing', 'Climax', 'End', 'Receding'] }, stage_label: { type: Type.STRING }, risk_score: { type: Type.NUMBER }, ladder: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { tier: { type: Type.STRING }, stocks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, price: { type: Type.STRING }, status: { type: Type.STRING, enum: ['Leading', 'Stagnant', 'Following', 'Weakening'] }, performance: { type: Type.STRING }, health_score: { type: Type.NUMBER }, logic: { type: Type.STRING } } } } } } }, structural_integrity: { type: Type.OBJECT, properties: { synergy_score: { type: Type.NUMBER }, verdict: { type: Type.STRING }, is_divergent: { type: Type.BOOLEAN } } }, support_points: { type: Type.ARRAY, items: { type: Type.STRING } }, warning_signals: { type: Type.ARRAY, items: { type: Type.STRING } }, action_advice: { type: Type.STRING } } };
 
-// Robust JSON Parser
 const robustParse = (text: string): any => {
   if (!text) return null;
   let clean = text.trim();
@@ -121,9 +119,6 @@ const robustParse = (text: string): any => {
   }
 };
 
-/**
- * 主力合力深度审计 (NEW)
- */
 export const fetchStockSynergy = async (
   query: string, 
   base64MarketImage: string | null, 
@@ -131,58 +126,32 @@ export const fetchStockSynergy = async (
   apiKey: string
 ): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
-  
   const prompt = `
     作为顶级游资操盘手，对标的 "${query}" 进行【合力与主力成本深度审计】。
-    
-    【核心审计准则 - 严禁忽略】
-    1. 【视觉现价锚定】：必须从上传的第一张图片（K线/分时图）中 OCR 识别【最新股价】，设为 used_current_price。如果图片显示已封板，请重点分析封单质量。
-    2. 【持仓深度适配】：如果提供了第二张图片（持仓截图），请通过 OCR 识别用户的【持仓均价】、【持股数量】和【当前盈亏状态】。
-    3. 【个性化建议】：在 action_guide 中，结合用户的真实成本和该标不的主力成本区间，给出极其具体的加仓、减仓、锁仓或止损点位指令。
-    4. 【游资监控】：利用 googleSearch 检索今日该标的的“龙虎榜”或大单异动。识别是否有顶级席位（如章盟主、呼家楼、六一中路）参与。
-    5. 【T+1 预判】：必须预测次日的竞价表现和全天走势，给出一个置信度分数。
-    
-    必须输出 JSON 格式。
+    必须从上传的第一张图片中识别最新股价。输出 JSON。
   `;
-
   const parts: any[] = [{ text: prompt }];
-  if (base64MarketImage) {
-    parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64MarketImage } });
-  }
-  if (base64HoldingsImage) {
-    parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64HoldingsImage } });
-  }
-
+  if (base64MarketImage) parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64MarketImage } });
+  if (base64HoldingsImage) parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64HoldingsImage } });
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
     contents: { parts },
-    config: { 
-      tools: [{ googleSearch: {} }], 
-      responseMimeType: "application/json",
-      responseSchema: stockSynergySchema
-    }
+    config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json", responseSchema: stockSynergySchema }
   });
-
   const parsed = robustParse(response.text || "");
-  
-  if (!parsed || !parsed.name) {
-    throw new Error("模型返回数据不完整或解析失败，请尝试重新审计。");
-  }
-
-  return {
-    content: response.text || "",
-    timestamp: Date.now(),
-    modelUsed: ModelProvider.GEMINI_INTL,
-    isStructured: true,
-    stockSynergyData: parsed
-  };
+  if (!parsed || !parsed.name) throw new Error("模型返回数据不完整。");
+  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, stockSynergyData: parsed };
 };
 
 export const fetchLimitUpLadder = async (apiKey: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN');
-  const prompt = `作为顶级 A 股短线量化专家，请利用 googleSearch 实时扫描今日（${dateStr}）全市场的涨停数据并建立梯队矩阵。`;
+  const prompt = `
+    作为顶级 A 股短线量化专家，请利用 googleSearch 实时扫描今日（${dateStr}）全市场的涨停数据。
+    [重要指令]：当前市场可能是普涨行情，请务必检索“全市场涨停复盘”页面，获取至少 20-30 只核心领涨标的，并按照 5板、4板、3板、2板、首板 建立完整的梯队矩阵。
+    不要只抓取前 5 只，请尽可能覆盖当前市场所有的主线板块。
+  `;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
     contents: prompt,
@@ -196,7 +165,10 @@ export const fetchDualBoardScanning = async (apiKey: string): Promise<AnalysisRe
   const ai = new GoogleGenAI({ apiKey });
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN');
-  const prompt = `作为顶级 A 股量化短线专家，请利用 googleSearch 实时扫描今日（${dateStr}）**创业板** 和 **科创板** 的【涨停封板】标的并评估控盘分。`;
+  const prompt = `
+    作为顶级 A 股量化短线专家，请利用 googleSearch 实时扫描今日（${dateStr}）**创业板** 和 **科创板** 的【涨停封板】标的。
+    [指令]：请通过全网搜索“今日双创涨停名单”，捕捉至少 15-20 只 20% 涨停标的，并评估其控盘分。不要遗漏次新股和高标股。
+  `;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
     contents: prompt,
@@ -210,7 +182,12 @@ export const fetchMainBoardScanning = async (apiKey: string): Promise<AnalysisRe
   const ai = new GoogleGenAI({ apiKey });
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN');
-  const prompt = `作为顶级 A 股量化短线专家，请利用 googleSearch 实时扫描今日（${dateStr}）**沪深主板** 的【涨停封板】标的。`;
+  const prompt = `
+    作为顶级 A 股量化短线专家，请利用 googleSearch 实时扫描今日（${dateStr}）**沪深主板** 的【涨停封板】标的。
+    [核心指令]：今日大盘普涨，涨停家数较多。请务必搜索“今日沪深涨停板分析”或“涨停揭秘”类实时汇总数据。
+    请至少返回 20 只最具代表性的主板涨停标的（覆盖连板高标和新启动的首板龙头）。
+    必须按照 10% 涨停规则进行严格过滤。
+  `;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
     contents: prompt,
