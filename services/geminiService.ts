@@ -6,6 +6,51 @@ const GEMINI_MODEL_PRIMARY = "gemini-3-flash-preview";
 
 // --- JSON Schemas ---
 
+const periodicReviewSchema = {
+  type: Type.OBJECT,
+  properties: {
+    score: { type: Type.NUMBER },
+    market_trend: { type: Type.STRING, enum: ["bull", "bear", "neutral"] },
+    market_summary: { type: Type.STRING },
+    monthly_portfolio_summary: { type: Type.STRING },
+    stock_diagnostics: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          verdict: { type: Type.STRING },
+          issues: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ["name", "verdict", "issues"]
+      }
+    },
+    highlight: {
+      type: Type.OBJECT,
+      properties: { title: { type: Type.STRING }, description: { type: Type.STRING } },
+      required: ["title", "description"]
+    },
+    lowlight: {
+      type: Type.OBJECT,
+      properties: { title: { type: Type.STRING }, description: { type: Type.STRING } },
+      required: ["title", "description"]
+    },
+    execution: {
+      type: Type.OBJECT,
+      properties: {
+        score: { type: Type.NUMBER },
+        details: { type: Type.STRING },
+        good_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } },
+        bad_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } }
+      },
+      required: ["score", "details", "good_behaviors", "bad_behaviors"]
+    },
+    improvement_advice: { type: Type.ARRAY, items: { type: Type.STRING } },
+    next_period_focus: { type: Type.ARRAY, items: { type: Type.STRING } }
+  },
+  required: ["score", "market_trend", "market_summary", "stock_diagnostics", "highlight", "lowlight", "execution", "improvement_advice", "next_period_focus"]
+};
+
 const stockSynergySchema = {
   type: Type.OBJECT,
   properties: {
@@ -269,7 +314,7 @@ export const fetchStockSynergy = async (
     【核心审计准则 - 严禁忽略】
     1. 【视觉现价锚定】：必须从上传的第一张图片（K线/分时图）中 OCR 识别【最新股价】，设为 used_current_price。
     2. 【持仓深度适配】：如果提供了第二张图片（持仓截图），请通过 OCR 识别用户的【持仓均价】、【持股数量】和【当前盈亏状态】。
-    3. 【个性化建议】：在 action_guide 中，结合用户的真实成本和该标的的主力成本区间，给出极其具体的加仓、减仓、锁仓或止损点位指令。
+    3. 【个性化建议】：在 action_guide 中，结合用户的真实成本和该标不的主力成本区间，给出极其具体的加仓、减仓、锁仓或止损点位指令。
     4. 【安全垫计算】：公式必须为 (截图现价 - 预估成本) / 预估成本。
     
     必须输出 JSON。
@@ -346,7 +391,43 @@ export const extractTradingPlan = async (analysisContent: string, apiKey?: strin
   };
 };
 
-// ... (Rest of existing fetchers)
+export const fetchPeriodicReview = async (journals: JournalEntry[], periodLabel: string, market: MarketType, apiKey?: string): Promise<AnalysisResult> => {
+  if (!apiKey) throw new Error("API Key Missing");
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const historyText = journals.map(j => `时间: ${new Date(j.timestamp).toLocaleString()}, 资产: ${j.snapshot.totalAssets}, 持仓: ${j.snapshot.holdings.length}只`).join('\n');
+  
+  const prompt = `
+    作为高级基金经理，对以下历史交易日志进行【${periodLabel}】阶段性复盘。
+    
+    历史摘要:
+    ${historyText}
+    
+    请输出 JSON。
+  `;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt,
+    config: {
+      tools: [{ googleSearch: {} }],
+      responseMimeType: "application/json",
+      responseSchema: periodicReviewSchema
+    }
+  });
+
+  const parsed = robustParse(response.text || "{}");
+
+  return {
+    content: response.text || "",
+    timestamp: Date.now(),
+    modelUsed: ModelProvider.GEMINI_INTL,
+    isStructured: true,
+    periodicData: parsed
+  };
+};
+
+// ... (Remaining stubs)
 export const fetchLimitUpLadder = async (apiKey?: string): Promise<AnalysisResult> => {
   if (!apiKey) throw new Error("API Key Missing");
   const ai = new GoogleGenAI({ apiKey });
@@ -408,12 +489,6 @@ export const parseBrokerageScreenshot = async (base64Image: string, apiKey?: str
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: { parts: [{ text: "识别持仓" }, { inlineData: { mimeType: 'image/jpeg', data: base64Image } }] }, config: { responseMimeType: "application/json" } });
   return robustParse(response.text || "{}");
-};
-
-export const fetchPeriodicReview = async (journals: JournalEntry[], periodLabel: string, market: MarketType, apiKey?: string): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey: apiKey || "" });
-  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: "复盘记录" });
-  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL };
 };
 
 export const fetchSectorLadderAnalysis = async (query: string, market: MarketType, apiKey?: string): Promise<AnalysisResult> => {
