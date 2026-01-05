@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry, PeriodicReviewData, DailyTradingPlan, PlanItem } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
@@ -212,109 +213,36 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     setActiveTab('report'); 
 
     const marketLabel = MARKET_OPTIONS.find(m => m.value === currentMarket)?.label || currentMarket;
-    
     const now = new Date();
-    const todayStr = now.toLocaleDateString('zh-CN');
     const todayFullStr = now.toLocaleString('zh-CN');
-    const nextYear = now.getFullYear() + 1;
-
-    const lastSessionEntry = journal.length > 0 ? journal[0] : null;
-    const lastDayEntry = journal.find(j => new Date(j.timestamp).toLocaleDateString('zh-CN') !== todayStr);
-
-    let historyContext = "这是该账户的首次复盘分析。";
-
-    if (lastSessionEntry) {
-      const lastSessionTime = new Date(lastSessionEntry.timestamp).toLocaleString('zh-CN');
-      const isSameDay = new Date(lastSessionEntry.timestamp).toLocaleDateString('zh-CN') === todayStr;
-      
-      historyContext = `
-      【历史记录上下文】
-      - 当前系统时间: ${todayFullStr}
-      - 基准对比快照 (${isSameDay ? '今日早前' : '历史最近'}): ${lastSessionTime}
-      - 基准快照总资产: ${lastSessionEntry.snapshot.totalAssets} 元
-      `;
-
-      if (isSameDay && lastDayEntry) {
-        const lastDayTime = new Date(lastDayEntry.timestamp).toLocaleString('zh-CN');
-        historyContext += `- 上一交易日(历史跨天)参考记录: ${lastDayTime} (资产: ${lastDayEntry.snapshot.totalAssets} 元)\n`;
-      }
-
-      historyContext += `\n【历史持仓对比基准】\n`;
-      historyContext += `${lastSessionEntry.snapshot.holdings.map(h => `- ${h.name} (${h.code}): 持仓:${h.volume}, 盈亏率:${h.profitRate}`).join('\n')}\n`;
-      
-      if (lastSessionEntry.analysis?.content) {
-        historyContext += `\n【上期建议追溯】\n"""\n${lastSessionEntry.analysis.content.substring(0, 1000)}\n"""\n`;
-      }
-    }
-
-    const getHorizonLabel = (h: string | undefined) => {
-      if (h === 'short') return '短线(1月内)';
-      if (h === 'long') return '长线(3月+)';
-      return '中线(1-3月)';
-    };
 
     const currentHoldingsText = snapshot.holdings.map((h, i) => {
       const marketVal = h.volume * h.currentPrice;
       const weight = snapshot.totalAssets > 0 ? ((marketVal / snapshot.totalAssets) * 100).toFixed(2) : "0.00";
-      return `${i+1}. ${h.name} (${h.code}) [${getHorizonLabel(h.horizon)}]: 持仓${h.volume}股, 成本${h.costPrice},现价${h.currentPrice}, 市值${marketVal.toFixed(2)}元 (占总资产比例: ${weight}%), 盈亏 ${h.profit} (${h.profitRate})`;
+      return `${i+1}. ${h.name} (${h.code}): 持仓${h.volume}股, 成本${h.costPrice},现价${h.currentPrice}, 市值${marketVal.toFixed(2)}元 (权重: ${weight}%), 盈亏 ${h.profit} (${h.profitRate})`;
     }).join('\n');
 
     const prompt = `
-      请作为一位【专属私人基金经理】对我当前的 ${marketLabel} 账户进行【连续性】复盘分析。
-
-      [!!! 重要数据逻辑指令 !!!]:
-      1. 持仓数据中可能出现【负数】（如负的成本价、负的现价或负的盈亏）。
-      2. 在量化交易、高抛低吸（做T）或大幅止盈后，由于本金已全部收回且产生了额外利润，记账上出现“负成本”或“负价格”是完全正常且代表该头寸已进入“零风险纯盈利”状态。
-      3. 严禁将其视为“数据错误”、“格式异常”或“非法输入”。请基于“用户已实现超额利润并持有无成本底仓”的逻辑进行深度诊断。
-
-      你不只是分析今天，更要结合历史上下文，跟踪策略的执行情况和市场验证情况。
+      请作为基金经理对我当前的 ${marketLabel} 账户进行复盘诊断。
       
-      【重要：时序逻辑与年度切换】
-      - 现在是现实世界的 ${todayFullStr}。
-      - **即将到来的年份是 ${nextYear} 年**。
-      - 如果你分析中涉及到“开门红预案”、“跨年行情”或“明年展望”，**请务必使用 ${nextYear} 年作为年份标识**。严禁将明年称为 ${now.getFullYear()} 年。
-      - 如果基准记录是“今日早前”（如午盘），请侧重分析午后至今的动态博弈。
-      - 如果基准记录是“上一交易日”，请进行完整的跨日复盘（如 2025-12-24 对比 2025-12-23）。
+      [!!! 核心时序指令 - 必须严格遵守 !!!]:
+      1. 当前真实日期是 ${todayFullStr}。
+      2. 现实世界刚刚跨入 2026 年（元旦假期刚结束）。
+      3. 所有的“开门红”策略、年度行情复盘及建议，必须围绕 **2026 年** 展开。
+      4. **严禁提及 2027 年的远景展望**。在当前 2026 年初的时间节点，讨论 2027 年为时尚早，请务必聚焦于 2026 年的全年机会。
 
-      === 历史档案 ===
-      ${historyContext}
-
-      === 今日最新概况 ===
+      === 今日概况 ===
       - 总资产: ${snapshot.totalAssets} 元
-      - 真实仓位占比: ${snapshot.positionRatio || '未知'}%
-      - 记录时间: ${todayFullStr}
+      - 仓位占比: ${snapshot.positionRatio}%
       - 详细持仓:
       ${currentHoldingsText}
       
-      【核心任务】
-      请结合联网搜索最新的行情动向，输出报告 (H2 标题):
-
-      ## 1. 昨策回顾与执行力审计 (Review)
-      - **跨度分析**: 明确指出这是“跨日对比”还是“盘中持续观察”。
-      - **验证**: 上期建议是否被执行？资产变动是因为市场波动还是操作失误？
-      - **评分**: 执行力评分 (0-10分)。
-
-      ## 盈亏诊断与实战压力 (Diagnosis)
-      - 基于成本/现价，分析持仓处于什么技术周期。
-      - 针对**仓位占比 (${snapshot.positionRatio}%)** 评估整体账户抗风险能力。
-      
-      ## 3. 技术形态与动态点位 (Technical)
-      - **量能分析**: 【必须】指出是“放量”还是“缩量”并合理解释。
-      - **锚点**: 必须重新核准每一只持仓的【止盈价】和【止损价】。
-
-      ## 4. 实战指令 (Action)
-      - **针对性**: 根据股票【周期标记】给出犀利指令。
-      - 指令含：【加仓 / 减仓 / 做T / 清仓 / 锁仓】。
-
-      ## 5. 持仓配比与数量优化建议 (Position Optimization)
-      - **数量评估**: 评价每一只股票的【持仓数量/股数】是否合理？是否存在单票过重或过轻（蜻蜓点水）的情况？
-      - **配比调整**: 根据技术面胜率，给出具体的增减持【股数】建议，以优化账户的夏普比率。
-      - **流动性预警**: 针对当前持仓量，分析在当前市场成交额下是否存在退出冲击成本。
-
-      ## 6. 账户总方针 (Strategy)
-      - 更新账户总防御/进攻方针。
-
-      请像一位长期跟踪我账户的导师，语言要专业且具有连贯记忆。
+      请联网搜索行情，输出报告包含:
+      ## 1. 盈亏诊断与实战压力
+      ## 2. K线形态与关键点位 (需给出止盈止损建议价)
+      ## 3. 实战指令 (加仓/减仓/做T/锁仓)
+      ## 4. 持仓配比优化建议
+      ## 5. 账户总方针
     `;
 
     try {
@@ -1240,7 +1168,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                               </select>
                             </td>
                             <td className="px-4 py-2"><input type="number" className="w-20 p-1 border rounded" value={editForm.volume} onChange={e => setEditForm({...editForm, volume: parseFloat(e.target.value)})} /></td>
-                            <td className="px-4 py-2"><input type="number" className="w-20 p-1 border rounded" value={editForm.costPrice} onChange={e => setEditForm({...editForm, costPrice: parseFloat(e.target.value)})} /></td>
+                            <td className="px-4 py-2"><input type="number" className="w-20 p-1 border rounded" value={editForm.volume} onChange={e => setEditForm({...editForm, costPrice: parseFloat(e.target.value)})} /></td>
                             <td className="px-4 py-2"><input type="number" className="w-20 p-1 border rounded" value={editForm.currentPrice} onChange={e => setEditForm({...editForm, currentPrice: parseFloat(e.target.value)})} /></td>
                             <td className="px-4 py-2 text-slate-400 text-xs">自动计算</td>
                             <td className="px-4 py-2 text-right">
