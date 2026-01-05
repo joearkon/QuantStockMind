@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry, PeriodicReviewData, DailyTradingPlan, PlanItem } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
 import { parseBrokerageScreenshot, fetchPeriodicReview, extractTradingPlan } from '../services/geminiService';
 import { analyzeImageWithExternal } from '../services/externalLlmService';
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle, Scale, Coins, ShieldAlert, Microscope, MessageSquareQuote, Lightbulb, FileType, BookOpenCheck, Gauge } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle, Scale, Coins, ShieldAlert, Microscope, MessageSquareQuote, Lightbulb, FileType, BookOpenCheck } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 
@@ -136,8 +135,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           setError(err.message || "识别失败，请重试或手动输入");
         } finally {
           setParsing(false);
-          // 运行正常时重置 input 方便下次上传
-          if (fileInputRef.current) fileInputRef.current.value = "";
         }
       };
       reader.readAsDataURL(file);
@@ -215,38 +212,109 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     setActiveTab('report'); 
 
     const marketLabel = MARKET_OPTIONS.find(m => m.value === currentMarket)?.label || currentMarket;
+    
     const now = new Date();
+    const todayStr = now.toLocaleDateString('zh-CN');
     const todayFullStr = now.toLocaleString('zh-CN');
+    const nextYear = now.getFullYear() + 1;
+
+    const lastSessionEntry = journal.length > 0 ? journal[0] : null;
+    const lastDayEntry = journal.find(j => new Date(j.timestamp).toLocaleDateString('zh-CN') !== todayStr);
+
+    let historyContext = "这是该账户的首次复盘分析。";
+
+    if (lastSessionEntry) {
+      const lastSessionTime = new Date(lastSessionEntry.timestamp).toLocaleString('zh-CN');
+      const isSameDay = new Date(lastSessionEntry.timestamp).toLocaleDateString('zh-CN') === todayStr;
+      
+      historyContext = `
+      【历史记录上下文】
+      - 当前系统时间: ${todayFullStr}
+      - 基准对比快照 (${isSameDay ? '今日早前' : '历史最近'}): ${lastSessionTime}
+      - 基准快照总资产: ${lastSessionEntry.snapshot.totalAssets} 元
+      `;
+
+      if (isSameDay && lastDayEntry) {
+        const lastDayTime = new Date(lastDayEntry.timestamp).toLocaleString('zh-CN');
+        historyContext += `- 上一交易日(历史跨天)参考记录: ${lastDayTime} (资产: ${lastDayEntry.snapshot.totalAssets} 元)\n`;
+      }
+
+      historyContext += `\n【历史持仓对比基准】\n`;
+      historyContext += `${lastSessionEntry.snapshot.holdings.map(h => `- ${h.name} (${h.code}): 持仓:${h.volume}, 盈亏率:${h.profitRate}`).join('\n')}\n`;
+      
+      if (lastSessionEntry.analysis?.content) {
+        historyContext += `\n【上期建议追溯】\n"""\n${lastSessionEntry.analysis.content.substring(0, 1000)}\n"""\n`;
+      }
+    }
+
+    const getHorizonLabel = (h: string | undefined) => {
+      if (h === 'short') return '短线(1月内)';
+      if (h === 'long') return '长线(3月+)';
+      return '中线(1-3月)';
+    };
 
     const currentHoldingsText = snapshot.holdings.map((h, i) => {
       const marketVal = h.volume * h.currentPrice;
       const weight = snapshot.totalAssets > 0 ? ((marketVal / snapshot.totalAssets) * 100).toFixed(2) : "0.00";
-      return `${i+1}. ${h.name} (${h.code}): 持仓${h.volume}股, 成本${h.costPrice},现价${h.currentPrice}, 市值${marketVal.toFixed(2)}元 (权重: ${weight}%), 盈亏 ${h.profit} (${h.profitRate})`;
+      return `${i+1}. ${h.name} (${h.code}) [${getHorizonLabel(h.horizon)}]: 持仓${h.volume}股, 成本${h.costPrice},现价${h.currentPrice}, 市值${marketVal.toFixed(2)}元 (占总资产比例: ${weight}%), 盈亏 ${h.profit} (${h.profitRate})`;
     }).join('\n');
 
     const prompt = `
-      请作为基金经理对我当前的 ${marketLabel} 账户进行复盘诊断。
-      
-      [!!! 核心时序指令 - 必须严格遵守 !!!]:
-      1. 当前真实日期是 ${todayFullStr}。
-      2. 现实世界刚刚跨入 2026 年（元旦假期刚结束）。
-      3. 所有的“开门红”策略、年度行情复盘及建议，必须围绕 **2026 年** 展开。
-      4. **严禁提及 2027 年的远景展望**。在当前 2026 年初的时间节点，讨论 2027 年为时尚早。
+      请作为一位【专属私人基金经理】对我当前的 ${marketLabel} 账户进行【连续性】复盘分析。
 
-      === 今日概况 ===
+      [!!! 重要数据逻辑指令 !!!]:
+      1. 持仓数据中可能出现【负数】（如负的成本价、负的现价或负的盈亏）。
+      2. 在量化交易、高抛低吸（做T）或大幅止盈后，由于本金已全部收回且产生了额外利润，记账上出现“负成本”或“负价格”是完全正常且代表该头寸已进入“零风险纯盈利”状态。
+      3. 严禁将其视为“数据错误”、“格式异常”或“非法输入”。请基于“用户已实现超额利润并持有无成本底仓”的逻辑进行深度诊断。
+
+      你不只是分析今天，更要结合历史上下文，跟踪策略的执行情况和市场验证情况。
+      
+      【重要：时序逻辑与年度切换】
+      - 现在是现实世界的 ${todayFullStr}。
+      - **即将到来的年份是 ${nextYear} 年**。
+      - 如果你分析中涉及到“开门红预案”、“跨年行情”或“明年展望”，**请务必使用 ${nextYear} 年作为年份标识**。严禁将明年称为 ${now.getFullYear()} 年。
+      - 如果基准记录是“今日早前”（如午盘），请侧重分析午后至今的动态博弈。
+      - 如果基准记录是“上一交易日”，请进行完整的跨日复盘（如 2025-12-24 对比 2025-12-23）。
+
+      === 历史档案 ===
+      ${historyContext}
+
+      === 今日最新概况 ===
       - 总资产: ${snapshot.totalAssets} 元
-      - 仓位占比: ${snapshot.positionRatio}%
+      - 真实仓位占比: ${snapshot.positionRatio || '未知'}%
+      - 记录时间: ${todayFullStr}
       - 详细持仓:
       ${currentHoldingsText}
       
-      请联网搜索行情，输出报告包含:
-      ## 0. 今日战术操作评分 (0-100分，基于今日买卖点位、风险控制、知行合一程度打分，并给出打分理由)
-      ## 1. 大盘环境与账户波动审计 (解析当日指数波动对个人账户损益的实际冲击、账户 Alpha 与 Beta 表现归因)
-      ## 2. 盈亏诊断与实战压力
-      ## 3. K线形态与关键点位 (需给出止盈止损建议价)
-      ## 4. 实战指令 (加仓/减仓/做T/锁仓)
-      ## 5. 持仓配比优化建议
-      ## 6. 账户总方针
+      【核心任务】
+      请结合联网搜索最新的行情动向，输出报告 (H2 标题):
+
+      ## 1. 昨策回顾与执行力审计 (Review)
+      - **跨度分析**: 明确指出这是“跨日对比”还是“盘中持续观察”。
+      - **验证**: 上期建议是否被执行？资产变动是因为市场波动还是操作失误？
+      - **评分**: 执行力评分 (0-10分)。
+
+      ## 盈亏诊断与实战压力 (Diagnosis)
+      - 基于成本/现价，分析持仓处于什么技术周期。
+      - 针对**仓位占比 (${snapshot.positionRatio}%)** 评估整体账户抗风险能力。
+      
+      ## 3. 技术形态与动态点位 (Technical)
+      - **量能分析**: 【必须】指出是“放量”还是“缩量”并合理解释。
+      - **锚点**: 必须重新核准每一只持仓的【止盈价】和【止损价】。
+
+      ## 4. 实战指令 (Action)
+      - **针对性**: 根据股票【周期标记】给出犀利指令。
+      - 指令含：【加仓 / 减仓 / 做T / 清仓 / 锁仓】。
+
+      ## 5. 持仓配比与数量优化建议 (Position Optimization)
+      - **数量评估**: 评价每一只股票的【持仓数量/股数】是否合理？是否存在单票过重或过轻（蜻蜓点水）的情况？
+      - **配比调整**: 根据技术面胜率，给出具体的增减持【股数】建议，以优化账户的夏普比率。
+      - **流动性预警**: 针对当前持仓量，分析在当前市场成交额下是否存在退出冲击成本。
+
+      ## 6. 账户总方针 (Strategy)
+      - 更新账户总防御/进攻方针。
+
+      请像一位长期跟踪我账户的导师，语言要专业且具有连贯记忆。
     `;
 
     try {
@@ -833,17 +901,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           let iconBg = "bg-slate-100";
           let cardBorder = "border-slate-200";
 
-          if (title.includes("评分") || title.includes("Score")) {
-            Icon = Trophy;
-            headerColor = "text-amber-700";
-            iconBg = "bg-amber-100";
-            cardBorder = "border-amber-100";
-          } else if (title.includes("波动") || title.includes("审计") || title.includes("冲击") || title.includes("Volatility")) {
-            Icon = Activity;
-            headerColor = "text-rose-700";
-            iconBg = "bg-rose-100";
-            cardBorder = "border-rose-100";
-          } else if (title.includes("回顾") || title.includes("验证")) {
+          if (title.includes("回顾") || title.includes("验证")) {
             Icon = GitCompare;
             headerColor = "text-indigo-700";
             iconBg = "bg-indigo-100";
@@ -854,7 +912,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
             iconBg = "bg-rose-100";
             cardBorder = "border-rose-100";
           } else if (title.includes("K线") || title.includes("关键") || title.includes("波浪")) {
-            Icon = Gauge;
+            Icon = Activity;
             headerColor = "text-blue-700";
             iconBg = "bg-blue-100";
             cardBorder = "border-blue-100";
@@ -873,6 +931,16 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
             headerColor = "text-violet-700";
             iconBg = "bg-violet-100";
             cardBorder = "border-violet-100";
+          } else if (title.includes("大盘") || title.includes("Context")) {
+            Icon = TrendingUp;
+            headerColor = "text-amber-700";
+            iconBg = "bg-amber-100";
+            cardBorder = "border-amber-100";
+          } else if (title.includes("审计") || title.includes("Audit")) {
+            Icon = AlertTriangle;
+            headerColor = "text-red-700";
+            iconBg = "bg-red-100";
+            cardBorder = "border-red-100";
           }
 
           return (
@@ -892,7 +960,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all disabled:opacity-70 no-print"
                    >
                      {generatingPlan ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <ListTodo className="w-3.5 h-3.5"/>}
-                     生成明日计划
+                     生成明日计划表 (导出MD/Word)
                    </button>
                 )}
               </div>
@@ -901,7 +969,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                   const trimmed = line.trim();
                   if (!trimmed) return <div key={i} className="h-2"></div>;
 
-                  const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有|补救|执行力|知行不一|放量|缩量|股数|仓位|权重|配比|过轻|过重|满分|高分|及格|低分|大幅波动|回撤|冲击|2026)/g;
+                  const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有|补救|执行力|知行不一|放量|缩量|股数|仓位|权重|配比|过轻|过重)/g;
                   let processedLine = trimmed.replace(
                     highlightRegex, 
                     '<span class="font-bold text-white bg-indigo-500 px-1 py-0.5 rounded text-xs mx-0.5 shadow-sm">$1</span>'
@@ -925,7 +993,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                   if (trimmed.startsWith('-') || trimmed.startsWith('* ')) {
                      return (
                        <div key={i} className="flex gap-3 mb-3 items-start group">
-                          <div className={`mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0 group-hover:scale-125 transition-transform ${title.includes("评分") ? 'bg-amber-400' : title.includes("波动") ? 'bg-rose-400' : title.includes("建议") ? 'bg-emerald-400' : title.includes("数量") ? 'bg-orange-400' : 'bg-slate-400'}`}></div>
+                          <div className={`mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0 group-hover:scale-125 transition-transform ${title.includes("建议") ? 'bg-emerald-400' : title.includes("数量") ? 'bg-orange-400' : 'bg-slate-400'}`}></div>
                           <p className="flex-1 text-slate-700 leading-relaxed text-sm sm:text-base" dangerouslySetInnerHTML={{ __html: processedLine.replace(/^[-*]\s+/, '') }}></p>
                        </div>
                      );
@@ -986,7 +1054,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
               智能持仓复盘 (Portfolio Review)
             </h2>
             <p className="text-sm text-slate-500 mt-1">
-              上传交易软件截图 (如同花顺、东方财富) 或手动录入，AI 结合成本、大盘波动为您深度诊断评分。
+              上传交易软件截图 (如同花顺、东方财富) 或手动录入，AI 结合成本为您诊断止盈止损点位。
             </p>
           </div>
           <div className="flex gap-2">
@@ -1172,7 +1240,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                               </select>
                             </td>
                             <td className="px-4 py-2"><input type="number" className="w-20 p-1 border rounded" value={editForm.volume} onChange={e => setEditForm({...editForm, volume: parseFloat(e.target.value)})} /></td>
-                            <td className="px-4 py-2"><input type="number" className="w-20 p-1 border rounded" value={editForm.volume} onChange={e => setEditForm({...editForm, costPrice: parseFloat(e.target.value)})} /></td>
+                            <td className="px-4 py-2"><input type="number" className="w-20 p-1 border rounded" value={editForm.costPrice} onChange={e => setEditForm({...editForm, costPrice: parseFloat(e.target.value)})} /></td>
                             <td className="px-4 py-2"><input type="number" className="w-20 p-1 border rounded" value={editForm.currentPrice} onChange={e => setEditForm({...editForm, currentPrice: parseFloat(e.target.value)})} /></td>
                             <td className="px-4 py-2 text-slate-400 text-xs">自动计算</td>
                             <td className="px-4 py-2 text-right">
