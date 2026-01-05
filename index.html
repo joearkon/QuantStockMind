@@ -4,50 +4,126 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>QuantMind - A股量化分析助手 v1.14.0</title>
+    <title>QuantMind - A股量化分析助手</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
-      :root {
-        --glass-bg: rgba(255, 255, 255, 0.7);
-        --glass-border: rgba(255, 255, 255, 0.3);
-      }
       body {
         font-family: 'Inter', 'Noto Sans SC', sans-serif;
-        background-color: #f1f5f9;
-        background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
-        background-size: 20px 20px;
+        background-color: #f8fafc;
       }
-      .font-mono {
-        font-family: 'JetBrains Mono', monospace;
+      /* Custom scrollbar for webkit */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
       }
-      /* Quant UI Enhancements */
-      .animate-fade-in { animation: fadeIn 0.5s ease-out; }
-      .animate-slide-up { animation: slideUp 0.5s ease-out; }
-      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-      @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-
-      /* Custom scrollbar */
-      ::-webkit-scrollbar { width: 6px; height: 6px; }
-      ::-webkit-scrollbar-track { background: #f1f5f9; }
-      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-      /* Glassmorphism Classes */
-      .glass {
-        background: var(--glass-bg);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 1px solid var(--glass-border);
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8; 
       }
 
+      /* Print styles */
       @media print {
-        .no-print { display: none !important; }
-        aside, header { display: none !important; }
-        main { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
-        .lg\:col-span-9 { width: 100% !important; }
+        @page {
+          margin: 1.5cm;
+          size: auto;
+        }
+        
+        body {
+          background: white !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color: black !important;
+        }
+
+        .no-print {
+          display: none !important;
+        }
+        
+        aside, header, footer {
+          display: none !important;
+        }
+
+        main {
+          margin: 0 !important;
+          padding: 0 !important;
+          max-width: 100% !important;
+          width: 100% !important;
+          display: block !important;
+        }
+
+        #root > div {
+          display: block !important;
+        }
+
+        /* Force the content column to take full width */
+        .lg\:col-span-9 {
+          grid-column: span 12 / span 12 !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          float: none !important;
+          position: static !important;
+        }
+
+        .lg\:col-span-3 {
+          display: none !important;
+        }
+
+        /* Styling for the printed report cards */
+        .rounded-xl, .rounded-3xl, .rounded-\[2\.5rem\] {
+          border-radius: 8px !important;
+          border: 1px solid #e2e8f0 !important;
+          box-shadow: none !important;
+          margin-bottom: 20px !important;
+          page-break-inside: avoid !important;
+        }
+
+        .bg-slate-50, .bg-indigo-50, .bg-rose-50, .bg-emerald-50 {
+          background-color: inherit !important;
+          border: 1px solid #f1f5f9 !important;
+        }
+
+        /* Ensure text is readable and not clipped */
+        p, h1, h2, h3, h4, li {
+          orphans: 3;
+          widows: 3;
+        }
+
+        h2, h3 {
+          page-break-after: avoid !important;
+        }
+
+        /* Keep charts visible */
+        .recharts-responsive-container {
+          width: 100% !important;
+          height: 450px !important;
+          page-break-inside: avoid !important;
+        }
+
+        /* Fix grid layouts for print */
+        .grid {
+          display: block !important;
+        }
+        
+        .grid > div {
+          margin-bottom: 20px !important;
+          width: 100% !important;
+        }
+
+        /* Special handling for summary banners */
+        .bg-slate-900, .bg-indigo-900 {
+          background-color: #1e293b !important;
+          color: white !important;
+          padding: 20px !important;
+        }
       }
     </style>
   <script type="importmap">

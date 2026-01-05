@@ -1,8 +1,9 @@
+
 import { ModelProvider, MarketType } from './types';
-import { LayoutDashboard, TrendingUp, NotebookPen, Radar, UserCheck, Layers, ListChecks, ScanEye, Gavel, Network, Zap, UsersRound, Target, Crosshair } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, NotebookPen, Radar, UserCheck, Layers, ListChecks, ScanEye, Gavel, Network } from 'lucide-react';
 
 export const APP_NAME = "QuantMind A-Share Assistant";
-export const APP_VERSION = "v1.14.0";
+export const APP_VERSION = "v1.10.0";
 
 export const MODEL_OPTIONS = [
   { value: ModelProvider.GEMINI_INTL, label: 'Gemini 3 (海外版)', recommended: true, region: 'Global' },
@@ -17,15 +18,11 @@ export const MARKET_OPTIONS = [
 
 export const NAV_ITEMS = [
   { id: 'market', label: '市场全览', icon: LayoutDashboard },
-  { id: 'dragon-sniper', label: '狙击手战位', icon: Crosshair },
   { id: 'holdings', label: '持仓复盘', icon: NotebookPen },
   { id: 'stock', label: '个股量化', icon: TrendingUp },
-  { id: 'synergy', label: '标的合力审计', icon: UsersRound }, 
-  { id: 'limit-up-ladder', label: '涨停题材梯队审计', icon: Network },
-  { id: 'main-board-master', label: '沪深主板涨停', icon: Gavel },
-  { id: 'pattern-hunter', label: '二三梯队·地量猎手', icon: Target },
-  { id: 'dragon-signal', label: '龙脉信号审计', icon: Zap },
+  { id: 'limit-up-ladder', label: '涨停梯队审计', icon: Network }, // New Module
   { id: 'kline-master', label: '双创涨停扫描', icon: ScanEye },
+  { id: 'main-board-master', label: '沪深主板涨停', icon: Gavel },
   { id: 'sector-cycle', label: '板块梯队周期', icon: Layers },
   { id: 'batch-timing', label: '多股择时打分', icon: ListChecks },
   { id: 'vane', label: '机构风向标', icon: UserCheck },
