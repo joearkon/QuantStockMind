@@ -216,7 +216,12 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     const now = new Date();
     const todayStr = now.toLocaleDateString('zh-CN');
     const todayFullStr = now.toLocaleString('zh-CN');
-    const nextYear = now.getFullYear() + 1;
+    
+    // Improved time logic: Only prompt for next year if in Q4 (Oct-Dec)
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const isYearEnd = currentMonth >= 10;
+    const nextYear = currentYear + 1;
 
     const lastSessionEntry = journal.length > 0 ? journal[0] : null;
     const lastDayEntry = journal.find(j => new Date(j.timestamp).toLocaleDateString('zh-CN') !== todayStr);
@@ -269,12 +274,12 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
 
       你不只是分析今天，更要结合历史上下文，跟踪策略的执行情况和市场验证情况。
       
-      【重要：时序逻辑与年度切换】
-      - 现在是现实世界的 ${todayFullStr}。
-      - **即将到来的年份是 ${nextYear} 年**。
-      - 如果你分析中涉及到“开门红预案”、“跨年行情”或“明年展望”，**请务必使用 ${nextYear} 年作为年份标识**。严禁将明年称为 ${now.getFullYear()} 年。
+      【重要：时序逻辑与年度上下文】
+      - 现在是现实世界的真实时间: ${todayFullStr}。
+      - 当前年份: ${currentYear} 年。
+      ${isYearEnd ? `- **即将进入年度切换期 (${nextYear} 年)**。如果涉及“跨年行情”或“明年展望”，请使用 ${nextYear} 年作为标识。` : `- 目前处于 ${currentYear} 年中期/早期，请聚焦于 ${currentYear} 年内的阶段性逻辑。`}
       - 如果基准记录是“今日早前”（如午盘），请侧重分析午后至今的动态博弈。
-      - 如果基准记录是“上一交易日”，请进行完整的跨日复盘（如 2025-12-24 对比 2025-12-23）。
+      - 如果基准记录是“上一交易日”，请进行完整的跨日复盘。
 
       === 历史档案 ===
       ${historyContext}
@@ -294,7 +299,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       - **验证**: 上期建议是否被执行？资产变动是因为市场波动还是操作失误？
       - **评分**: 执行力评分 (0-10分)。
 
-      ## 盈亏诊断与实战压力 (Diagnosis)
+      ## 2. 盈亏诊断与实战压力 (Diagnosis)
       - 基于成本/现价，分析持仓处于什么技术周期。
       - 针对**仓位占比 (${snapshot.positionRatio}%)** 评估整体账户抗风险能力。
       
@@ -307,9 +312,8 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       - 指令含：【加仓 / 减仓 / 做T / 清仓 / 锁仓】。
 
       ## 5. 持仓配比与数量优化建议 (Position Optimization)
-      - **数量评估**: 评价每一只股票的【持仓数量/股数】是否合理？是否存在单票过重或过轻（蜻蜓点水）的情况？
-      - **配比调整**: 根据技术面胜率，给出具体的增减持【股数】建议，以优化账户的夏普比率。
-      - **流动性预警**: 针对当前持仓量，分析在当前市场成交额下是否存在退出冲击成本。
+      - **数量评估**: 评价每一只股票的【持仓数量/股数】是否合理？
+      - **配比调整**: 根据技术面胜率，给出具体的增减持【股数】建议。
 
       ## 6. 账户总方针 (Strategy)
       - 更新账户总防御/进攻方针。
@@ -1227,7 +1231,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                    <tr><td colSpan={6} className="text-center py-8 text-slate-400">请上传截图或手动添加持仓</td></tr>
                  )}
                  {snapshot.holdings.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                        {editingIndex === idx && editForm ? (
                           <>
                             <td className="px-4 py-2">
