@@ -258,6 +258,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       return '中线(1-3月)';
     };
 
+    const numHoldings = snapshot.holdings.length;
     const currentHoldingsText = snapshot.holdings.map((h, i) => {
       const marketVal = h.volume * h.currentPrice;
       const weight = snapshot.totalAssets > 0 ? ((marketVal / snapshot.totalAssets) * 100).toFixed(2) : "0.00";
@@ -288,11 +289,12 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       - 总资产: ${snapshot.totalAssets} 元
       - 真实仓位占比: ${snapshot.positionRatio || '未知'}%
       - 记录时间: ${todayFullStr}
-      - 详细持仓:
+      - 详细持仓 (共 ${numHoldings} 只):
       ${currentHoldingsText}
       
       【核心任务】
-      请结合联网搜索最新的行情动向，输出报告 (H2 标题):
+      请结合联网搜索最新的行情动向，输出报告 (H2 标题)。
+      [!!! 强力要求 !!!]: 报告中的第 3、4、5 章节必须【遍历并涵盖所有 ${numHoldings} 只持仓股票】，严禁遗漏任何一只。
 
       ## 1. 昨策回顾与执行力审计 (Review)
       - **跨度分析**: 明确指出这是“跨日对比”还是“盘中持续观察”。
@@ -304,15 +306,15 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       - 针对**仓位占比 (${snapshot.positionRatio}%)** 评估整体账户抗风险能力。
       
       ## 3. 技术形态与动态点位 (Technical)
-      - **量能分析**: 【必须】指出是“放量”还是“缩量”并合理解释。
-      - **锚点**: 必须重新核准每一只持仓的【止盈价】和【止损价】。
+      - **量能分析**: 针对账户整体成交量指出是“放量”还是“缩量”并合理解释。
+      - **个股锚点核准**: 【核心要求】请务必遍历并展示**所有** ${numHoldings} 只持仓股票的诊断。每一只标的都必须给出明确的【止盈价】和【止损价】。
 
       ## 4. 实战指令 (Action)
-      - **针对性**: 根据股票【周期标记】给出犀利指令。
+      - **针对性**: 必须覆盖**所有** ${numHoldings} 只股票。根据股票【周期标记】给出犀利指令。
       - 指令含：【加仓 / 减仓 / 做T / 清仓 / 锁仓】。
 
       ## 5. 持仓配比与数量优化建议 (Position Optimization)
-      - **数量评估**: 评价每一只股票的【持仓数量/股数】是否合理？
+      - **数量评估**: 必须评价**所有** ${numHoldings} 只股票的【持仓数量/股数】是否合理？
       - **配比调整**: 根据技术面胜率，给出具体的增减持【股数】建议。
 
       ## 6. 账户总方针 (Strategy)
