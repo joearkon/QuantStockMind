@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { 
   AnalysisResult, 
@@ -293,10 +292,47 @@ export const fetchMarketDashboard = async (period: 'day' | 'month', market: Mark
   return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, structuredData: parsed, market };
 };
 
-export const fetchStockDetailWithImage = async (base64Image: string, query: string, market: MarketType, apiKey: string): Promise<AnalysisResult> => {
+export const fetchStockDetailWithImage = async (base64Image: string, query: string, market: MarketType, apiKey: string, currentPrice?: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
-  const parts = [{ text: `对 ${market} 的股票 "${query}" 进行深度量化分析。结合图片中的 K 线形态。` }, { inlineData: { mimeType: 'image/jpeg', data: base64Image } }];
-  const response = await ai.models.generateContent({ model: GEMINI_MODEL_PRIMARY, contents: { parts } });
+  const now = new Date();
+  const timeContext = now.toLocaleString('zh-CN');
+  
+  const prompt = `
+    作为顶级 A 股量化交易专家，请对标的 "${query}" (市场: ${market}) 进行深度量化研判。
+    
+    【核心任务：视觉对齐与指标纠正】
+    你面前有一张该标的的实时行情截图。
+    1. **强制识别盘面价格**: 请优先从图中提取最新的【现价】、【涨跌幅】、【成交额/量】。
+    2. **量价关系审计**: 观察图中成交量柱状图，判断当前形态是“放量攻击”、“缩量回调”还是“高位分歧”。
+    3. **均线形态校准**: 识别 K 线与均线（MA5/10/20/60）的相对位置，判断是否存在明显的支撑或乖离率过大的情况。
+    
+    [!!! 绝对优先级逻辑 !!!]: 
+    1. 如果用户手动指定了现价 (${currentPrice || '未手动指定'})，则以该价格为最高优先级。
+    2. 否则，必须提取【截图中的视觉价格】作为逻辑基准进行后续诊断。
+    3. 联网搜索 (googleSearch) 的数据仅用于补充行业背景、近期利好/利空公告。**严禁使用搜索到的滞后价格覆盖截图中的实时视觉数据**。
+    
+    参考盘面时间: ${timeContext}
+    
+    请输出详细诊断报告，包含：
+    - 视觉提取指标 (现价、量能评分、K线位置)
+    - 关键压力与支撑位 (结合图中形态提取)
+    - 量化择时指令 (加仓/减仓/持有/观望)
+    - 核心研判逻辑 (必须详细说明图中形态对判断的支撑作用)
+  `;
+  
+  const parts = [
+    { text: prompt },
+    { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
+  ];
+  
+  const response = await ai.models.generateContent({ 
+    model: GEMINI_MODEL_PRIMARY, 
+    contents: { parts },
+    config: {
+      tools: [{ googleSearch: {} }] 
+    }
+  });
+  
   return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, market };
 };
 

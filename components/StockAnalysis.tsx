@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
@@ -56,7 +55,7 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
          if (!settings.geminiKey) {
             throw new Error("图片分析需要 Gemini API Key，请先在设置中配置。");
          }
-         data = await fetchStockDetailWithImage(selectedImage, query, currentMarket, settings.geminiKey);
+         data = await fetchStockDetailWithImage(selectedImage, query, currentMarket, settings.geminiKey, currentPrice);
       } else {
          // --- Text Only Analysis ---
          const prompt = `
@@ -263,24 +262,40 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
         <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
             <Search className="w-6 h-6 text-blue-600"/>
-            个股量化诊断 (Beta+BIAS 增强版)
+            个股量化诊断 (视觉增强版)
         </h2>
         
         <form onSubmit={handleSearch} className="max-w-2xl mx-auto space-y-4">
-          <div className="relative">
-            <input
-              type="text"
-              value={savedQuery}
-              onChange={(e) => onQueryUpdate(e.target.value)}
-              placeholder={`输入股票代码或名称...`}
-              className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-lg font-bold"
-            />
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-6 h-6" />
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={savedQuery}
+                onChange={(e) => onQueryUpdate(e.target.value)}
+                placeholder={`输入股票代码或名称...`}
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-lg font-bold"
+              />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-6 h-6" />
+            </div>
+
+            <div className="relative w-full sm:w-32">
+              <input
+                type="number"
+                step="0.01"
+                value={currentPrice}
+                onChange={(e) => setCurrentPrice(e.target.value)}
+                placeholder="现价"
+                className="w-full pl-9 pr-2 py-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-bold"
+              />
+              <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+            </div>
             
-            <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleImageSelect} />
-            <button type="button" onClick={() => fileInputRef.current?.click()} className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg ${selectedImage ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:bg-slate-100'}`}>
-              <Camera className="w-5 h-5" />
-            </button>
+            <div className="flex gap-2 shrink-0">
+               <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleImageSelect} />
+               <button type="button" onClick={() => fileInputRef.current?.click()} className={`p-4 rounded-xl border transition-all ${selectedImage ? 'text-indigo-600 bg-indigo-50 border-indigo-200' : 'text-slate-400 border-slate-300 hover:bg-slate-100'}`}>
+                 <Camera className="w-6 h-6" />
+               </button>
+            </div>
           </div>
 
           {selectedImage && (
@@ -288,13 +303,13 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
                 <div className="relative w-12 h-12 shrink-0 rounded overflow-hidden border">
                    <img src={`data:image/jpeg;base64,${selectedImage}`} className="w-full h-full object-cover" />
                 </div>
-                <div className="flex-1 text-xs text-indigo-700 font-bold">已启用 K 线形态视觉识别 (自动对齐均线与乖离率)</div>
+                <div className="flex-1 text-xs text-indigo-700 font-bold">已开启视觉对齐：将识别图中的现价与量能形态并强制修正诊断逻辑</div>
                 <button type="button" onClick={clearImage} className="p-1 hover:bg-red-50 text-red-500 rounded"><X className="w-4 h-4" /></button>
              </div>
           )}
           
           <button type="submit" disabled={loading || !savedQuery} className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold flex items-center justify-center gap-2 shadow-md">
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : '开始深度量化诊断'}
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : '开始多维深度诊断'}
           </button>
         </form>
       </div>
@@ -304,7 +319,7 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
           <div className="flex justify-between items-center px-6 py-4 bg-white border-b border-slate-200">
              <h3 className="text-lg font-bold text-slate-900">{savedQuery} 诊断报告</h3>
              <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-full border border-amber-100">
-                <AlertCircle className="w-3 h-3" /> 已集成行业 Beta 过滤
+                <AlertCircle className="w-3 h-3" /> 已集成行业 Beta 与视觉形态对齐
              </div>
           </div>
           <div className="p-6 bg-slate-50/50">
