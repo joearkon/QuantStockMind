@@ -195,13 +195,18 @@ export const fetchExternalAI = async (
     }
   `;
 
-  let systemContent = `You are a Senior Quantitative Financial Analyst. Output strictly valid JSON. Today is ${dateStr}. Market: ${market}.`;
+  // 修正：systemContent 的“必须输出 JSON”指令应当是有条件的
+  let systemContent = `You are a Senior Quantitative Financial Analyst. Today is ${dateStr}. Market: ${market}.`;
   let userContent = prompt;
+
+  if (isDashboard || forceJson) {
+    systemContent += " Output strictly valid JSON.";
+  }
 
   if (isDashboard) {
     userContent = `${prompt}\n\n${jsonInstruction}`;
   } else if (forceJson) {
-    systemContent += " Return strictly valid JSON.";
+    userContent = `${prompt}\n\nPlease respond in strictly valid JSON format according to standard structure.`;
   }
 
   const messages: OpenAIChatMessage[] = [
@@ -212,7 +217,7 @@ export const fetchExternalAI = async (
   const requestBody: any = {
     model: config.model,
     messages: messages,
-    temperature: 0.2, // 降低随机性以提高 JSON 稳定性
+    temperature: (isDashboard || forceJson) ? 0.2 : 0.7, // JSON 模式降低随机性，非 JSON 模式保留灵活性
     max_tokens: 4000, 
   };
   

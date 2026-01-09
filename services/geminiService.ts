@@ -217,11 +217,13 @@ export const fetchLimitUpLadder = async (apiKey: string): Promise<AnalysisResult
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN');
   const prompt = `
-    【指令升级：全市场全量扫描】
-    作为顶级 A 股短线量化专家，请利用 googleSearch 实时扫描今日（${dateStr}）全市场的涨停数据。
-    [重要提示]：如果今日是大盘普涨行情，涨停家数可能高达数百家。请务必检索“今日涨停板复盘”或“今日涨停家数汇总”类实时深度复盘页面。
-    [目标]：请返回至少 25-30 只核心领涨标的，必须覆盖 5板、4板、3板、2板 及 首板 的所有核心主线（如机器人、AI、低空经济等）。
-    严禁仅返回 5 只标的。即使 JSON 会变长，也要确保梯队完整度。
+    【指令升级：全量真实涨停验证】
+    今日日期: ${dateStr}。作为顶级 A 股短线量化专家，请利用 googleSearch 扫描今日全市场真实涨停标的。
+    [强制要求：全量扫描]
+    1. 必须深度检索，不要只返回前几个，必须覆盖所有板块的所有涨停梯队。
+    2. 仅返回涨幅等于或超过 9.8%（主板）或 19.8%（双创）的标的。
+    3. 严禁抓取“炸板”或“冲高回落”的标的，必须是【收盘封板】。
+    4. 结果列表必须包含至少 20-30 只核心标的（如果市场有这么多的话）。
   `;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
@@ -237,12 +239,13 @@ export const fetchDualBoardScanning = async (apiKey: string): Promise<AnalysisRe
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN');
   const prompt = `
-    【双创大资金深度审计】
-    作为顶级 A 股量化短线专家，请利用 googleSearch 实时扫描今日（${dateStr}）**创业板** 和 **科创板** 的【涨停封板】标的。
-    [核心要求]：请通过全网搜索“今日双创龙虎榜”或“今日双创资金流向汇总”，捕捉至少 15-20 只 20% 涨停标的。
-    对于每一只标的，必须精准返回其【连板天数（consecutive_days）】，1代表首板，2代表二连板，以此类推。
-    [资金审计优先级]：1. 净买入金额（千万/亿级） 2. 大单主动买入占比 3. 是否有顶级游资/机构席位。
-    严禁漏报主要板块的龙头。
+    【指令：双创 20% 涨停标的全量深度审计】
+    今日日期: ${dateStr}。请利用 googleSearch 扫描今日创业板和科创板的所有涨停标的。
+    [!!! 严禁遗漏 !!!]：
+    1. **全量扫描**：严禁只返回 3-5 只。今日双创如果涨停家数较多（如 10+ 家），请务必全部或尽可能完整地列出。
+    2. **20% 涨停过滤**：仅抓取涨幅在 19.8% 以上且收盘依然保持涨停封板状态的标的。
+    3. **深度审计**：详细记录每只标的的净买入金额和大单占比。
+    如果检索到的数据较少，请进一步搜索“今日创业板涨停名单”或“科创板收盘异动榜”进行校准。
   `;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
@@ -258,12 +261,9 @@ export const fetchMainBoardScanning = async (apiKey: string): Promise<AnalysisRe
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN');
   const prompt = `
-    【主板大资金全量扫描】
-    作为顶级 A 股量化短线专家，请利用 googleSearch 实时扫描今日（${dateStr}）**沪深主板** 的【涨停封板】标的。
-    [核心指令]：今日大盘普涨，请务必搜索“今日沪深涨停板深度复盘”和“今日龙虎榜机构席位”，获取全量名单。
-    请返回至少 25 只最具代表性的主板涨停标的，包含其【连板天数】和【资金细节】。
-    [资金审计指标]：净买入额（net_buy_amount）、大单占比（large_order_ratio）、参与席位（seats）。
-    严禁只返回少量标的。必须遵循 10% 涨停规则。
+    【指令：主板 10% 涨停标的全量扫描】
+    今日日期: ${dateStr}。请扫描今日沪深主板真实涨停标的。
+    [严格标准]：涨幅必须达到 9.8%-10.1% 且处于封死涨停状态。尽可能返回完整的名单，覆盖主要的热点题材。
   `;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
