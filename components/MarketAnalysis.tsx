@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
-import { Loader2, BarChart2, Zap, Search, Cpu, Activity, Shuffle, Gauge, TrendingUp, TrendingDown, ShieldAlert, Globe, Landmark, Target } from 'lucide-react';
+import { Loader2, BarChart2, Zap, Search, Cpu, Activity, Shuffle, Gauge, TrendingUp, TrendingDown, ShieldAlert, Globe, Landmark, Target, RefreshCw } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 
 interface MarketAnalysisProps {
@@ -73,21 +73,36 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
     );
   };
 
+  // 根据市场判断涨跌幅颜色 (国内红涨绿跌，美股绿涨红跌)
+  const getTrendColor = (direction: 'up' | 'down') => {
+    if (currentMarket === MarketType.US) {
+      return direction === 'up' ? 'text-emerald-500' : 'text-rose-500';
+    }
+    return direction === 'up' ? 'text-rose-500' : 'text-emerald-500';
+  };
+
+  const getBgColor = (direction: 'up' | 'down') => {
+    if (currentMarket === MarketType.US) {
+      return direction === 'up' ? 'border-emerald-100 bg-emerald-50/10' : 'border-rose-100 bg-rose-50/10';
+    }
+    return direction === 'up' ? 'border-rose-100 bg-rose-50/10' : 'border-emerald-100 bg-emerald-50/10';
+  };
+
   return (
     <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-20">
       
-      {/* 1. 控制中心 (原第二排) - 提升至第一排，方便操作 */}
+      {/* 1. 控制中心 */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="bg-indigo-600 p-2.5 rounded-xl text-white">
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <BarChart2 className="w-5 h-5" />}
           </div>
           <div>
-            <h2 className="text-base font-black text-slate-800">
-              {marketLabel} 盘面实时实测
-              {loading && <span className="ml-3 text-xs text-indigo-500 font-bold animate-pulse">正在获取实时数据... ({elapsedSeconds}s)</span>}
-            </h2>
-            {d?.data_date && !loading && <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">基准日期: {d.data_date}</span>}
+            <div className="flex items-center gap-2">
+               <h2 className="text-base font-black text-slate-800">{marketLabel} 盘面深度透析</h2>
+               {d?.data_date && <span className="text-[10px] px-2 py-0.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-full flex items-center gap-1 font-bold animate-pulse"><RefreshCw className="w-3 h-3"/> 实时监控中</span>}
+            </div>
+            {d?.data_date && !loading && <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">基准时间: {d.data_date}</span>}
           </div>
         </div>
         
@@ -107,14 +122,14 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
         </div>
       </div>
 
-      {/* 2. 指数卡片栏 (原第一排) - 下移至第二排，作为操作反馈显示 */}
+      {/* 2. 指数卡片栏 - 强化点位展示 */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {d?.market_indices && d.market_indices.length > 0 ? (
           d.market_indices.map((idx, i) => (
-            <div key={i} className={`bg-white rounded-2xl p-4 border border-slate-200 shadow-sm transition-all hover:scale-[1.02] ${idx.direction === 'up' ? 'border-rose-100 bg-rose-50/10' : 'border-emerald-100 bg-emerald-50/10'}`}>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{idx.name}</div>
+            <div key={i} className={`bg-white rounded-2xl p-4 border border-slate-200 shadow-sm transition-all hover:scale-[1.02] ${getBgColor(idx.direction)}`}>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 truncate">{idx.name}</div>
               <div className="text-xl font-black tracking-tighter text-slate-800">{idx.value}</div>
-              <div className={`text-[10px] font-bold mt-1 ${idx.direction === 'up' ? 'text-rose-500' : 'text-emerald-500'}`}>
+              <div className={`text-[10px] font-bold mt-1 ${getTrendColor(idx.direction)}`}>
                 {idx.direction === 'up' ? '▲' : '▼'} {idx.percent}
               </div>
             </div>
@@ -122,7 +137,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
         ) : (
           [1, 2, 3, 4, 5].map(i => (
             <div key={i} className="h-24 bg-slate-50 border border-slate-100 border-dashed rounded-2xl flex items-center justify-center">
-               <span className="text-[10px] text-slate-300">等待同步...</span>
+               <span className="text-[10px] text-slate-300">等待同步行情...</span>
             </div>
           ))
         )}
@@ -142,7 +157,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-sm flex flex-col items-center">
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                <Gauge className="w-4 h-4" /> 市场博弈强度
+                <Gauge className="w-4 h-4" /> 市场博弈强度 (Sentiment)
               </div>
               {renderGauge(d.market_sentiment?.score || 0)}
               <div className="mt-6 text-center">
@@ -152,7 +167,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
 
             <div className="bg-slate-900 text-white rounded-[2.5rem] p-8 shadow-xl">
               <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                <Activity className="w-4 h-4" /> 实时流动性
+                <Activity className="w-4 h-4" /> 实时流动性 (Liquidity)
               </div>
               <div className="space-y-6">
                 <div>
@@ -162,7 +177,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                   </div>
                 </div>
                 <div className="pt-6 border-t border-slate-800">
-                  <div className="text-[10px] text-slate-400 font-bold mb-1 uppercase">资金评价</div>
+                  <div className="text-[10px] text-slate-400 font-bold mb-1 uppercase tracking-tighter">资金性质评价</div>
                   <div className="text-sm font-bold text-indigo-300">{d.market_volume?.capital_mood}</div>
                 </div>
               </div>
@@ -181,20 +196,20 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                   <div className="flex items-start gap-3">
                     <div className="bg-blue-50 p-2 rounded-lg"><Globe className="w-4 h-4 text-blue-600" /></div>
                     <div>
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">外部环境</h4>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">外部/国际影响</h4>
                       <p className="text-sm text-slate-700 font-medium leading-relaxed">{d.macro_logic?.external_impact}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="bg-indigo-50 p-2 rounded-lg"><Target className="w-4 h-4 text-indigo-600" /></div>
                     <div>
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">政策重心</h4>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">国内政策重心</h4>
                       <p className="text-sm text-slate-700 font-medium leading-relaxed">{d.macro_logic?.policy_focus}</p>
                     </div>
                   </div>
                 </div>
                 <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 flex flex-col justify-center">
-                  <h4 className="text-xs font-black text-slate-400 mb-2 uppercase tracking-widest">AI 核心研判</h4>
+                  <h4 className="text-xs font-black text-slate-400 mb-2 uppercase tracking-widest">AI 深度研判结论</h4>
                   <p className="text-lg font-black text-slate-800 leading-snug italic">"{d.macro_logic?.core_verdict}"</p>
                 </div>
               </div>
@@ -203,12 +218,12 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
             <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-sm overflow-hidden">
                <h3 className="text-lg font-black text-slate-900 mb-8 flex items-center gap-2">
                   <Shuffle className="w-6 h-6 text-emerald-600" />
-                  主力资金搬家路径
+                  主力资金搬家路径 (Rotation)
                </h3>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                   <div className="space-y-4">
                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-rose-500" /> 介入板块 (Inflow)
+                      <TrendingUp className="w-4 h-4 text-rose-500" /> 净介入板块 (Inflow)
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {d.capital_rotation?.inflow_sectors?.map((s, i) => (
@@ -218,7 +233,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                   </div>
                   <div className="space-y-4">
                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                      <TrendingDown className="w-4 h-4 text-emerald-500" /> 撤离板块 (Outflow)
+                      <TrendingDown className="w-4 h-4 text-emerald-500" /> 净撤离板块 (Outflow)
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {d.capital_rotation?.outflow_sectors?.map((s, i) => (
@@ -228,7 +243,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                   </div>
                   <div className="md:col-span-2 pt-6 border-t border-slate-100">
                     <p className="text-sm text-slate-500 leading-relaxed font-medium italic bg-slate-50 p-4 rounded-xl">
-                      <b>搬家逻辑：</b> {d.capital_rotation?.rotation_logic}
+                      <b>资金博弈逻辑：</b> {d.capital_rotation?.rotation_logic}
                     </p>
                   </div>
                </div>
@@ -240,13 +255,13 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
           {!loading ? (
             <>
               <Search className="w-16 h-16 text-slate-200 mb-6" />
-              <p className="text-slate-400 font-black text-xl tracking-tight">等待同步行情数据</p>
-              <p className="text-slate-300 text-sm mt-3 font-medium">请确保在设置中已配置 API Key，然后点击上方 “刷新数据” 按钮</p>
+              <p className="text-slate-400 font-black text-xl tracking-tight">等待同步盘面实时数据</p>
+              <p className="text-slate-300 text-sm mt-3 font-medium">请点击上方“刷新数据”启动 AI 联网检索</p>
             </>
           ) : (
             <div className="flex flex-col items-center">
               <Cpu className="w-20 h-20 text-indigo-600 animate-spin-slow mb-6" />
-              <p className="text-slate-500 font-black text-lg tracking-tight">正在实时实测全网盘面数据，请稍候...</p>
+              <p className="text-slate-500 font-black text-lg tracking-tight">AI 正在实时回溯全球盘面数据，请稍候...</p>
             </div>
           )}
         </div>

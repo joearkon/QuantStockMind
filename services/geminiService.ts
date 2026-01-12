@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { 
   AnalysisResult, 
@@ -93,9 +94,9 @@ const stockSynergySchema = {
 const capitalDetailSchema = {
   type: Type.OBJECT,
   properties: {
-    net_buy_amount: { type: Type.STRING, description: "今日龙虎榜或主力买卖净额" },
-    large_order_ratio: { type: Type.STRING, description: "主力大单介入占比" },
-    seats: { type: Type.ARRAY, items: { type: Type.STRING }, description: "核心参与席位或游资名称" }
+    net_buy_amount: { type: Type.STRING },
+    large_order_ratio: { type: Type.STRING },
+    seats: { type: Type.ARRAY, items: { type: Type.STRING } }
   },
   required: ["net_buy_amount", "large_order_ratio", "seats"]
 };
@@ -163,7 +164,65 @@ const mainBoardScanSchema = {
   } 
 };
 
-const marketDashboardSchema = { type: Type.OBJECT, properties: { data_date: { type: Type.STRING }, market_indices: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, value: { type: Type.STRING }, change: { type: Type.STRING }, percent: { type: Type.STRING }, direction: { type: Type.STRING, enum: ['up', 'down'] } } } }, market_volume: { type: Type.OBJECT, properties: { total_volume: { type: Type.STRING }, volume_delta: { type: Type.STRING }, volume_trend: { type: Type.STRING, enum: ['expansion', 'contraction', 'flat'] }, capital_mood: { type: Type.STRING } } }, market_sentiment: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, summary: { type: Type.STRING }, trend: { type: Type.STRING, enum: ['bullish', 'bearish', 'neutral'] } } }, capital_rotation: { type: Type.OBJECT, properties: { inflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, outflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, rotation_logic: { type: Type.STRING } } }, macro_logic: { type: Type.OBJECT, properties: { policy_focus: { type: Type.STRING }, external_impact: { type: Type.STRING }, core_verdict: { type: Type.STRING } } } } };
+const marketDashboardSchema = { 
+  type: Type.OBJECT, 
+  properties: { 
+    data_date: { type: Type.STRING }, 
+    market_indices: { 
+      type: Type.ARRAY, 
+      items: { 
+        type: Type.OBJECT, 
+        properties: { 
+          name: { type: Type.STRING }, 
+          value: { type: Type.STRING }, 
+          change: { type: Type.STRING }, 
+          percent: { type: Type.STRING }, 
+          direction: { type: Type.STRING, enum: ['up', 'down'] } 
+        },
+        required: ["name", "value", "percent", "direction"]
+      } 
+    }, 
+    market_volume: { 
+      type: Type.OBJECT, 
+      properties: { 
+        total_volume: { type: Type.STRING }, 
+        volume_delta: { type: Type.STRING }, 
+        volume_trend: { type: Type.STRING, enum: ['expansion', 'contraction', 'flat'] }, 
+        capital_mood: { type: Type.STRING } 
+      },
+      required: ["total_volume", "volume_delta", "volume_trend"]
+    }, 
+    market_sentiment: { 
+      type: Type.OBJECT, 
+      properties: { 
+        score: { type: Type.NUMBER }, 
+        summary: { type: Type.STRING }, 
+        trend: { type: Type.STRING, enum: ['bullish', 'bearish', 'neutral'] } 
+      },
+      required: ["score", "summary", "trend"]
+    }, 
+    capital_rotation: { 
+      type: Type.OBJECT, 
+      properties: { 
+        inflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, 
+        outflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, 
+        rotation_logic: { type: Type.STRING } 
+      },
+      required: ["inflow_sectors", "outflow_sectors", "rotation_logic"]
+    }, 
+    macro_logic: { 
+      type: Type.OBJECT, 
+      properties: { 
+        policy_focus: { type: Type.STRING }, 
+        external_impact: { type: Type.STRING }, 
+        core_verdict: { type: Type.STRING } 
+      },
+      required: ["policy_focus", "core_verdict"]
+    } 
+  },
+  required: ["data_date", "market_indices", "market_volume", "market_sentiment", "capital_rotation", "macro_logic"]
+};
+
 const holdingsSnapshotSchema = { type: Type.OBJECT, properties: { totalAssets: { type: Type.NUMBER }, positionRatio: { type: Type.NUMBER }, date: { type: Type.STRING }, holdings: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, volume: { type: Type.NUMBER }, costPrice: { type: Type.NUMBER }, currentPrice: { type: Type.NUMBER }, profit: { type: Type.NUMBER }, profitRate: { type: Type.STRING }, marketValue: { type: Type.NUMBER } } } } } };
 const periodicReviewSchema = { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, market_trend: { type: Type.STRING, enum: ['bull', 'bear', 'sideways'] }, market_summary: { type: Type.STRING }, monthly_portfolio_summary: { type: Type.STRING }, highlight: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, description: { type: Type.STRING } } }, lowlight: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, description: { type: Type.STRING } } }, execution: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, details: { type: Type.STRING }, good_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } }, bad_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } } } }, stock_diagnostics: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, issues: { type: Type.ARRAY, items: { type: Type.STRING } }, verdict: { type: Type.STRING } } } }, next_period_focus: { type: Type.ARRAY, items: { type: Type.STRING } }, improvement_advice: { type: Type.ARRAY, items: { type: Type.STRING } } } };
 const tradingPlanSchema = { type: Type.OBJECT, properties: { items: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { symbol: { type: Type.STRING }, action: { type: Type.STRING, enum: ['buy', 'sell', 'hold', 'monitor', 't_trade'] }, price_target: { type: Type.STRING }, reason: { type: Type.STRING } } } }, summary: { type: Type.STRING } } };
@@ -217,13 +276,13 @@ export const fetchLimitUpLadder = async (apiKey: string): Promise<AnalysisResult
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN');
   const prompt = `
-    【指令升级：全量真实涨停验证】
-    今日日期: ${dateStr}。作为顶级 A 股短线量化专家，请利用 googleSearch 扫描今日全市场真实涨停标的。
-    [强制要求：全量扫描]
-    1. 必须深度检索，不要只返回前几个，必须覆盖所有板块的所有涨停梯队。
+    【指令：全量真实涨停梯队深度扫描】
+    今日现实日期: ${dateStr}。作为顶级 A 股短线量化专家，请利用 googleSearch 扫描今日全市场【真实且正在封板】的涨停标的。
+    [强制要求：全量扫描与时间对齐]
+    1. 必须检索最新日期 (${dateStr}) 的行情快报或收盘名单，严禁使用 2024 年或更早的历史旧数据。
     2. 仅返回涨幅等于或超过 9.8%（主板）或 19.8%（双创）的标的。
-    3. 严禁抓取“炸板”或“冲高回落”的标的，必须是【收盘封板】。
-    4. 结果列表必须包含至少 20-30 只核心标的（如果市场有这么多的话）。
+    3. 重点核实标的的【封单强度】和【换手率】。
+    4. 结果列表必须包含今日最活跃的 20-30 只核心标的。
   `;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
@@ -240,12 +299,12 @@ export const fetchDualBoardScanning = async (apiKey: string): Promise<AnalysisRe
   const dateStr = now.toLocaleDateString('zh-CN');
   const prompt = `
     【指令：双创 20% 涨停标的全量深度审计】
-    今日日期: ${dateStr}。请利用 googleSearch 扫描今日创业板和科创板的所有涨停标的。
-    [!!! 严禁遗漏 !!!]：
-    1. **全量扫描**：严禁只返回 3-5 只。今日双创如果涨停家数较多（如 10+ 家），请务必全部或尽可能完整地列出。
-    2. **20% 涨停过滤**：仅抓取涨幅在 19.8% 以上且收盘依然保持涨停封板状态的标的。
-    3. **深度审计**：详细记录每只标的的净买入金额和大单占比。
-    如果检索到的数据较少，请进一步搜索“今日创业板涨停名单”或“科创板收盘异动榜”进行校准。
+    今日现实日期: ${dateStr}。请利用 googleSearch 扫描今日创业板和科创板的所有【真实收盘】涨停标的。
+    [!!! 绝对时间对齐 !!!]：
+    1. 必须寻找标题包含 "${dateStr}" 的行情总结或交易所异动榜。
+    2. **全量扫描**：严禁只返回 3-5 只。今日双创如果涨停家数较多，必须完整列出。
+    3. **20% 涨停过滤**：仅抓取涨幅在 19.8% 以上且收盘依然保持封板状态的标的。
+    4. **深度审计**：详细记录每只标的的净买入金额和大单占比。
   `;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
@@ -261,9 +320,16 @@ export const fetchMainBoardScanning = async (apiKey: string): Promise<AnalysisRe
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN');
   const prompt = `
-    【指令：主板 10% 涨停标的全量扫描】
-    今日日期: ${dateStr}。请扫描今日沪深主板真实涨停标的。
-    [严格标准]：涨幅必须达到 9.8%-10.1% 且处于封死涨停状态。尽可能返回完整的名单，覆盖主要的热点题材。
+    【核心指令：沪深主板涨停标的深度审计 - 杜绝历史噪音】
+    当前现实日期: ${dateStr}。请利用 googleSearch 检索【今日即 ${dateStr}】沪深主板真实封死涨停的标的。
+    
+    [!!! 绝对逻辑优先级 !!!]：
+    1. **强制实时性**：搜索必须包含关键词 "${dateStr} A股收盘涨停名单" 或 "${dateStr} 龙虎榜"。
+    2. **权重股核验**：万科A (000002)、中国联通等大盘股，若今日涨幅未达到 9.8% 以上，严禁出现在名单中！AI 不得被其过去的“首板”旧闻误导。
+    3. **深度过滤**：仅返回今日收盘价对应的涨幅在 9.8%-10.1% 的标的。
+    4. **数据完整性**：必须包含：净买入金额、大单占比、核心游资席位。
+    
+    如果没有检索到今日的具体成交快照，请返回空列表，不要用历史数据填充。
   `;
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
@@ -282,7 +348,30 @@ export const fetchGeminiAnalysis = async (prompt: string, isComplex: boolean, ap
 
 export const fetchMarketDashboard = async (period: 'day' | 'month', market: MarketType, apiKey?: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY });
-  const prompt = `生成一份 ${market} 的${period === 'day' ? '当日' : '本月'}市场深度分析报告。`;
+  const now = new Date();
+  const timeContext = now.toLocaleString('zh-CN');
+  
+  // 针对不同市场指定搜索目标，确保指数准确
+  let indexNames = "";
+  if (market === MarketType.CN) indexNames = "上证指数 (000001.SH), 深证成指 (399001.SZ), 创业板指 (399006.SZ), 科创50 (000688.SH), 沪深300 (000300.SH)";
+  else if (market === MarketType.HK) indexNames = "恒生指数 (HSI), 恒生科技指数 (HSTECH), 国企指数 (HSCEI)";
+  else if (market === MarketType.US) indexNames = "标普500 (S&P 500), 纳斯达克100 (Nasdaq 100), 道琼斯工业 (Dow Jones), 费城半导体 (SOX)";
+
+  const prompt = `
+    【绝对任务：实时数据对齐】
+    当前时间: ${timeContext}。作为首席量化分析师，请利用 googleSearch 检索 ${market} 的实时盘面数据。
+    
+    [强制要求：获取以下指数的最新数值与涨跌幅]
+    目标指数: ${indexNames}
+    
+    1. 获取各指数的具体数值 (Value) 和涨跌幅度 (Percent)。
+    2. 获取当日全市场总成交额 (Total Volume) 及其与前一交易日的差值 (Volume Delta)。
+    3. 分析当前的资金流向 (Capital Rotation) 与板块表现。
+    4. 对当前盘面给出 0-100 的情绪分 (Sentiment Score)。
+    
+    严禁使用过时的数据（如 2024 年初的数据），必须寻找最新的收盘或盘中快照。
+  `;
+
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
     contents: prompt,
@@ -302,7 +391,7 @@ export const fetchStockDetailWithImage = async (base64Image: string, query: stri
     
     【核心任务：视觉对齐与指标纠正】
     你面前有一张该标的的实时行情截图。
-    1. **强制识别盘面价格**: 请优先从图中提取最新的【现价】、【涨跌幅】、【成交额/量】。
+    1. **强制识别盘面价格**: 请优先 from 图中提取最新的【现价】、【涨跌幅】、【成交额/量】。
     2. **量价关系审计**: 观察图中成交量柱状图，判断当前形态是“放量攻击”、“缩量回调”还是“高位分歧”。
     3. **均线形态校准**: 识别 K 线与均线（MA5/10/20/60）的相对位置，判断是否存在明显的支撑或乖离率过大的情况。
     

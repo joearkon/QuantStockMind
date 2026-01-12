@@ -1,13 +1,11 @@
+
 import { AnalysisResult, ModelProvider, MarketDashboardData, MarketType, HoldingsSnapshot } from "../types";
 
 // Configuration for external providers
 const PROVIDER_CONFIG = {
   [ModelProvider.HUNYUAN_CN]: {
-    // 使用 Worker 代理路径以绕过 CORS 限制
     baseUrl: "/api/hunyuan", 
-    // Chat model
     model: "hunyuan-pro", 
-    // Vision model
     visionModel: "hunyuan-vision",
     name: "Tencent Hunyuan"
   }
@@ -34,19 +32,11 @@ interface OpenAICompletionResponse {
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * Robust JSON Parser 3.0
- * 更加激进地修复 LLM 生成的 JSON 中的语法错误
- */
 function robustJsonParse(text: string): any {
   if (!text) throw new Error("Empty response text");
 
   let clean = text.trim();
-
-  // 1. 移除 Markdown 代码块标记
   clean = clean.replace(/^```[a-z]*\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
-
-  // 2. 定位 JSON 边界
   const firstBrace = clean.search(/[{[]/);
   const lastCurly = clean.lastIndexOf('}');
   const lastSquare = clean.lastIndexOf(']');
@@ -56,87 +46,41 @@ function robustJsonParse(text: string): any {
     clean = clean.substring(firstBrace, lastIndex + 1);
   }
 
-  // 3. 初次尝试解析
   try {
     return JSON.parse(clean);
   } catch (e) {
-    // 继续进行修复逻辑
-  }
+    // Attempt basic fixes
+    clean = clean.replace(/\/\*[\s\S]*?\*\//g, '');
+    clean = clean.replace(/(^|[^:])\/\/.*$/gm, '$1'); 
+    clean = clean.replace(/[\u201C\u201D\u2018\u2019]/g, '"'); 
+    clean = clean.replace(/}\s*{/g, '}, {');
+    clean = clean.replace(/,\s*}/g, '}');
+    clean = clean.replace(/,\s*]/g, ']');
+    clean = clean.replace(/：/g, ':').replace(/，/g, ',');
 
-  // 4. 激进修复逻辑
-  
-  // 修复：移除注释（由于 LLM 喜欢在 JSON 里写 // 或 /* */）
-  clean = clean.replace(/\/\*[\s\S]*?\*\//g, '');
-  clean = clean.replace(/(^|[^:])\/\/.*$/gm, '$1'); 
-
-  // 修复：标准化引号
-  clean = clean.replace(/[\u201C\u201D\u2018\u2019]/g, '"'); 
-  
-  // 修复：数值精度问题
-  clean = clean.replace(/(\d+)\.0{5,}\d*/g, '$1');
-
-  // 修复：对象/数组间缺失逗号 } { -> }, {
-  clean = clean.replace(/}\s*{/g, '}, {');
-  clean = clean.replace(/]\s*\[/g, '], [');
-  
-  // 修复：字符串间缺失逗号 "a" "b" -> "a", "b"
-  clean = clean.replace(/"\s+(?=")/g, '", ');
-
-  // 修复：关键修复 - 属性间缺失逗号
-  // 匹配类似 "key": "val" "key2": 的模式并插入逗号
-  clean = clean.replace(/("[:：]\s*(?:"[^"]*"|[^,{}\[\]\s]+))\s+(?=")/g, '$1, ');
-
-  // 修复：末尾多余逗号
-  clean = clean.replace(/,\s*}/g, '}');
-  clean = clean.replace(/,\s*]/g, ']');
-
-  // 修复：中文全角标点
-  clean = clean.replace(/：/g, ':').replace(/，/g, ',');
-
-  // 修复：未加引号的键
-  clean = clean.replace(/([{,]\s*)([a-zA-Z0-9_]+?)\s*:/g, '$1"$2":');
-
-  // 修复：常见的 NaN/Infinity
-  clean = clean.replace(/\bNaN\b/g, 'null');
-  clean = clean.replace(/\bInfinity\b/g, 'null');
-
-  try {
-    return JSON.parse(clean);
-  } catch (finalError) {
-    console.error("Robust parse failed completely.", finalError);
-    throw new Error(`数据解析失败: 混元模型返回的数据结构不完整或存在严重语法错误。详细原因: ${finalError.message}`);
+    try {
+      return JSON.parse(clean);
+    } catch (finalError) {
+      console.error("Robust parse failed completely.", finalError);
+      throw new Error(`数据解析失败: 混元模型返回的数据结构不完整。`);
+    }
   }
 }
 
-/**
- * Generic fetch with exponential backoff retry
- */
 async function fetchWithRetry(url: string, options: RequestInit, retries = 3, baseDelay = 1000): Promise<Response> {
   let lastError: any;
-  
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(url, options);
-      if (res.status === 404 && url.includes('/api/hunyuan')) {
-         // 如果 Worker 代理 404，尝试回退到直连（仅用于调试环境，生产环境应依赖代理）
-         console.warn("Worker proxy failed with 404, falling back to direct connection...");
-         return await fetch(url.replace('/api/hunyuan', 'https://api.hunyuan.cloud.tencent.com/v1'), options);
-      }
       return res;
     } catch (err: any) {
       lastError = err;
-      console.warn(`Fetch attempt ${i + 1} failed: ${err.message}. Retrying...`);
-      if (i < retries - 1) {
-        await wait(baseDelay * Math.pow(2, i));
-      }
+      if (i < retries - 1) await wait(baseDelay * Math.pow(2, i));
     }
   }
   throw lastError;
 }
 
-/**
- * Generic fetcher for OpenAI-compatible APIs (Hunyuan)
- */
 export const fetchExternalAI = async (
   provider: ModelProvider,
   apiKey: string,
@@ -148,152 +92,67 @@ export const fetchExternalAI = async (
 ): Promise<AnalysisResult> => {
   
   const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
-  if (!config) {
-    throw new Error(`Configuration for ${provider} not found.`);
-  }
+  if (!config) throw new Error(`Configuration for ${provider} not found.`);
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN');
 
+  // 根据不同市场提供精准的指数示例，防止模型乱写
   let indicesExample = "";
   if (market === MarketType.CN) {
-    indicesExample = `{ "name": "上证指数", "value": "3000.00", "change": "+0.00%", "percent": "+0.5%", "direction": "up" }`;
+    indicesExample = `[
+      {"name": "上证指数", "value": "3200.00", "percent": "+0.50%", "direction": "up"},
+      {"name": "创业板指", "value": "2100.00", "percent": "-0.20%", "direction": "down"},
+      {"name": "科创50", "value": "900.00", "percent": "+0.10%", "direction": "up"}
+    ]`;
   } else if (market === MarketType.HK) {
-    indicesExample = `{ "name": "恒生指数", "value": "17000.00", "change": "-100.00", "percent": "-0.5%", "direction": "down" }`;
-  } else if (market === MarketType.US) {
-    indicesExample = `{ "name": "纳斯达克", "value": "15000.00", "change": "+150.00", "percent": "+1.0%", "direction": "up" }`;
+    indicesExample = `[
+      {"name": "恒生指数", "value": "18000.00", "percent": "+1.20%", "direction": "up"},
+      {"name": "恒生科技", "value": "3800.00", "percent": "+2.00%", "direction": "up"}
+    ]`;
+  } else {
+    indicesExample = `[
+      {"name": "纳斯达克", "value": "16000.00", "percent": "+0.80%", "direction": "up"},
+      {"name": "标普500", "value": "5100.00", "percent": "+0.30%", "direction": "up"}
+    ]`;
   }
 
-  // 优化 JSON 提示，强制要求严格格式
   const jsonInstruction = `
-    [CRITICAL: OUTPUT FORMAT]
-    Return ONLY valid JSON. No markdown, no extra text.
-    Ensure ALL list items are separated by COMMAS. 
-    Ensure ALL keys are in double quotes.
-    
-    JSON Template:
+    [CRITICAL] 输出必须为严格 JSON。
+    JSON 模板：
     {
-      "data_date": "YYYY-MM-DD",
-      "market_indices": [ ${indicesExample} ],
+      "data_date": "YYYY-MM-DD HH:mm",
+      "market_indices": ${indicesExample},
       "market_volume": {
-        "total_volume": "...",
-        "volume_delta": "...",
+        "total_volume": "XXX亿",
+        "volume_delta": "+/-XXX亿",
         "volume_trend": "expansion/contraction/flat",
-        "capital_mood": "..."
+        "capital_mood": "评价文案"
       },
-      "market_sentiment": { "score": 80, "summary": "...", "trend": "bullish" },
+      "market_sentiment": { "score": 80, "summary": "文案", "trend": "bullish" },
       "capital_rotation": {
-        "inflow_sectors": ["..."],
-        "outflow_sectors": ["..."],
-        "rotation_logic": "..."
+        "inflow_sectors": ["板块A"],
+        "outflow_sectors": ["板块B"],
+        "rotation_logic": "逻辑"
       },
       "macro_logic": {
-        "policy_focus": "...",
-        "external_impact": "...",
-        "core_verdict": "..."
+        "policy_focus": "重点",
+        "core_verdict": "结论"
       }
     }
   `;
 
-  // 修正：systemContent 的“必须输出 JSON”指令应当是有条件的
-  let systemContent = `You are a Senior Quantitative Financial Analyst. Today is ${dateStr}. Market: ${market}.`;
+  let systemContent = `You are a Senior Quantitative Analyst. Today is ${dateStr}. Market: ${market}.`;
   let userContent = prompt;
 
   if (isDashboard || forceJson) {
-    systemContent += " Output strictly valid JSON.";
-  }
-
-  if (isDashboard) {
+    systemContent += " Output strictly valid JSON. Do not hallucinate values; use recent search-like knowledge.";
     userContent = `${prompt}\n\n${jsonInstruction}`;
-  } else if (forceJson) {
-    userContent = `${prompt}\n\nPlease respond in strictly valid JSON format according to standard structure.`;
   }
 
   const messages: OpenAIChatMessage[] = [
     { role: 'system', content: systemContent },
     { role: 'user', content: userContent }
-  ];
-
-  const requestBody: any = {
-    model: config.model,
-    messages: messages,
-    temperature: (isDashboard || forceJson) ? 0.2 : 0.7, // JSON 模式降低随机性，非 JSON 模式保留灵活性
-    max_tokens: 4000, 
-  };
-  
-  if (provider === ModelProvider.HUNYUAN_CN) {
-    requestBody.enable_enhancement = true; 
-  }
-  
-  try {
-    const response = await fetchWithRetry(`${config.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`模型调用失败 (${response.status}): ${errorText.substring(0, 150)}`);
-    }
-
-    const data = await response.json() as OpenAICompletionResponse;
-    const content = data.choices[0]?.message?.content || "";
-
-    if (!content) throw new Error("模型返回内容为空。");
-
-    let structuredData: MarketDashboardData | undefined;
-    
-    if (isDashboard || forceJson) {
-      try {
-        structuredData = robustJsonParse(content);
-      } catch (e) {
-        console.warn("Parse attempt failed:", e);
-        throw e;
-      }
-    }
-
-    return {
-      content,
-      groundingSource: [], 
-      timestamp: Date.now(),
-      modelUsed: provider,
-      isStructured: !!structuredData,
-      structuredData,
-      market: market
-    };
-
-  } catch (error: any) {
-    console.error("External LLM Error:", error);
-    throw error;
-  }
-};
-
-/**
- * Analyzes an image using an external provider's Vision model
- */
-export const analyzeImageWithExternal = async (
-  provider: ModelProvider,
-  base64Image: string,
-  apiKey: string
-): Promise<HoldingsSnapshot> => {
-  const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
-  if (!config) throw new Error(`Configuration for ${provider} not found.`);
-
-  const prompt = `Analyze this brokerage screenshot. Output VALID JSON ONLY.
-    Template: { "totalAssets": 0, "positionRatio": 0, "date": "YYYY-MM-DD", "holdings": [{ "name": "...", "code": "...", "volume": 0, "costPrice": 0, "currentPrice": 0, "profit": 0, "profitRate": "0%", "marketValue": 0 }] }`;
-
-  const messages: OpenAIChatMessage[] = [
-    {
-      role: 'user',
-      content: [
-        { type: 'text', text: prompt },
-        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
-      ]
-    }
   ];
 
   try {
@@ -304,19 +163,58 @@ export const analyzeImageWithExternal = async (
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: config.visionModel || config.model,
+        model: config.model,
         messages: messages,
         temperature: 0.1,
         max_tokens: 4000
       })
     });
 
-    if (!response.ok) throw new Error(`Vision Model Error: ${response.status}`);
+    if (!response.ok) throw new Error(`Model request failed: ${response.status}`);
 
     const data = await response.json() as OpenAICompletionResponse;
     const content = data.choices[0]?.message?.content || "";
-    return robustJsonParse(content);
+
+    let structuredData: MarketDashboardData | undefined;
+    if (isDashboard || forceJson) {
+      structuredData = robustJsonParse(content);
+    }
+
+    return {
+      content,
+      timestamp: Date.now(),
+      modelUsed: provider,
+      isStructured: !!structuredData,
+      structuredData,
+      market: market
+    };
   } catch (error: any) {
     throw error;
   }
+};
+
+export const analyzeImageWithExternal = async (
+  provider: ModelProvider,
+  base64Image: string,
+  apiKey: string
+): Promise<HoldingsSnapshot> => {
+  const config = PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG];
+  if (!config) throw new Error(`Configuration for ${provider} not found.`);
+  const prompt = `Analyze this brokerage screenshot. Output VALID JSON ONLY.`;
+  const messages: OpenAIChatMessage[] = [
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
+      ]
+    }
+  ];
+  const response = await fetchWithRetry(`${config.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: config.visionModel || config.model, messages: messages, temperature: 0.1 })
+  });
+  const data = await response.json() as OpenAICompletionResponse;
+  return robustJsonParse(data.choices[0]?.message?.content || "");
 };
