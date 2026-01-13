@@ -3,7 +3,7 @@ import { ModelProvider, MarketType } from './types';
 import { LayoutDashboard, TrendingUp, NotebookPen, Radar, UserCheck, Layers, ListChecks, ScanEye, Gavel, Network, ShieldCheck } from 'lucide-react';
 
 export const APP_NAME = "QuantMind A-Share Assistant";
-export const APP_VERSION = "v1.12.0";
+export const APP_VERSION = "v1.13.0";
 
 export const MODEL_OPTIONS = [
   { value: ModelProvider.GEMINI_INTL, label: 'Gemini 3 (海外版)', recommended: true, region: 'Global' },
