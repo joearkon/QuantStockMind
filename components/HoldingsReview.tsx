@@ -1,10 +1,9 @@
-
-// Added missing React import to satisfy TypeScript requirements for React.FC, React.ChangeEvent, etc.
 import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, HoldingsSnapshot, HoldingItemDetailed, JournalEntry, PeriodicReviewData, DailyTradingPlan, PlanItem } from '../types';
-import { parseBrokerageScreenshot, fetchPeriodicReview, extractTradingPlan, fetchHoldingsReviewWithImage } from '../services/geminiService';
+import { analyzeWithLLM } from '../services/llmAdapter';
+import { parseBrokerageScreenshot, fetchPeriodicReview, extractTradingPlan } from '../services/geminiService';
 import { analyzeImageWithExternal } from '../services/externalLlmService';
-import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle, Scale, Coins, ShieldAlert, Microscope, MessageSquareQuote, Lightbulb, FileType, BookOpenCheck, ImageIcon } from 'lucide-react';
+import { Upload, Loader2, Save, Download, UploadCloud, History, Trash2, Camera, Edit2, Check, X, FileJson, TrendingUp, AlertTriangle, PieChart as PieChartIcon, Activity, Target, ClipboardList, BarChart3, Crosshair, GitCompare, Clock, LineChart as LineChartIcon, Calendar, Trophy, AlertOctagon, CheckCircle2, XCircle, ArrowRightCircle, ListTodo, MoreHorizontal, Square, CheckSquare, FileText, FileSpreadsheet, FileCode, ChevronLeft, ChevronRight, AlertCircle, Scale, Coins, ShieldAlert, Microscope, MessageSquareQuote, Lightbulb, FileType, BookOpenCheck } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, LineChart, Line } from 'recharts';
 
@@ -61,7 +60,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
   const [loading, setLoading] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastUploadedImage, setLastUploadedImage] = useState<string | null>(null);
   
   // Drawers
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -116,7 +114,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64String = (reader.result as string).split(',')[1];
-        setLastUploadedImage(base64String); // Store for analysis phase
         try {
           let parsedData: HoldingsSnapshot;
 
@@ -219,6 +216,8 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     const now = new Date();
     const todayStr = now.toLocaleDateString('zh-CN');
     const todayFullStr = now.toLocaleString('zh-CN');
+    
+    // Improved time logic: Only prompt for next year if in Q4 (Oct-Dec)
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
     const isYearEnd = currentMonth >= 10;
@@ -228,21 +227,26 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     const lastDayEntry = journal.find(j => new Date(j.timestamp).toLocaleDateString('zh-CN') !== todayStr);
 
     let historyContext = "这是该账户的首次复盘分析。";
+
     if (lastSessionEntry) {
       const lastSessionTime = new Date(lastSessionEntry.timestamp).toLocaleString('zh-CN');
       const isSameDay = new Date(lastSessionEntry.timestamp).toLocaleDateString('zh-CN') === todayStr;
+      
       historyContext = `
       【历史记录上下文】
       - 当前系统时间: ${todayFullStr}
       - 基准对比快照 (${isSameDay ? '今日早前' : '历史最近'}): ${lastSessionTime}
       - 基准快照总资产: ${lastSessionEntry.snapshot.totalAssets} 元
       `;
+
       if (isSameDay && lastDayEntry) {
         const lastDayTime = new Date(lastDayEntry.timestamp).toLocaleString('zh-CN');
         historyContext += `- 上一交易日(历史跨天)参考记录: ${lastDayTime} (资产: ${lastDayEntry.snapshot.totalAssets} 元)\n`;
       }
+
       historyContext += `\n【历史持仓对比基准】\n`;
       historyContext += `${lastSessionEntry.snapshot.holdings.map(h => `- ${h.name} (${h.code}): 持仓:${h.volume}, 盈亏率:${h.profitRate}`).join('\n')}\n`;
+      
       if (lastSessionEntry.analysis?.content) {
         historyContext += `\n【上期建议追溯】\n"""\n${lastSessionEntry.analysis.content.substring(0, 1000)}\n"""\n`;
       }
@@ -264,14 +268,19 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     const prompt = `
       请作为一位【专属私人基金经理】对我当前的 ${marketLabel} 账户进行【连续性】复盘分析。
 
-      [!!! 紧急市场环境预警 !!!]:
-      1. 探测到局部板块（如商业航天概念）今日遭遇严重回撤（A杀）。
-      2. 如果用户提供了截图，请**视觉识别图中个股的涨跌分布颜色、K线形态、成交量以及涨跌幅百分比**。
-      3. 重点评估哪些标的属于“放量破位”需要止损，哪些是“缩量洗盘”可以继续持有。
+      [!!! 重要数据逻辑指令 !!!]:
+      1. 持仓数据中可能出现【负数】（如负的成本价、负的现价或负的盈亏）。
+      2. 在量化交易、高抛低吸（做T）或大幅止盈后，由于本金已全部收回且产生了额外利润，记账上出现“负成本”或“负价格”是完全正常且代表该头寸已进入“零风险纯盈利”状态。
+      3. 严禁将其视为“数据错误”、“格式异常”或“非法输入”。请基于“用户已实现超额利润并持有无成本底仓”的逻辑进行深度诊断。
+
+      你不只是分析今天，更要结合历史上下文，跟踪策略的执行情况和市场验证情况。
       
-      [!!! 数据逻辑指令 !!!]:
-      1. 持仓数据中可能出现【负数】（如负成本），代表已收回本金，进入零风险阶段。
-      2. 严禁将其视为数据错误，请基于“已实现超额利润”逻辑进行深度诊断。
+      【重要：时序逻辑与年度上下文】
+      - 现在是现实世界的真实时间: ${todayFullStr}。
+      - 当前年份: ${currentYear} 年。
+      ${isYearEnd ? `- **即将进入年度切换期 (${nextYear} 年)**。如果涉及“跨年行情”或“明年展望”，请使用 ${nextYear} 年作为标识。` : `- 目前处于 ${currentYear} 年中期/早期，请聚焦于 ${currentYear} 年内的阶段性逻辑。`}
+      - 如果基准记录是“今日早前”（如午盘），请侧重分析午后至今的动态博弈。
+      - 如果基准记录是“上一交易日”，请进行完整的跨日复盘。
 
       === 历史档案 ===
       ${historyContext}
@@ -284,28 +293,38 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       ${currentHoldingsText}
       
       【核心任务】
-      请结合联网搜索最新的行情动向，输出报告 (H2 标题)。报告中的第 3、4、5 章节必须遍历所有 ${numHoldings} 只持仓。
+      请结合联网搜索最新的行情动向，输出报告 (H2 标题)。
+      [!!! 强力要求 !!!]: 报告中的第 3、4、5 章节必须【遍历并涵盖所有 ${numHoldings} 只持仓股票】，严禁遗漏任何一只。
 
       ## 1. 昨策回顾与执行力审计 (Review)
+      - **跨度分析**: 明确指出这是“跨日对比”还是“盘中持续观察”。
+      - **验证**: 上期建议是否被执行？资产变动是因为市场波动还是操作失误？
+      - **评分**: 执行力评分 (0-10分)。
+
       ## 2. 盈亏诊断与实战压力 (Diagnosis)
-      - 特别针对今日“A杀”行情下的心理博弈与仓位压力进行评估。
+      - 基于成本/现价，分析持仓处于什么技术周期。
+      - 针对**仓位占比 (${snapshot.positionRatio}%)** 评估整体账户抗风险能力。
+      
       ## 3. 技术形态与动态点位 (Technical)
-      - 【核心要求】请务必遍历并展示**所有** ${numHoldings} 只持仓股票的视觉诊断。
-      - 从图中识别涨跌力度，并给出明确的【止盈价】和【止损价】。
+      - **量能分析**: 针对账户整体成交量指出是“放量”还是“缩量”并合理解释。
+      - **个股锚点核准**: 【核心要求】请务必遍历并展示**所有** ${numHoldings} 只持仓股票的诊断。每一只标的都必须给出明确的【止盈价】和【止损价】。
+
       ## 4. 实战指令 (Action)
-      - 针对性给出：【加仓 / 减仓 / 做T / 清仓 / 锁仓】。
+      - **针对性**: 必须覆盖**所有** ${numHoldings} 只股票。根据股票【周期标记】给出犀利指令。
+      - 指令含：【加仓 / 减仓 / 做T / 清仓 / 锁仓】。
+
       ## 5. 持仓配比与数量优化建议 (Position Optimization)
+      - **数量评估**: 必须评价**所有** ${numHoldings} 只股票的【持仓数量/股数】是否合理？
+      - **配比调整**: 根据技术面胜率，给出具体的增减持【股数】建议。
+
       ## 6. 账户总方针 (Strategy)
+      - 更新账户总防御/进攻方针。
+
+      请像一位长期跟踪我账户的导师，语言要专业且具有连贯记忆。
     `;
 
     try {
-      let result: AnalysisResult;
-      if (lastUploadedImage && currentModel === ModelProvider.GEMINI_INTL && settings.geminiKey) {
-        // Use the multimodal service for enhanced visual analysis
-        result = await fetchHoldingsReviewWithImage(prompt, lastUploadedImage, settings.geminiKey);
-      } else {
-        result = await analyzeWithLLM(currentModel, prompt, true, settings, false, 'day', undefined, currentMarket);
-      }
+      const result = await analyzeWithLLM(currentModel, prompt, true, settings, false, 'day', undefined, currentMarket);
       setAnalysisResult(result);
     } catch (err: any) {
       console.error("Analyze Error", err);
@@ -695,6 +714,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
            </div>
         </div>
 
+        {/* --- 月度强化：持股总结模块 --- */}
         {data.monthly_portfolio_summary && (
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-indigo-100 rounded-xl p-6 shadow-sm">
              <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
@@ -709,6 +729,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           </div>
         )}
 
+        {/* 重点新模块：个股专项审计报告 */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 overflow-hidden relative">
            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
               <Microscope className="w-40 h-40 text-indigo-900" />
@@ -775,6 +796,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
            </div>
         </div>
 
+        {/* 知行合一审计模块 */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
            <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -826,6 +848,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
            </div>
         </div>
 
+        {/* 重点升级：改进建议与实操方法 */}
         {data.improvement_advice && data.improvement_advice.length > 0 && (
           <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6 shadow-sm">
              <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
@@ -894,12 +917,12 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
             headerColor = "text-rose-700";
             iconBg = "bg-rose-100";
             cardBorder = "border-rose-100";
-          } else if (title.includes("K线") || title.includes("关键") || title.includes("波浪") || title.includes("Technical")) {
+          } else if (title.includes("K线") || title.includes("关键") || title.includes("波浪")) {
             Icon = Activity;
             headerColor = "text-blue-700";
             iconBg = "bg-blue-100";
             cardBorder = "border-blue-100";
-          } else if (title.includes("建议") || title.includes("操作") || title.includes("指令") || title.includes("实战") || title.includes("Action")) {
+          } else if (title.includes("建议") || title.includes("操作") || title.includes("指令") || title.includes("实战")) {
             Icon = Target;
             headerColor = "text-emerald-700";
             iconBg = "bg-emerald-100";
@@ -909,7 +932,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
             headerColor = "text-orange-700";
             iconBg = "bg-orange-100";
             cardBorder = "border-orange-100";
-          } else if (title.includes("总结") || title.includes("方针") || title.includes("Strategy")) {
+          } else if (title.includes("总结") || title.includes("方针")) {
             Icon = ClipboardList;
             headerColor = "text-violet-700";
             iconBg = "bg-violet-100";
@@ -936,7 +959,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                    <h3 className={`text-lg font-bold ${headerColor}`}>{title}</h3>
                 </div>
                 
-                {(title.includes("建议") || title.includes("指令") || title.includes("操作") || title.includes("实战") || title.includes("Action")) && (
+                {(title.includes("建议") || title.includes("指令") || title.includes("操作") || title.includes("实战")) && (
                    <button
                      onClick={handleGeneratePlan}
                      disabled={generatingPlan}
@@ -952,13 +975,13 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
                   const trimmed = line.trim();
                   if (!trimmed) return <div key={i} className="h-2"></div>;
 
-                  const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有|补救|执行力|知行不一|放量|缩量|股数|仓位|权重|配比|过轻|过重|A杀|退潮|回撤)/g;
+                  const highlightRegex = /(加仓|减仓|清仓|做T|锁仓|止盈|止损|买入|卖出|持有|补救|执行力|知行不一|放量|缩量|股数|仓位|权重|配比|过轻|过重)/g;
                   let processedLine = trimmed.replace(
                     highlightRegex, 
                     '<span class="font-bold text-white bg-indigo-500 px-1 py-0.5 rounded text-xs mx-0.5 shadow-sm">$1</span>'
                   );
                   
-                  if (title.includes("关键") || title.includes("K线") || title.includes("点位") || title.includes("Technical")) {
+                  if (title.includes("关键") || title.includes("K线") || title.includes("点位")) {
                       processedLine = processedLine.replace(
                           /(止盈价|Target Sell)[:：]\s*(\d+\.?\d*)/g, 
                           '<span class="inline-flex items-center gap-1 font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-100 mx-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg> 止盈 $2</span>'
@@ -1037,7 +1060,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
               智能持仓复盘 (Portfolio Review)
             </h2>
             <p className="text-sm text-slate-500 mt-1">
-              上传截图辅助 AI 识别 **个股涨跌力度**（红/绿强度）与 **成交量**，精准应对“A杀”退潮期。
+              上传交易软件截图 (如同花顺、东方财富) 或手动录入，AI 结合成本为您诊断止盈止损点位。
             </p>
           </div>
           <div className="flex gap-2">
@@ -1160,24 +1183,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           </div>
         )}
 
-        {lastUploadedImage && (
-          <div className="mb-4 flex items-center gap-3 p-3 bg-indigo-50 border border-indigo-100 rounded-xl animate-fade-in no-print">
-            <div className="w-12 h-12 rounded overflow-hidden border border-indigo-200 shadow-sm shrink-0">
-               <img src={`data:image/jpeg;base64,${lastUploadedImage}`} className="w-full h-full object-cover" />
-            </div>
-            <div className="flex-1">
-               <div className="text-xs font-black text-indigo-700 flex items-center gap-2">
-                  <ImageIcon className="w-3 h-3" />
-                  已开启视觉对齐复盘 (Multimodal Audit)
-               </div>
-               <p className="text-[10px] text-indigo-500 font-medium">AI 将基于图中 **涨跌颜色** 与 **成交量形态** 精准研判“A杀”压力位。</p>
-            </div>
-            <button onClick={() => setLastUploadedImage(null)} className="p-1 hover:bg-indigo-100 rounded text-indigo-400">
-               <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
         <div className="overflow-x-auto rounded-lg border border-slate-200 mb-6">
            <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex flex-wrap gap-4 justify-between items-center">
               <div className="flex items-center gap-4 flex-wrap">
@@ -1290,7 +1295,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
            </div>
            <button onClick={handleAnalyze} disabled={loading || snapshot.holdings.length === 0} className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 transition-all disabled:opacity-50 transform hover:scale-[1.02]">
              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <TrendingUp className="w-5 h-5" />}
-             {loading ? 'AI 视觉复盘中...' : '个股涨跌对齐复盘 (多模态应对A杀)'}
+             {loading ? 'AI 复盘中...' : '开始连续性复盘 (智能对比历史)'}
            </button>
         </div>
       </div>
