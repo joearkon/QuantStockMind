@@ -26,7 +26,6 @@ const hotMoneyAmbushSchema = {
   properties: {
     scan_time: { type: Type.STRING },
     market_summary: { type: Type.STRING },
-    historical_context: { type: Type.STRING },
     rotation_avoid_list: { type: Type.ARRAY, items: { type: Type.STRING } },
     jan_catalyst_focus: { type: Type.ARRAY, items: { type: Type.STRING } },
     candidates: {
@@ -36,7 +35,7 @@ const hotMoneyAmbushSchema = {
         properties: {
           name: { type: Type.STRING },
           code: { type: Type.STRING },
-          current_price: { type: Type.STRING },
+          anchor_price_range: { type: Type.STRING }, // 修正：返回最近波动区间，而非单点现价
           dragon_blood_score: { type: Type.NUMBER },
           historical_glory_period: { type: Type.STRING },
           historical_main_force: { type: Type.STRING },
@@ -49,19 +48,20 @@ const hotMoneyAmbushSchema = {
           institutional_participation: { type: Type.BOOLEAN },
           ambush_rating: { type: Type.STRING, enum: ['Strong', 'Normal', 'Avoid'] },
           ambush_logic: { type: Type.STRING },
-          target_entry_price: { type: Type.STRING },
-          stop_loss_price: { type: Type.STRING },
+          target_entry_range: { type: Type.STRING },
+          stop_loss_anchor: { type: Type.STRING },
           phase: { type: Type.STRING, enum: ['GoldenPit', 'Dormant', 'Stirring'] },
           position_height: { type: Type.STRING, enum: ['Low', 'Medium', 'High'] }
         },
-        required: ["name", "code", "current_price", "dragon_blood_score", "historical_glory_period", "historical_main_force", "dormant_days", "k_pattern_sign", "ambush_rating", "phase", "target_entry_price"]
+        required: ["name", "code", "anchor_price_range", "dragon_blood_score", "historical_main_force", "dormant_days", "k_pattern_sign", "ambush_rating", "phase", "target_entry_range"]
       }
-    }
+    },
+    rotation_insight: { type: Type.STRING }
   },
-  required: ["scan_time", "market_summary", "candidates", "rotation_avoid_list", "jan_catalyst_focus"]
+  required: ["scan_time", "market_summary", "candidates", "rotation_avoid_list", "jan_catalyst_focus", "rotation_insight"]
 };
 
-// ... other schemas remain the same ...
+// ... other schemas remain same ...
 const marketDashboardSchema = { type: Type.OBJECT, properties: { data_date: { type: Type.STRING }, market_indices: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, value: { type: Type.STRING }, change: { type: Type.STRING }, percent: { type: Type.STRING }, direction: { type: Type.STRING, enum: ['up', 'down'] } }, required: ["name", "value", "percent", "direction"] } }, market_volume: { type: Type.OBJECT, properties: { total_volume: { type: Type.STRING }, volume_delta: { type: Type.STRING }, volume_trend: { type: Type.STRING, enum: ['expansion', 'contraction', 'flat'] }, capital_mood: { type: Type.STRING } }, required: ["total_volume", "volume_delta", "volume_trend"] }, market_sentiment: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, summary: { type: Type.STRING }, trend: { type: Type.STRING, enum: ['bullish', 'bearish', 'neutral'] }, warning_level: { type: Type.STRING, enum: ['Normal', 'Overheated', 'Extreme'] } }, required: ["score", "summary", "trend"] }, capital_composition: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { type: { type: Type.STRING, enum: ['Foreign', 'Institutional', 'HotMoney', 'Retail'] }, label: { type: Type.STRING }, percentage: { type: Type.NUMBER }, trend: { type: Type.STRING, enum: ['increasing', 'decreasing', 'stable'] }, description: { type: Type.STRING } }, required: ["type", "label", "percentage", "trend", "description"] } }, capital_rotation: { type: Type.OBJECT, properties: { inflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, outflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, rotation_logic: { type: Type.STRING } }, required: ["inflow_sectors", "outflow_sectors", "rotation_logic"] }, macro_logic: { type: Type.OBJECT, properties: { policy_focus: { type: Type.STRING }, external_impact: { type: Type.STRING }, core_verdict: { type: Type.STRING } }, required: ["policy_focus", "core_verdict"] } }, required: ["data_date", "market_indices", "market_volume", "market_sentiment", "capital_composition", "capital_rotation", "macro_logic"] };
 const stockSynergySchema = { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, used_current_price: { type: Type.STRING }, synergy_score: { type: Type.NUMBER }, trap_risk_score: { type: Type.NUMBER }, dragon_potential_score: { type: Type.NUMBER }, market_position: { type: Type.STRING }, capital_consistency: { type: Type.STRING }, main_force_cost_anchor: { type: Type.OBJECT, properties: { estimated_cost: { type: Type.STRING }, safety_margin_percent: { type: Type.NUMBER }, risk_level: { type: Type.STRING, enum: ["低风险", "中等溢价", "高危泡沫", "成本线下/黄金区"] } }, required: ["estimated_cost", "safety_margin_percent", "risk_level"] }, turnover_eval: { type: Type.OBJECT, properties: { current_rate: { type: Type.STRING }, is_sufficient: { type: Type.BOOLEAN }, verdict: { type: Type.STRING } }, required: ["current_rate", "is_sufficient", "verdict"] }, main_force_portrait: { type: Type.OBJECT, properties: { lead_type: { type: Type.STRING }, entry_cost_est: { type: Type.STRING }, hold_status: { type: Type.STRING } }, required: ["lead_type", "entry_cost_est", "hold_status"] }, t_plus_1_prediction: { type: Type.OBJECT, properties: { expected_direction: { type: Type.STRING }, confidence: { type: Type.NUMBER }, price_range: { type: Type.STRING }, opening_strategy: { type: Type.STRING }, logic: { type: Type.STRING } }, required: ["expected_direction", "confidence", "price_range", "opening_strategy", "logic"] }, synergy_factors: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { label: { type: Type.STRING }, score: { type: Type.NUMBER }, description: { type: Type.STRING } }, required: ["label", "score", "description"] } }, battle_verdict: { type: Type.STRING }, action_guide: { type: Type.STRING }, chase_safety_index: { type: Type.NUMBER } }, required: [ "name", "code", "used_current_price", "synergy_score", "trap_risk_score", "dragon_potential_score", "market_position", "capital_consistency", "main_force_cost_anchor", "turnover_eval", "main_force_portrait", "t_plus_1_prediction", "synergy_factors", "battle_verdict", "action_guide", "chase_safety_index" ] };
 const limitUpLadderSchema = { type: Type.OBJECT, properties: { scan_time: { type: Type.STRING }, total_limit_ups: { type: Type.NUMBER }, sectors: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { sector_name: { type: Type.STRING }, sector_type: { type: Type.STRING, enum: ["Main", "Sub"] }, total_count: { type: Type.NUMBER }, max_height: { type: Type.NUMBER }, ladder_matrix: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { height: { type: Type.NUMBER }, count: { type: Type.NUMBER }, stocks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, logic: { type: Type.STRING } } } } } } }, dragon_leader: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, consecutive_days: { type: Type.NUMBER }, strength_score: { type: Type.NUMBER }, reason: { type: Type.STRING } } }, dragon_seeds: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, capital_intensity: { type: Type.STRING, enum: ["Extreme", "High", "Normal"] }, seat_analysis: { type: Type.STRING }, incubation_logic: { type: Type.STRING }, evolution_stage: { type: Type.STRING, enum: ["Seeding", "Sprouting", "Competing"] } } } }, integrity_score: { type: Type.NUMBER }, market_sentiment: { type: Type.STRING, enum: ["Rising", "Climax", "Diverging", "Falling"] } }, required: ["sector_name", "total_count", "max_height", "ladder_matrix", "dragon_leader", "integrity_score"] } }, market_conclusion: { type: Type.STRING } }, required: ["scan_time", "total_limit_ups", "sectors", "market_conclusion"] };
@@ -100,21 +100,22 @@ export const fetchHotMoneyAmbush = async (apiKey: string): Promise<AnalysisResul
   const dateStr = now.toLocaleDateString('zh-CN');
   
   const prompt = `
-    【顶级潜伏指令 3.1：深度考古与形态变盘探测】
-    今日日期: ${dateStr}。作为顶级 A 股席位考古专家，请利用 googleSearch 检索 A 股最近 **180 个交易日** 内的数据。
+    【顶级潜伏指令 3.2：逻辑定性与锚点区间探测】
+    今日日期: ${dateStr}。作为顶级 A 股考古专家，利用 googleSearch 检索标的。
     
-    [核心战法：名门之后+错位埋伏]：
-    1. **历史基因考古 (CRITICAL)**：重点寻找在过去 **60-80 个交易日（约3-4个月前）** 曾出现过顶级游资（如呼家楼、章盟主、六一中路）霸榜，或机构席位连续大幅净买入的标的。
-    2. **形态现状研判 (天际模式)**：
-       - 筛选这些“名门”标的中，目前处于【长周期深度回调】后的【地量横盘】阶段。
-       - 重点捕捉：**地量十字星**、**缩量回踩年线/半年线**、**分时量比异动但涨幅滞后** 的特征。
-       - \`k_pattern_sign\` 必须描述如“地量十字星变盘”、“缩量圆弧底”等具体形态。
-    3. **题材避坑与1月催化**：
-       - **避开过热题材**：如“商业航天”、“AI应用”等目前处于情绪沸腾高位的板块。
-       - **锁定1月爆发预期**：重点扫描 **AI算力（硬件/CPO）、PCB、固态电池、人形机器人硬件** 等板块中处于冰点、形态良好的“名门”股。
-    4. **实时价格同步**：获取标的的实时现价，并基于当前中枢给出 target_entry_price。
+    [!!! 价格时效性风险规避指令 !!!]:
+    1. **不要盲信单一搜索结果的“现价”**：近期 A 股波动剧烈（如三花智控已回升至 55 左右，严禁返回 23 这种过时数据）。
+    2. **使用“锚点区间”代替单点价格**：如果无法确信实时性，请返回 anchor_price_range（如 "50-56"）。
+    3. **逻辑优先**：如果搜索价格存疑，请在 ambush_logic 中注明“以形态逻辑为准，价格参考最新盘面”。
     
-    输出必须为严格 JSON 格式。确保 historical_glory_period 和 historical_main_force 准确反映其历史上的“高光时刻”。
+    [战法核心：名门之后 (60-80D)]：
+    1. **追溯考古**：寻找 60-80 天前有顶级游资（章盟主、呼家楼等）或巨额机构净买入背书的标的。
+    2. **识别天际形态**：目前处于“长阴洗盘”后的“地量十字星”或“缩量横盘”。
+    3. **避开过热与锁定1月催化**：
+       - **避开**：商业航天、AI Agent（高位沸腾）。
+       - **锁定**：AI算力、固态电池、机器人（底部的名门股）。
+    
+    输出严格 JSON。
   `;
 
   const response = await ai.models.generateContent({

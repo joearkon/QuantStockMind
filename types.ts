@@ -88,25 +88,25 @@ export interface InstitutionalInsightData {
   }[];
 }
 
-// --- ENHANCED: Hot Money Ambush Interface (Logic 3.0 Edition) ---
+// --- ENHANCED: Hot Money Ambush Interface (Logic 3.2 Edition) ---
 export interface HotMoneyAmbushStock {
   name: string;
   code: string;
-  current_price: string; 
+  anchor_price_range: string; // 改为锚定区间 (如: "52.00 - 56.50")，降低单点价格错误风险
   dragon_blood_score: number; 
-  historical_glory_period: string; // 追溯: 上次活跃期 (如: 60天前)
-  historical_main_force: string; // 追溯: 历史进驻的顶级游资或机构名称
-  dormant_days: number; // 沉寂天数 (60-80天为佳)
+  historical_glory_period: string; 
+  historical_main_force: string; 
+  dormant_days: number; 
   pit_depth_percent: number; 
   sector_name: string; 
   sector_heat_status: 'Ice' | 'Warm' | 'Boiling'; 
   catalyst_jan_strength: number; 
-  k_pattern_sign: string; // K线形态特征：如“地量十字星”、“变盘孕线”
+  k_pattern_sign: string; 
   institutional_participation: boolean;
   ambush_rating: 'Strong' | 'Normal' | 'Avoid';
   ambush_logic: string;
-  target_entry_price: string; 
-  stop_loss_price: string;
+  target_entry_range: string; // 潜伏价格区间
+  stop_loss_anchor: string; // 止损参考位
   phase: 'GoldenPit' | 'Dormant' | 'Stirring'; 
   position_height: 'Low' | 'Medium' | 'High';
 }
