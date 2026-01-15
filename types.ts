@@ -19,9 +19,6 @@ export interface CapitalTypeData {
   description: string;
 }
 
-/**
- * Detailed holding item structure for portfolio review.
- */
 export interface HoldingItemDetailed {
   name: string;
   code: string;
@@ -34,9 +31,6 @@ export interface HoldingItemDetailed {
   horizon?: 'short' | 'medium' | 'long';
 }
 
-/**
- * Structured data for sector ladder and cycle analysis.
- */
 export interface SectorLadderData {
   sector_name: string;
   cycle_stage: 'Starting' | 'Growing' | 'Climax' | 'End' | 'Receding';
@@ -64,16 +58,10 @@ export interface SectorLadderData {
   action_advice: string;
 }
 
-/**
- * Placeholder for K-Line synergy data.
- */
 export interface KLineSynergyData {
   [key: string]: any;
 }
 
-/**
- * Result for institutional insights.
- */
 export interface InstitutionalInsightData {
   detailed_signals: {
     lh_list: string;
@@ -100,9 +88,34 @@ export interface InstitutionalInsightData {
   }[];
 }
 
-/**
- * Result for opportunity mining.
- */
+// --- ENHANCED: Hot Money Ambush Interface (Golden Pit Edition) ---
+export interface HotMoneyAmbushStock {
+  name: string;
+  code: string;
+  dragon_blood_score: number; // 妖性基因值 (0-100)
+  historical_glory_period: string; // 历史高光霸榜期 (如: 2024年8月)
+  historical_seats: string[]; // 历史介入过的顶级席位
+  dormant_days: number; // 沉寂天数
+  pit_depth_percent: number; // 黄金坑回撤深度
+  sector_name: string; 
+  net_inflow_amount: string;
+  institutional_participation: boolean;
+  ambush_rating: 'Strong' | 'Normal' | 'Avoid';
+  ambush_logic: string;
+  target_entry_price: string;
+  stop_loss_price: string;
+  phase: 'GoldenPit' | 'Dormant' | 'Stirring'; // 黄金坑 / 沉寂 / 萌动
+  position_height: 'Low' | 'Medium' | 'High';
+}
+
+export interface HotMoneyAmbushResponse {
+  scan_time: string;
+  market_summary: string;
+  historical_context: string; // 对上一波辉煌的回顾
+  candidates: HotMoneyAmbushStock[];
+  rotation_insight: string;
+}
+
 export interface OpportunityResponse {
   policy_theme: string;
   analysis_summary: string;
@@ -133,9 +146,6 @@ export interface OpportunityResponse {
   };
 }
 
-/**
- * Forward-looking foresight report.
- */
 export interface ForesightReport {
   monthly_focus: string;
   catalysts: {
@@ -150,9 +160,6 @@ export interface ForesightReport {
   macro_policy_insight: string;
 }
 
-/**
- * Timing scoring for a batch of stocks.
- */
 export interface BatchStockScore {
   name: string;
   code: string;
@@ -224,7 +231,6 @@ export interface MarketVolumeData {
   active_buy_spread?: string; 
 }
 
-// --- Rest of existing interfaces ---
 export interface StockSynergyResponse {
   name: string;
   code: string;
@@ -400,6 +406,7 @@ export interface AnalysisResult {
   opportunityData?: OpportunityResponse;
   foresightData?: ForesightReport;
   institutionalData?: InstitutionalInsightData;
+  hotMoneyAmbushData?: HotMoneyAmbushResponse; 
 }
 
 export interface UserSettings {
