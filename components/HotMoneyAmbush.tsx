@@ -1,9 +1,11 @@
 
+// DO add comment above each fix.
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ModelProvider, MarketType, AnalysisResult, HotMoneyAmbushStock } from '../types';
 import { fetchHotMoneyAmbush } from '../services/geminiService';
-import { Binoculars, Loader2, Search, ArrowRight, Zap, Flame, ShieldCheck, Activity, UserCheck, ShieldAlert, Target, Info, Sparkles, TrendingUp, Compass, LayoutGrid, AlertTriangle, Eye, Landmark, Clock, ChevronRight, Tags, BarChart, ArrowDownToLine, MoveUp, History, Gem, Star, Anchor } from 'lucide-react';
+// Fix: Added RefreshCw to the imports from lucide-react.
+import { Binoculars, Loader2, Search, ArrowRight, Zap, Flame, ShieldCheck, Activity, UserCheck, ShieldAlert, Target, Info, Sparkles, TrendingUp, Compass, LayoutGrid, AlertTriangle, Eye, Landmark, Clock, ChevronRight, Tags, BarChart, ArrowDownToLine, MoveUp, History, Gem, Star, Anchor, DollarSign, RefreshCw } from 'lucide-react';
 
 export const HotMoneyAmbush: React.FC<{
   currentModel: ModelProvider;
@@ -75,16 +77,16 @@ export const HotMoneyAmbush: React.FC<{
             <div className="p-4 bg-gradient-to-br from-emerald-600 to-teal-800 rounded-[2rem] text-white shadow-2xl shadow-emerald-100">
               <Gem className="w-10 h-10" />
             </div>
-            远古龙血 · 黄金坑探测器
+            远古龙血 · 动态潜伏探测器
           </h2>
           <p className="text-slate-500 text-lg max-w-3xl font-medium mb-10 leading-relaxed">
-            回溯 **180日** 龙虎基因。寻找曾经霸榜、目前处于 **“黄金坑”** (缩量回撤、主力锁筹、板块轮动前夜) 的远古妖种。拒绝追高明牌，只抓埋在土里的金子。
+            回溯 **180日** 龙虎基因。自动检索最新 **现价 (Current Price)**，杜绝刻舟求剑。寻找回踩近期中枢或黄金坑底的“二波潜力种”。
           </p>
 
           <div className="flex flex-col md:flex-row gap-5 items-center">
              <div className="flex flex-wrap gap-3 flex-1">
                 <span className="px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700 text-xs font-black flex items-center gap-2">
-                  <Anchor className="w-4 h-4" /> 探测黄金坑结构
+                  <RefreshCw className="w-4 h-4" /> 现价逻辑强制核验
                 </span>
                 <span className="px-4 py-2 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 text-xs font-black flex items-center gap-2">
                   <History className="w-4 h-4" /> 180日基因考古
@@ -129,12 +131,11 @@ export const HotMoneyAmbush: React.FC<{
                    </div>
                 </div>
                 <div className="w-full lg:w-80 space-y-4">
-                   <div className="bg-emerald-600/20 backdrop-blur-md p-6 rounded-[2rem] border border-emerald-500/30">
-                      <div className="text-[10px] text-emerald-300 font-bold uppercase mb-3 tracking-widest text-center">核心审计目标 (Ambush Area)</div>
-                      <div className="flex flex-wrap gap-2 justify-center">
-                         <span className="px-3 py-1.5 bg-emerald-500/30 text-white text-[10px] font-black rounded-lg border border-emerald-400/50">黄金坑洗盘标的</span>
-                         <span className="px-3 py-1.5 bg-emerald-500/30 text-white text-[10px] font-black rounded-lg border border-emerald-400/50">远古辉煌复苏</span>
-                      </div>
+                   <div className="bg-emerald-600/20 backdrop-blur-md p-6 rounded-[2rem] border border-emerald-500/30 text-center">
+                      <div className="text-[10px] text-emerald-300 font-bold uppercase mb-3 tracking-widest">探测准则 (Detecting Standard)</div>
+                      <p className="text-[11px] text-emerald-100 font-medium leading-relaxed">
+                        潜伏区已根据 **今日 (${data.scan_time}) 现价** 进行动态修正，回撤幅度大于 30% 通常标记为“等待极值点”。
+                      </p>
                    </div>
                 </div>
              </div>
@@ -152,19 +153,22 @@ export const HotMoneyAmbush: React.FC<{
                          <Flame className="w-3 h-3" /> 龙血值: {stock.dragon_blood_score}
                       </div>
                       <div className={`px-3 py-1 rounded-full text-[10px] font-black border uppercase tracking-wider ${getPhaseColor(stock.phase)}`}>
-                         {stock.phase === 'GoldenPit' ? '🎯 黄金坑' : stock.phase}
+                         {stock.phase === 'GoldenPit' ? '🎯 黄金坑' : stock.phase === 'Stirring' ? '🔥 萌动中' : '💤 沉寂区'}
                       </div>
                    </div>
 
                    <div className="p-8 flex-1 flex flex-col">
                       <div className="flex justify-between items-start mb-6">
-                         <div>
-                            <h4 className="text-2xl font-black text-slate-800">{stock.name}</h4>
+                         <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                               <h4 className="text-2xl font-black text-slate-800">{stock.name}</h4>
+                               <span className="px-2 py-0.5 bg-slate-900 text-white text-[9px] font-black rounded-md">{stock.current_price}</span>
+                            </div>
                             <span className="text-xs font-mono text-slate-400 mt-1 block">{stock.code} | {stock.sector_name}</span>
                          </div>
                          <div className="text-right">
-                            <div className="text-lg font-black text-emerald-600">-{stock.pit_depth_percent}%</div>
-                            <div className="text-[9px] font-bold text-slate-400 uppercase">坑位深度</div>
+                            <div className={`text-lg font-black ${stock.pit_depth_percent > 30 ? 'text-emerald-600' : 'text-amber-500'}`}>-{stock.pit_depth_percent}%</div>
+                            <div className="text-[9px] font-bold text-slate-400 uppercase">相对回撤</div>
                          </div>
                       </div>
 
@@ -195,14 +199,14 @@ export const HotMoneyAmbush: React.FC<{
                          </p>
                       </div>
 
-                      <div className="flex justify-between items-center mb-6 px-1">
-                         <div>
-                            <div className="text-[9px] font-black text-slate-400 uppercase">潜伏参考区</div>
-                            <div className="text-base font-black text-rose-600">{stock.target_entry_price}</div>
+                      <div className="grid grid-cols-2 gap-4 mb-6">
+                         <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-100 flex flex-col items-center">
+                            <div className="text-[9px] font-black text-rose-400 uppercase mb-1">建议潜伏区</div>
+                            <div className="text-sm font-black text-rose-600">{stock.target_entry_price}</div>
                          </div>
-                         <div className="text-right">
-                            <div className="text-[9px] font-black text-slate-400 uppercase">防守支撑</div>
-                            <div className="text-base font-black text-slate-700">{stock.stop_loss_price}</div>
+                         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center">
+                            <div className="text-[9px] font-black text-slate-400 uppercase mb-1">探测现价</div>
+                            <div className="text-sm font-black text-slate-700">{stock.current_price}</div>
                          </div>
                       </div>
 
@@ -223,9 +227,9 @@ export const HotMoneyAmbush: React.FC<{
           <div className="bg-emerald-50 border border-emerald-100 rounded-[2.5rem] p-8 flex items-start gap-6 shadow-sm">
              <div className="p-3 bg-white rounded-2xl shadow-sm"><Info className="w-7 h-7 text-emerald-600" /></div>
              <div className="space-y-2">
-                <h4 className="text-lg font-black text-emerald-900">“黄金坑”潜伏金律</h4>
+                <h4 className="text-lg font-black text-emerald-900">关于价格偏差的说明</h4>
                 <p className="text-sm text-emerald-800 leading-relaxed font-medium">
-                   真正的大牛股在成妖前（如 25 年华胜天成）往往经历过 **顶级游资的高位锁筹 + 漫长的缩量横盘 + 绝望的回踩坑底**。本探测器专门寻找那些龙血基因值 > 85 且沉寂超过 40 天的“休眠妖股”。一旦板块（商业航天、AI、卫星）再次轮动，这类股具备极高的爆发势能。
+                   探测器通过 googleSearch 强制检索最新现价。如果建议潜伏区（如 8.00）与现价（如 12.00）差距巨大，代表 AI 判定目前处于 **“过热期”**，需耐心等待主力进行 **“大级别回撤”** 触碰原始建仓位后再进行潜伏。若标的处于 **Stirring (萌动)** 状态，则建议价将更贴近现价。
                 </p>
              </div>
           </div>
@@ -239,9 +243,9 @@ export const HotMoneyAmbush: React.FC<{
               <History className="w-24 h-24 text-emerald-100 mb-8" />
               <div className="absolute -top-2 -right-2 w-8 h-8 bg-emerald-500 rounded-full animate-ping opacity-20"></div>
            </div>
-           <p className="text-slate-400 font-black text-3xl tracking-tight">扫描远古基因，锁定黄金坑先机</p>
+           <p className="text-slate-400 font-black text-3xl tracking-tight">扫描远古基因，锁定现价对齐先机</p>
            <p className="text-slate-300 text-base mt-4 max-w-lg mx-auto leading-relaxed">
-              AI 正在调取过去 180 天的龙虎数据，为您寻找那些在土里埋了很久的“豪门种”。
+              AI 正在调取过去 180 天的龙虎数据，并强制同步最新盘面价格。
            </p>
         </div>
       )}

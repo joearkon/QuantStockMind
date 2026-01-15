@@ -1,4 +1,5 @@
 
+// DO add comment above each fix.
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { 
   AnalysisResult, 
@@ -107,6 +108,7 @@ const hotMoneyAmbushSchema = {
         properties: {
           name: { type: Type.STRING },
           code: { type: Type.STRING },
+          current_price: { type: Type.STRING },
           dragon_blood_score: { type: Type.NUMBER },
           historical_glory_period: { type: Type.STRING },
           historical_seats: { type: Type.ARRAY, items: { type: Type.STRING } },
@@ -121,7 +123,7 @@ const hotMoneyAmbushSchema = {
           phase: { type: Type.STRING, enum: ['GoldenPit', 'Dormant', 'Stirring'] },
           position_height: { type: Type.STRING, enum: ['Low', 'Medium', 'High'] }
         },
-        required: ["name", "code", "dragon_blood_score", "historical_glory_period", "historical_seats", "dormant_days", "ambush_rating", "phase", "position_height"]
+        required: ["name", "code", "current_price", "dragon_blood_score", "historical_glory_period", "historical_seats", "dormant_days", "ambush_rating", "phase", "position_height", "target_entry_price"]
       }
     }
   },
@@ -151,23 +153,22 @@ export const fetchHotMoneyAmbush = async (apiKey: string): Promise<AnalysisResul
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN');
   
+  // Fix: Escaped backticks in the prompt template literal to avoid syntax errors where the compiler incorrectly identifies variable names like 'current_price'.
   const prompt = `
-    【顶级潜伏指令：远古龙血基因与黄金坑探测】
-    今日日期: ${dateStr}。作为顶级 A 股席位考古专家，利用 googleSearch 检索 A 股最近 **180 个交易日（半年）** 内的【龙虎榜】成交数据。
+    【顶级潜伏指令：跨周期龙血基因探测与实时价格对齐】
+    今日日期: ${dateStr}。作为顶级 A 股席位考古专家，利用 googleSearch 检索 A 股 home最近 **180 个交易日** 内的【龙虎榜】数据。
     
-    [重点逻辑：寻找“华胜天成”模式的跨周期潜伏]
-    1. **识别历史龙苗 (Dragon Lineage)**：寻找在过去 6 个月内，曾出现过“连续霸榜、游资机构合力封板、人气顶峰”的标的（例如曾经在某个月份霸榜前三的妖股）。
-    2. **审计黄金坑 (Golden Pit)**：
-       - 这些标的必须目前处于【缩量深回撤】或【长周期底部横盘】状态（沉寂天数 > 30天）。
-       - 股价目前位置必须是 position_height: "Low"（底部蓄势区），严禁推荐已起飞或二连板的票。
-       - 探测这些标的是否回踩了关键支撑（如年线、半年线或前期起涨点）。
-    3. **题材适配**：
-       - 优先选择所属板块（商业航天、卫星、AI应用、人形机器人）正在经历大级别震荡、有望开启第二波轮动的标的。
-    4. **排除逻辑**：
-       - 绝对禁止推荐华胜天成这种已经二连板的“明牌”。
-       - 绝对禁止推荐高位见顶初期的标的。
+    [核心逻辑优化：拒绝“刻舟求剑”]：
+    1. **识别历史基因**：寻找过去半年内曾出现过“连续霸榜（如爱仕达、华胜天成在历史周期中的表现）”的标的。
+    2. **实时现价对齐 (CRITICAL)**：你必须通过检索获取标的的【最新实时现价】。
+    3. **计算潜伏参考区 (Logic Upgrade)**：
+       - 如果标的当前价格 (${dateStr}) 已经大幅拉升（如爱仕达现价 12.68），严禁推荐几个月前的 7.95 这种无效低位。
+       - **策略 A (平台补涨)**：如果现价处于高位横盘，潜伏区应设定在【当前箱体下沿】或【20日均线支撑位】。
+       - **策略 B (超跌反弹)**：如果标的确实处于坑底，才使用历史原始起涨位。
+       - **逻辑校验**：\`target_entry_price\` 必须与 \`current_price\` 具有操作相关性。如果二者差距超过 20%，必须在 \`ambush_logic\` 中明确解释原因（如：等待大级别回撤）。
+    4. **排除明牌**：绝对禁止推荐华胜天成等已经处于二板及以上主升浪的票。
     
-    输出必须为严格 JSON 格式。包含 dragon_blood_score (基于历史席位活跃度评分)。
+    输出必须为严格 JSON 格式. 确保 current_price 的准确性.
   `;
 
   const response = await ai.models.generateContent({

@@ -92,26 +92,26 @@ export interface InstitutionalInsightData {
 export interface HotMoneyAmbushStock {
   name: string;
   code: string;
-  dragon_blood_score: number; // 妖性基因值 (0-100)
-  historical_glory_period: string; // 历史高光霸榜期 (如: 2024年8月)
-  historical_seats: string[]; // 历史介入过的顶级席位
-  dormant_days: number; // 沉寂天数
-  pit_depth_percent: number; // 黄金坑回撤深度
+  current_price: string; // 新增：当前最新价
+  dragon_blood_score: number; 
+  historical_glory_period: string; 
+  historical_seats: string[]; 
+  dormant_days: number; 
+  pit_depth_percent: number; 
   sector_name: string; 
-  net_inflow_amount: string;
   institutional_participation: boolean;
   ambush_rating: 'Strong' | 'Normal' | 'Avoid';
   ambush_logic: string;
-  target_entry_price: string;
+  target_entry_price: string; // 潜伏参考区
   stop_loss_price: string;
-  phase: 'GoldenPit' | 'Dormant' | 'Stirring'; // 黄金坑 / 沉寂 / 萌动
+  phase: 'GoldenPit' | 'Dormant' | 'Stirring'; 
   position_height: 'Low' | 'Medium' | 'High';
 }
 
 export interface HotMoneyAmbushResponse {
   scan_time: string;
   market_summary: string;
-  historical_context: string; // 对上一波辉煌的回顾
+  historical_context: string; 
   candidates: HotMoneyAmbushStock[];
   rotation_insight: string;
 }
