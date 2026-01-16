@@ -17,6 +17,7 @@ export interface CapitalTypeData {
   percentage: number;
   trend: 'increasing' | 'decreasing' | 'stable';
   description: string;
+  target_sectors?: string[]; 
 }
 
 export interface HoldingItemDetailed {
@@ -88,36 +89,53 @@ export interface InstitutionalInsightData {
   }[];
 }
 
-// --- ENHANCED: Hot Money Ambush Interface (Logic 3.2 Edition) ---
 export interface HotMoneyAmbushStock {
   name: string;
   code: string;
-  anchor_price_range: string; // 改为锚定区间 (如: "52.00 - 56.50")，降低单点价格错误风险
-  dragon_blood_score: number; 
-  historical_glory_period: string; 
-  historical_main_force: string; 
-  dormant_days: number; 
+  elasticity_score: number; 
+  market_cap_label: string; 
+  catch_up_anchor_leader: string; 
+  position_grade: '极低位' | '相对低位' | '中位震荡'; 
   pit_depth_percent: number; 
+  dormant_days: number; 
   sector_name: string; 
-  sector_heat_status: 'Ice' | 'Warm' | 'Boiling'; 
-  catalyst_jan_strength: number; 
   k_pattern_sign: string; 
-  institutional_participation: boolean;
-  ambush_rating: 'Strong' | 'Normal' | 'Avoid';
-  ambush_logic: string;
-  target_entry_range: string; // 潜伏价格区间
-  stop_loss_anchor: string; // 止损参考位
+  turnaround_logic: string; 
+  logic_confidence: number; 
   phase: 'GoldenPit' | 'Dormant' | 'Stirring'; 
-  position_height: 'Low' | 'Medium' | 'High';
+  estimated_logic_area: string; 
 }
 
 export interface HotMoneyAmbushResponse {
   scan_time: string;
-  market_summary: string;
-  rotation_avoid_list: string[]; 
-  jan_catalyst_focus: string[]; 
+  turnaround_strategy_summary: string; 
+  high_elastic_sectors: string[]; 
   candidates: HotMoneyAmbushStock[];
   rotation_insight: string;
+}
+
+// --- NEW: Trend High Scout (Breakout Logic 3.5) ---
+export interface TrendHighScoutStock {
+  name: string;
+  code: string;
+  breakout_type: '历史新高' | '阶段新高' | '平台突破';
+  sky_limit_score: number; // 上方空间/抛压分 (1-100)，越接近100代表上方压力越小
+  ma5_distance_percent: number; // 距离5日线的距离百分比
+  last_30d_max_surge: number; // 近30日最大涨幅 (确保活性)
+  vol_status: '缩量中继' | '放量突破' | '天量分歧';
+  pattern_label: '空中加油' | '老鸭头' | '横盘突破';
+  active_capital_type: string; // 活跃资金属性 (如: 游资主导、机构趋势)
+  logic_breakout: string; // 突破逻辑研判
+  stop_loss_ma5: string; // 5日线参考位
+  is_blue_sky: boolean; // 是否为历史最高点附近 (蓝天无压标的)
+}
+
+export interface TrendHighScoutResponse {
+  scan_time: string;
+  trend_market_sentiment: string;
+  hot_breakout_sectors: string[];
+  candidates: TrendHighScoutStock[];
+  risk_warning: string;
 }
 
 export interface AnalysisResult {
@@ -144,6 +162,7 @@ export interface AnalysisResult {
   foresightData?: ForesightReport;
   institutionalData?: InstitutionalInsightData;
   hotMoneyAmbushData?: HotMoneyAmbushResponse; 
+  trendHighScoutData?: TrendHighScoutResponse; // NEW
 }
 
 export interface GroundingSource {
