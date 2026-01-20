@@ -89,53 +89,30 @@ export interface InstitutionalInsightData {
   }[];
 }
 
+// --- ENHANCED: Hot Money Ambush (Small Capital Turnaround Logic 3.4) ---
 export interface HotMoneyAmbushStock {
   name: string;
   code: string;
-  elasticity_score: number; 
-  market_cap_label: string; 
-  catch_up_anchor_leader: string; 
+  elasticity_score: number; // 弹性得分 (1-100)，越高代表小资金越容易拉动
+  market_cap_label: string; // 市值量级 (如: "50-100亿 小盘", "100-200亿 中盘")
+  catch_up_anchor_leader: string; // 补涨参照龙头 (如: 三花智控、工业富联)
   position_grade: '极低位' | '相对低位' | '中位震荡'; 
   pit_depth_percent: number; 
   dormant_days: number; 
   sector_name: string; 
   k_pattern_sign: string; 
-  turnaround_logic: string; 
+  turnaround_logic: string; // 翻身逻辑 (针对 8万小资金设计的补涨或复利策略)
   logic_confidence: number; 
   phase: 'GoldenPit' | 'Dormant' | 'Stirring'; 
-  estimated_logic_area: string; 
+  estimated_logic_area: string; // 逻辑成本参考
 }
 
 export interface HotMoneyAmbushResponse {
   scan_time: string;
-  turnaround_strategy_summary: string; 
-  high_elastic_sectors: string[]; 
+  turnaround_strategy_summary: string; // 针对小资金的当日总指导方针
+  high_elastic_sectors: string[]; // 高弹性板块
   candidates: HotMoneyAmbushStock[];
   rotation_insight: string;
-}
-
-// --- NEW: Trend High Scout (Breakout Logic 3.5) ---
-export interface TrendHighScoutStock {
-  name: string;
-  code: string;
-  breakout_type: '历史新高' | '阶段新高' | '平台突破';
-  sky_limit_score: number; // 上方空间/抛压分 (1-100)，越接近100代表上方压力越小
-  ma5_distance_percent: number; // 距离5日线的距离百分比
-  last_30d_max_surge: number; // 近30日最大涨幅 (确保活性)
-  vol_status: '缩量中继' | '放量突破' | '天量分歧';
-  pattern_label: '空中加油' | '老鸭头' | '横盘突破';
-  active_capital_type: string; // 活跃资金属性 (如: 游资主导、机构趋势)
-  logic_breakout: string; // 突破逻辑研判
-  stop_loss_ma5: string; // 5日线参考位
-  is_blue_sky: boolean; // 是否为历史最高点附近 (蓝天无压标的)
-}
-
-export interface TrendHighScoutResponse {
-  scan_time: string;
-  trend_market_sentiment: string;
-  hot_breakout_sectors: string[];
-  candidates: TrendHighScoutStock[];
-  risk_warning: string;
 }
 
 export interface AnalysisResult {
@@ -162,7 +139,6 @@ export interface AnalysisResult {
   foresightData?: ForesightReport;
   institutionalData?: InstitutionalInsightData;
   hotMoneyAmbushData?: HotMoneyAmbushResponse; 
-  trendHighScoutData?: TrendHighScoutResponse; // NEW
 }
 
 export interface GroundingSource {
