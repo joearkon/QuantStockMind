@@ -52,7 +52,7 @@ export interface DualBoardScanItem {
   name: string;
   code: string;
   board: '创业板' | '科创板';
-  consecutive_days: number; // 新增：连板天数
+  consecutive_days: number; 
   control_score: number; 
   cost_price: string;    
   trend_momentum: string; 
@@ -61,10 +61,10 @@ export interface DualBoardScanItem {
   logic: string;         
   target_price: string;  
   support_price: string; 
-  capital_detail: { // 新增：资金介入细节
-    net_buy_amount: string; // 净买入金额
-    large_order_ratio: string; // 大单占比
-    seats: string[]; // 核心席位/游资
+  capital_detail: {
+    net_buy_amount: string;
+    large_order_ratio: string;
+    seats: string[];
   };
 }
 
@@ -89,7 +89,7 @@ export interface MainBoardScanItem {
   logic: string;
   target_price: string;
   support_price: string;
-  capital_detail: { // 新增：主板资金细节
+  capital_detail: {
     net_buy_amount: string;
     large_order_ratio: string;
     seats: string[];
@@ -444,13 +444,14 @@ export interface HoldingsSnapshot {
   totalAssets: number;
   positionRatio?: number; 
   date: string;
-  holdings: any[];
+  holdings: HoldingItemDetailed[];
 }
 
 export interface HoldingItemDetailed {
   name: string;
   code: string;
   volume: number;
+  availableVolume?: number; // 新增：可用数量（可卖数量）
   costPrice: number;
   currentPrice: number;
   profit: number;

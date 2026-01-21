@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { 
   AnalysisResult, 
@@ -164,7 +165,31 @@ const mainBoardScanSchema = {
 };
 
 const marketDashboardSchema = { type: Type.OBJECT, properties: { data_date: { type: Type.STRING }, market_indices: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, value: { type: Type.STRING }, change: { type: Type.STRING }, percent: { type: Type.STRING }, direction: { type: Type.STRING, enum: ['up', 'down'] } } } }, market_volume: { type: Type.OBJECT, properties: { total_volume: { type: Type.STRING }, volume_delta: { type: Type.STRING }, volume_trend: { type: Type.STRING, enum: ['expansion', 'contraction', 'flat'] }, capital_mood: { type: Type.STRING } } }, market_sentiment: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, summary: { type: Type.STRING }, trend: { type: Type.STRING, enum: ['bullish', 'bearish', 'neutral'] } } }, capital_rotation: { type: Type.OBJECT, properties: { inflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, outflow_sectors: { type: Type.ARRAY, items: { type: Type.STRING } }, rotation_logic: { type: Type.STRING } } }, macro_logic: { type: Type.OBJECT, properties: { policy_focus: { type: Type.STRING }, external_impact: { type: Type.STRING }, core_verdict: { type: Type.STRING } } } } };
-const holdingsSnapshotSchema = { type: Type.OBJECT, properties: { totalAssets: { type: Type.NUMBER }, positionRatio: { type: Type.NUMBER }, date: { type: Type.STRING }, holdings: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, volume: { type: Type.NUMBER }, costPrice: { type: Type.NUMBER }, currentPrice: { type: Type.NUMBER }, profit: { type: Type.NUMBER }, profitRate: { type: Type.STRING }, marketValue: { type: Type.NUMBER } } } } } };
+const holdingsSnapshotSchema = { 
+  type: Type.OBJECT, 
+  properties: { 
+    totalAssets: { type: Type.NUMBER }, 
+    positionRatio: { type: Type.NUMBER }, 
+    date: { type: Type.STRING }, 
+    holdings: { 
+      type: Type.ARRAY, 
+      items: { 
+        type: Type.OBJECT, 
+        properties: { 
+          name: { type: Type.STRING }, 
+          code: { type: Type.STRING }, 
+          volume: { type: Type.NUMBER }, 
+          availableVolume: { type: Type.NUMBER }, // 新增
+          costPrice: { type: Type.NUMBER }, 
+          currentPrice: { type: Type.NUMBER }, 
+          profit: { type: Type.NUMBER }, 
+          profitRate: { type: Type.STRING }, 
+          marketValue: { type: Type.NUMBER } 
+        } 
+      } 
+    } 
+  } 
+};
 const periodicReviewSchema = { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, market_trend: { type: Type.STRING, enum: ['bull', 'bear', 'sideways'] }, market_summary: { type: Type.STRING }, monthly_portfolio_summary: { type: Type.STRING }, highlight: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, description: { type: Type.STRING } } }, lowlight: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, description: { type: Type.STRING } } }, execution: { type: Type.OBJECT, properties: { score: { type: Type.NUMBER }, details: { type: Type.STRING }, good_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } }, bad_behaviors: { type: Type.ARRAY, items: { type: Type.STRING } } } }, stock_diagnostics: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, issues: { type: Type.ARRAY, items: { type: Type.STRING } }, verdict: { type: Type.STRING } } } }, next_period_focus: { type: Type.ARRAY, items: { type: Type.STRING } }, improvement_advice: { type: Type.ARRAY, items: { type: Type.STRING } } } };
 const tradingPlanSchema = { type: Type.OBJECT, properties: { items: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { symbol: { type: Type.STRING }, action: { type: Type.STRING, enum: ['buy', 'sell', 'hold', 'monitor', 't_trade'] }, price_target: { type: Type.STRING }, reason: { type: Type.STRING } } } }, summary: { type: Type.STRING } } };
 const limitUpLadderSchema = { type: Type.OBJECT, properties: { scan_time: { type: Type.STRING }, total_limit_ups: { type: Type.NUMBER }, sectors: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { sector_name: { type: Type.STRING }, sector_type: { type: Type.STRING, enum: ["Main", "Sub"] }, total_count: { type: Type.NUMBER }, max_height: { type: Type.NUMBER }, ladder_matrix: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { height: { type: Type.NUMBER }, count: { type: Type.NUMBER }, stocks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, logic: { type: Type.STRING } } } } } } }, dragon_leader: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, consecutive_days: { type: Type.NUMBER }, strength_score: { type: Type.NUMBER }, reason: { type: Type.STRING } } }, dragon_seeds: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, code: { type: Type.STRING }, capital_intensity: { type: Type.STRING, enum: ["Extreme", "High", "Normal"] }, seat_analysis: { type: Type.STRING }, incubation_logic: { type: Type.STRING }, evolution_stage: { type: Type.STRING, enum: ["Seeding", "Sprouting", "Competing"] } } } }, integrity_score: { type: Type.NUMBER }, market_sentiment: { type: Type.STRING, enum: ["Rising", "Climax", "Diverging", "Falling"] } }, required: ["sector_name", "total_count", "max_height", "ladder_matrix", "dragon_leader", "integrity_score"] } }, market_conclusion: { type: Type.STRING } }, required: ["scan_time", "total_limit_ups", "sectors", "market_conclusion"] };
@@ -339,7 +364,7 @@ export const fetchStockDetailWithImage = async (base64Image: string, query: stri
 export const parseBrokerageScreenshot = async (base64Image: string, apiKey?: string): Promise<HoldingsSnapshot> => {
   const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY });
   const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image } };
-  const textPart = { text: "解析截图中的持仓数据，输出 JSON。" };
+  const textPart = { text: "解析截图中的持仓数据，输出 JSON。包含可用数量 availableVolume 字段。" };
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL_PRIMARY,
     contents: { parts: [imagePart, textPart] },

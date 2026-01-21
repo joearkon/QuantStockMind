@@ -6,7 +6,7 @@ import { parseBrokerageScreenshot } from '../services/geminiService';
 import { analyzeImageWithExternal } from '../services/externalLlmService';
 import { 
   Loader2, Camera, X, Layers, ShieldAlert, Zap, Target, Microscope, 
-  TrendingUp, Download, Upload, Trash2, History, Info, ChevronRight, Activity, Globe
+  TrendingUp, Download, Upload, Trash2, History, Info, ChevronRight, Activity, Globe, Calculator
 } from 'lucide-react';
 
 interface HoldingsReviewProps {
@@ -86,7 +86,15 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
         let parsedData = currentModel === ModelProvider.HUNYUAN_CN 
           ? await analyzeImageWithExternal(ModelProvider.HUNYUAN_CN, base64, settings.hunyuanKey!)
           : await parseBrokerageScreenshot(base64, settings.geminiKey);
-        setSnapshot({ ...parsedData, holdings: parsedData.holdings.map(h => ({ ...h, horizon: 'medium' })) });
+        
+        // 兼容处理：如果没有 availableVolume 则默认为总量
+        const holdings = parsedData.holdings.map(h => ({ 
+          ...h, 
+          horizon: 'medium',
+          availableVolume: h.availableVolume ?? h.volume 
+        }));
+        
+        setSnapshot({ ...parsedData, holdings });
         setParsing(false);
       };
       reader.readAsDataURL(file);
@@ -99,12 +107,11 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
     setAnalysisResult(null);
     setError(null);
 
-    // 提取昨日日志作为历史背景
     const lastJournal = journal[0]; 
     const historyData = lastJournal ? `日期: ${new Date(lastJournal.timestamp).toLocaleDateString()}\n昨日复盘核心结论: ${lastJournal.analysis?.content?.substring(0, 500)}...` : undefined;
 
     const holdingsStr = snapshot.holdings.map((h, i) => 
-      `${i+1}. ${h.name}(${h.code}): 成本${h.costPrice}, 现价${h.currentPrice}, 盈亏率${h.profitRate}`
+      `${i+1}. ${h.name}(${h.code}): 持仓${h.volume}, 可用${h.availableVolume || 0}, 成本${h.costPrice}, 现价${h.currentPrice}, 盈亏率${h.profitRate}`
     ).join('\n');
 
     const prompt = `
@@ -116,7 +123,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       
       要求输出分为：
       ## 1. 连续性对比审计
-      分析昨日计划的执行力，今日持仓风险暴露，Beta收益情况。
+      分析昨日计划的执行力，今日持仓风险暴露，Beta收益情况。特别关注持仓/可用比例，判断是否存在流动性受限。
       ## 2. 大盘趋势概率推演
       给出明日大盘关键的三个阻力位和三个支撑位，以及情绪冰点/高潮预判。
       ## 3. 明日实战作战指令
@@ -127,7 +134,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       const result = await analyzeWithLLM(currentModel, prompt, true, settings, false, 'day', undefined, currentMarket, historyData);
       setAnalysisResult(result);
       
-      // 提取计划
       const planData = await extractPlanWithLLM(currentModel, result.content, settings);
       const newPlan: DailyTradingPlan = {
         id: crypto.randomUUID(),
@@ -138,7 +144,6 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       };
       setTradingPlans(prev => [newPlan, ...prev]);
 
-      // 自动保存到日志
       setJournal(prev => [{
         id: crypto.randomUUID(),
         timestamp: Date.now(),
@@ -147,6 +152,12 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
       }, ...prev]);
 
     } catch (err: any) { setError(err.message); } finally { setLoading(false); }
+  };
+
+  const updateHolding = (index: number, field: keyof HoldingItemDetailed, value: any) => {
+    const nextHoldings = [...snapshot.holdings];
+    nextHoldings[index] = { ...nextHoldings[index], [field]: value };
+    setSnapshot({ ...snapshot, holdings: nextHoldings });
   };
 
   const sections = analysisResult?.content.split('##').filter(Boolean) || [];
@@ -163,7 +174,7 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
               </div>
               CQO 量化复盘终端
             </h2>
-            <p className="text-slate-500 mt-2 font-medium">连续性复盘模式已激活。系统将自动对齐昨日计划并推演明日大盘走势。</p>
+            <p className="text-slate-500 mt-2 font-medium">支持“持仓/可用”细节审计。系统将自动对齐昨日计划并推演明日大盘走势。</p>
           </div>
           <div className="flex flex-wrap gap-2">
              <input type="file" className="hidden" id="journal-import" onChange={handleImportJournal} />
@@ -189,19 +200,43 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                <th className="px-8 py-4">资产标的</th><th className="px-6 py-4 text-right">成本/现价</th><th className="px-6 py-4 text-right">实时盈亏%</th><th className="px-6 py-4"></th>
+                <th className="px-8 py-4">资产标的</th>
+                <th className="px-6 py-4 text-center">持仓/可用</th>
+                <th className="px-6 py-4 text-right">成本/现价</th>
+                <th className="px-6 py-4 text-right">实时盈亏%</th>
+                <th className="px-6 py-4"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {snapshot.holdings.map((h, i) => (
                 <tr key={i} className="hover:bg-white transition-colors group">
-                  <td className="px-8 py-4"><div className="font-black text-slate-800">{h.name}</div><div className="text-[10px] text-slate-400 font-mono">{h.code}</div></td>
-                  <td className="px-6 py-4 text-right font-bold text-slate-500">¥{h.costPrice}<div className="text-indigo-600">¥{h.currentPrice}</div></td>
-                  <td className={`px-6 py-4 text-right font-black ${h.profitRate.includes('-') ? 'text-emerald-500' : 'text-rose-500'}`}>{h.profitRate}</td>
-                  <td className="px-6 py-4 text-right"><button onClick={() => setSnapshot(p => ({...p, holdings: p.holdings.filter((_, idx) => idx !== i)}))} className="text-slate-300 hover:text-rose-500"><X className="w-4 h-4" /></button></td>
+                  <td className="px-8 py-4">
+                    <div className="font-black text-slate-800">{h.name}</div>
+                    <div className="text-[10px] text-slate-400 font-mono">{h.code}</div>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <div className="flex flex-col items-center">
+                       <span className="font-bold text-slate-700">{h.volume}</span>
+                       <span className="text-[10px] text-emerald-500 font-black px-2 py-0.5 bg-emerald-50 rounded-full border border-emerald-100">可用: {h.availableVolume ?? h.volume}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right font-bold text-slate-500">
+                    ¥{h.costPrice}
+                    <div className="text-indigo-600">¥{h.currentPrice}</div>
+                  </td>
+                  <td className={`px-6 py-4 text-right font-black ${h.profitRate.includes('-') ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {h.profitRate}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button onClick={() => setSnapshot(p => ({...p, holdings: p.holdings.filter((_, idx) => idx !== i)}))} className="text-slate-300 hover:text-rose-500">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </td>
                 </tr>
               ))}
-              {snapshot.holdings.length === 0 && (<tr><td colSpan={4} className="py-12 text-center text-slate-300 font-bold italic">暂无数据，请同步截图或手动添加</td></tr>)}
+              {snapshot.holdings.length === 0 && (
+                <tr><td colSpan={5} className="py-12 text-center text-slate-300 font-bold italic">暂无数据，请同步截图或手动添加</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -212,13 +247,20 @@ export const HoldingsReview: React.FC<HoldingsReviewProps> = ({
               <label htmlFor="screenshot-up" className="flex items-center gap-2 text-xs font-black text-indigo-600 hover:underline cursor-pointer">
                  {parsing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />} AI 视觉识别截图
               </label>
-              <button onClick={() => setSnapshot({...snapshot, holdings: [...snapshot.holdings, { name: "新标的", code: "000000", volume: 0, costPrice: 0, currentPrice: 0, profit: 0, profitRate: "0%", marketValue: 0 }]})} className="text-xs font-black text-slate-400 hover:text-slate-600 transition-colors">+ 手动新增</button>
+              <button 
+                onClick={() => setSnapshot({...snapshot, holdings: [...snapshot.holdings, { name: "新标的", code: "000000", volume: 0, availableVolume: 0, costPrice: 0, currentPrice: 0, profit: 0, profitRate: "0%", marketValue: 0 }]})} 
+                className="text-xs font-black text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                + 手动新增
+              </button>
            </div>
-           <div className="text-xs font-black text-slate-400 uppercase">资产总额: ¥{snapshot.totalAssets.toLocaleString()}</div>
+           <div className="text-xs font-black text-slate-400 uppercase flex items-center gap-3">
+              <Calculator className="w-4 h-4" /> 资产总额: ¥{snapshot.totalAssets.toLocaleString()}
+           </div>
         </div>
       </div>
 
-      {/* 复盘报告与昨日对比 */}
+      {/* 复盘结果展示面板 */}
       {analysisResult && (
         <div className="space-y-6 animate-slide-up">
            <div className="flex bg-slate-200 p-1 rounded-2xl w-fit">
