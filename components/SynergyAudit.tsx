@@ -170,11 +170,11 @@ export const SynergyAudit: React.FC<{
             
             <div className="flex gap-4 shrink-0">
                <div className="text-center bg-white/10 p-6 rounded-[2.5rem] border border-white/10 w-40">
-                  <div className={`text-5xl font-black mb-1 tracking-tighter ${getScoreColor(data.synergy_score)}`}>{data.synergy_score}</div>
+                  <div className={`text-5xl font-black mb-1 tracking-tighter ${getScoreColor(data.synergy_score || 0)}`}>{data.synergy_score}</div>
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">主力合力分</div>
                </div>
                <div className="text-center bg-white/10 p-6 rounded-[2.5rem] border border-white/10 w-40">
-                  <div className={`text-5xl font-black mb-1 tracking-tighter ${data.dragon_potential_score > 70 ? 'text-rose-500' : 'text-slate-300'}`}>{data.dragon_potential_score}</div>
+                  <div className={`text-5xl font-black mb-1 tracking-tighter ${(data.dragon_potential_score || 0) > 70 ? 'text-rose-500' : 'text-slate-300'}`}>{data.dragon_potential_score}</div>
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">成妖指数</div>
                </div>
             </div>
@@ -194,19 +194,19 @@ export const SynergyAudit: React.FC<{
                    </div>
                    <div className="flex justify-between items-end border-b border-slate-100 pb-4">
                       <span className="text-xs font-bold text-slate-500">预估主力成本</span>
-                      <span className="text-xl font-black text-indigo-600 tracking-tight">¥ {data.main_force_cost_anchor.estimated_cost}</span>
+                      <span className="text-xl font-black text-indigo-600 tracking-tight">¥ {data.main_force_cost_anchor?.estimated_cost}</span>
                    </div>
                    <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-[10px] font-black text-slate-400 uppercase">实时安全垫</span>
-                        <span className={`text-sm font-black ${data.main_force_cost_anchor.safety_margin_percent > 10 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {data.main_force_cost_anchor.safety_margin_percent > 0 ? '+' : ''}{data.main_force_cost_anchor.safety_margin_percent}%
+                        <span className={`text-sm font-black ${(data.main_force_cost_anchor?.safety_margin_percent || 0) > 10 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {(data.main_force_cost_anchor?.safety_margin_percent || 0) > 0 ? '+' : ''}{data.main_force_cost_anchor?.safety_margin_percent}%
                         </span>
                       </div>
                       <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-indigo-500 transition-all" style={{width: `${Math.min(Math.max(data.main_force_cost_anchor.safety_margin_percent + 20, 0), 100)}%`}}></div>
+                        <div className="h-full bg-indigo-500 transition-all" style={{width: `${Math.min(Math.max((data.main_force_cost_anchor?.safety_margin_percent || 0) + 20, 0), 100)}%`}}></div>
                       </div>
-                      <p className="text-[10px] font-bold text-slate-500 mt-2">等级评定：<span className="text-slate-800">{data.main_force_cost_anchor.risk_level}</span></p>
+                      <p className="text-[10px] font-bold text-slate-500 mt-2">等级评定：<span className="text-slate-800">{data.main_force_cost_anchor?.risk_level}</span></p>
                    </div>
                 </div>
               </div>
@@ -218,11 +218,11 @@ export const SynergyAudit: React.FC<{
                 <div className="space-y-5">
                    <div className="bg-white/5 p-5 rounded-2xl border border-white/10">
                       <div className="text-[10px] text-slate-400 font-bold mb-1">主导资金类型</div>
-                      <div className="text-lg font-black text-indigo-300">{data.main_force_portrait.lead_type}</div>
+                      <div className="text-lg font-black text-indigo-300">{data.main_force_portrait?.lead_type}</div>
                    </div>
                    <div className="bg-white/5 p-5 rounded-2xl border border-white/10">
                       <div className="text-[10px] text-slate-400 font-bold mb-1">持仓状态研判</div>
-                      <div className="text-lg font-black text-emerald-400">{data.main_force_portrait.hold_status}</div>
+                      <div className="text-lg font-black text-emerald-400">{data.main_force_portrait?.hold_status}</div>
                    </div>
                    <div className="p-4 bg-indigo-500/10 rounded-2xl border border-indigo-500/20">
                       <p className="text-xs font-bold text-indigo-200 leading-relaxed italic">
@@ -243,28 +243,28 @@ export const SynergyAudit: React.FC<{
                     </span>
                     <div className="flex items-center gap-2">
                        <span className="text-[10px] font-black text-slate-400 uppercase">预测胜率</span>
-                       <span className="text-xl font-black text-indigo-600">{data.t_plus_1_prediction.confidence}%</span>
+                       <span className="text-xl font-black text-indigo-600">{data.t_plus_1_prediction?.confidence}%</span>
                     </div>
                  </div>
                  <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-10">
                     <div className="space-y-6">
                        <div>
                           <div className="text-[10px] font-black text-slate-400 uppercase mb-2">预期开盘动作</div>
-                          <div className={`text-2xl font-black ${data.t_plus_1_prediction.expected_direction.includes('高') ? 'text-rose-600' : 'text-emerald-600'}`}>
-                            {data.t_plus_1_prediction.expected_direction}
+                          <div className={`text-2xl font-black ${data.t_plus_1_prediction?.expected_direction?.includes('高') ? 'text-rose-600' : 'text-emerald-600'}`}>
+                            {data.t_plus_1_prediction?.expected_direction}
                           </div>
                        </div>
                        <div>
                           <div className="text-[10px] font-black text-slate-400 uppercase mb-2">核心博弈逻辑</div>
-                          <p className="text-sm text-slate-600 font-bold leading-relaxed">{data.t_plus_1_prediction.logic}</p>
+                          <p className="text-sm text-slate-600 font-bold leading-relaxed">{data.t_plus_1_prediction?.logic}</p>
                        </div>
                     </div>
                     <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100 shadow-inner flex flex-col justify-center">
                        <div className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-3">操盘手实战策略</div>
-                       <p className="text-lg font-black text-slate-800 leading-relaxed italic">"{data.t_plus_1_prediction.opening_strategy}"</p>
+                       <p className="text-lg font-black text-slate-800 leading-relaxed italic">"{data.t_plus_1_prediction?.opening_strategy}"</p>
                        <div className="mt-4 pt-4 border-t border-slate-200">
                           <span className="text-[10px] font-black text-slate-400">预期波动区间：</span>
-                          <span className="text-xs font-mono font-bold text-slate-700">{data.t_plus_1_prediction.price_range}</span>
+                          <span className="text-xs font-mono font-bold text-slate-700">{data.t_plus_1_prediction?.price_range}</span>
                        </div>
                     </div>
                  </div>
@@ -290,7 +290,7 @@ export const SynergyAudit: React.FC<{
                        <Activity className="w-5 h-5 text-indigo-500" /> 多维合力因子审计
                     </h4>
                     <div className="space-y-4">
-                       {data.synergy_factors.map((f, i) => (
+                       {data.synergy_factors?.map((f: any, i: number) => (
                           <div key={i} className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                              <div className="flex justify-between items-center mb-1">
                                 <span className="text-xs font-black text-slate-700">{f.label}</span>
