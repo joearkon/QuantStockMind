@@ -1,8 +1,9 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ModelProvider, MarketType, AnalysisResult, DualBoardScanItem } from '../types';
 import { fetchDualBoardScanning } from '../services/geminiService';
-import { ScanEye, Loader2, Search, ArrowRight, Activity, Zap, Target, Info, Flame, TrendingUp, Compass, ShieldAlert, BarChart3, Rocket, Lock, Share2, Skull, RefreshCw, CheckCircle, ZapOff, Layers, Trophy, Coins, UserCheck, AlertCircle, Calendar } from 'lucide-react';
+import { ScanEye, Loader2, Search, ArrowRight, Activity, Zap, Target, Info, Flame, TrendingUp, Compass, ShieldAlert, BarChart3, Rocket, Lock, Share2, Skull, RefreshCw, CheckCircle, ZapOff, Layers, Trophy, Coins, UserCheck } from 'lucide-react';
 
 export const KLineMaster: React.FC<{
   currentModel: ModelProvider;
@@ -91,10 +92,6 @@ export const KLineMaster: React.FC<{
               <p className="text-slate-500 text-base max-w-2xl font-medium">
                 AI 实时锁定今日 **创业板** 与 **科创板** 封板标的。深度透视 **涨停高度**、**大资金介入金额** 与 **龙虎榜席位**。
               </p>
-              <div className="mt-4 flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg w-fit">
-                <AlertCircle className="w-4 h-4 text-amber-600" />
-                <span className="text-[11px] font-black text-amber-700 uppercase">已开启 20% 涨幅强过滤：自动剔除炸板及 10% 标的</span>
-              </div>
             </div>
             
             <button 
@@ -133,9 +130,7 @@ export const KLineMaster: React.FC<{
           <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl border-b-8 border-rose-600 relative overflow-hidden">
              <div className="flex flex-col md:flex-row justify-between items-center gap-6 relative z-10">
                 <div className="flex-1">
-                   <div className="flex items-center gap-2 text-[10px] font-black text-rose-400 uppercase tracking-[0.3em] mb-3">
-                      <Calendar className="w-3 h-3" /> 双创涨停审计汇总 (${scanData.scan_time})
-                   </div>
+                   <div className="text-[10px] font-black text-rose-400 uppercase tracking-[0.3em] mb-3">双创涨停审计汇总 (${scanData.scan_time})</div>
                    <p className="text-xl font-black italic leading-relaxed text-slate-200">"{scanData.market_mood}"</p>
                 </div>
                 <div className="flex gap-4">

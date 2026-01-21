@@ -1,6 +1,6 @@
 {
   "name": "QuantMind A-Share Assistant股票量化助手",
-  "version": "1.13.0",
+  "version": "1.7.0",
   "description": "A professional A-share quantitative analysis tool leveraging multi-model AI (Gemini, Hunyuan) for market insights and individual stock strategies.",
   "requestFramePermissions": [
     "camera"

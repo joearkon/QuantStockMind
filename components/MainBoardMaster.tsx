@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ModelProvider, MarketType, AnalysisResult, MainBoardScanItem } from '../types';
 import { fetchMainBoardScanning } from '../services/geminiService';
-import { Gavel, Loader2, Search, ArrowRight, Activity, Zap, Target, Flame, ShieldAlert, BarChart3, Rocket, Lock, Share2, Skull, RefreshCw, ZapOff, Trophy, Filter, ArrowUpDown, Coins, UserCheck, Calendar, Info } from 'lucide-react';
+import { Gavel, Loader2, Search, ArrowRight, Activity, Zap, Target, Flame, ShieldAlert, BarChart3, Rocket, Lock, Share2, Skull, RefreshCw, ZapOff, Trophy, Filter, ArrowUpDown, Coins, UserCheck } from 'lucide-react';
 
 export const MainBoardMaster: React.FC<{
   currentModel: ModelProvider;
@@ -90,8 +90,6 @@ export const MainBoardMaster: React.FC<{
     return 'text-slate-500 bg-slate-50 border-slate-100 font-medium';
   };
 
-  const todayStr = new Date().toLocaleDateString('zh-CN');
-
   return (
     <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-20">
       <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-8 md:p-10 relative overflow-hidden">
@@ -105,7 +103,7 @@ export const MainBoardMaster: React.FC<{
                 沪深主板涨停猎手 (Main Board Hunter)
               </h2>
               <p className="text-slate-500 text-base max-w-2xl font-medium">
-                AI 实时扫描主板 10% 涨停标的。通过 googleSearch 强制对齐【今日 ${todayStr}】真实行情，杜绝旧闻干扰。
+                AI 实时扫描主板 10% 涨停标的。引入 **龙虎榜资金分布审计**：净买入额 &gt; 大单占比 &gt; 游资席位。
               </p>
             </div>
             
@@ -115,19 +113,19 @@ export const MainBoardMaster: React.FC<{
               className="px-10 h-16 bg-emerald-600 text-white rounded-[1.5rem] font-black shadow-2xl hover:bg-emerald-700 transition-all flex items-center gap-3 active:scale-95 disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Rocket className="w-6 h-6" />}
-              {loading ? `今日数据深度审计中 (${elapsed}s)...` : '今日数据强制核验'}
+              {loading ? `全量资金审计中 (${elapsed}s)...` : '今日主板资金全扫描'}
             </button>
           </div>
 
           <div className="flex flex-wrap gap-4">
-             <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-700 text-xs font-black">
-              <Calendar className="w-4 h-4" /> 强制对齐: {todayStr}
-            </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700 text-xs font-black">
               <Coins className="w-4 h-4" /> 净买入金额过滤
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-100 rounded-xl text-amber-700 text-xs font-black">
               <Activity className="w-4 h-4" /> 大单介入占比
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-700 text-xs font-black">
+              <UserCheck className="w-4 h-4" /> 游资席位审计
             </div>
           </div>
         </div>
@@ -145,7 +143,7 @@ export const MainBoardMaster: React.FC<{
           <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl border-b-8 border-emerald-500 relative overflow-hidden">
              <div className="flex flex-col md:flex-row justify-between items-center gap-6 relative z-10">
                 <div className="flex-1">
-                   <div className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em] mb-3">主板涨停审计报表 (${scanData.scan_time || todayStr})</div>
+                   <div className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em] mb-3">主板涨停大资金审计报表 (${scanData.scan_time})</div>
                    <p className="text-xl font-black italic leading-relaxed text-slate-200">"{scanData.market_mood}"</p>
                 </div>
                 <div className="flex gap-4">
@@ -171,7 +169,7 @@ export const MainBoardMaster: React.FC<{
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100">
-                      {sortedStocks && sortedStocks.length > 0 ? sortedStocks.map((stock, idx) => (
+                      {sortedStocks?.map((stock, idx) => (
                          <tr key={idx} className="hover:bg-slate-50/50 transition-all group">
                             <td className="px-8 py-6">
                                <div className="flex items-center gap-4">
@@ -225,25 +223,9 @@ export const MainBoardMaster: React.FC<{
                                </div>
                             </td>
                          </tr>
-                      )) : (
-                        <tr>
-                           <td colSpan={5} className="py-20 text-center">
-                              <div className="flex flex-col items-center gap-3">
-                                 <ZapOff className="w-12 h-12 text-slate-200" />
-                                 <p className="text-slate-400 font-bold">今日 (${todayStr}) 暂未扫描到符合主板涨停标准的异动标的</p>
-                              </div>
-                           </td>
-                        </tr>
-                      )}
+                      ))}
                    </tbody>
                 </table>
-             </div>
-          </div>
-          
-          <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 flex items-start gap-4">
-             <Info className="w-6 h-6 text-indigo-600 shrink-0" />
-             <div className="text-sm text-indigo-900 leading-relaxed font-medium">
-                <b>数据对齐声明</b>：由于 googleSearch 结果可能包含旧闻，AI 已执行“现价涨幅强制核验”。如果万科A (000002) 等标的出现在结果中，说明其今日确有真实涨停资金介入；若消失则说明 AI 已成功识别并剔除过期干扰信息。
              </div>
           </div>
         </div>

@@ -12,9 +12,7 @@ import { BatchTimingAnalysis } from './components/BatchTimingAnalysis';
 import { KLineMaster } from './components/KLineMaster';
 import { MainBoardMaster } from './components/MainBoardMaster';
 import { LimitUpLadder } from './components/LimitUpLadder';
-import { SynergyAudit } from './components/SynergyAudit';
-import { HotMoneyAmbush } from './components/HotMoneyAmbush';
-import { TrendHighScout } from './components/TrendHighScout'; 
+import { SynergyAudit } from './components/SynergyAudit'; // NEW
 import { SettingsModal } from './components/SettingsModal';
 import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS, APP_VERSION } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
@@ -129,11 +127,6 @@ const App: React.FC = () => {
               <Routes>
                 <Route path="/" element={<Navigate to="/market" replace />} />
                 <Route path="/market" element={<MarketAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} savedResult={marketResult} onResultUpdate={setMarketResult} savedPeriod={marketPeriod} onPeriodUpdate={setMarketPeriod} />} />
-                
-                {/* Restricted Routes: Only 10% Main Board */}
-                <Route path="/hot-ambush-main" element={<HotMoneyAmbush currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} mainBoardOnly={true} />} />
-                <Route path="/trend-scout-main" element={<TrendHighScout currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} mainBoardOnly={true} />} />
-                
                 <Route path="/synergy" element={<SynergyAudit currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/holdings" element={<HoldingsReview currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/sector-cycle" element={<SectorCycleAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
