@@ -1,6 +1,6 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { ModelProvider, MarketType, AnalysisResult, BatchStockScore } from '../types';
+// Fixed: Removed missing BatchStockScore export from the import list
+import { ModelProvider, MarketType, AnalysisResult } from '../types';
 import { fetchBatchTimingAnalysis } from '../services/timingService';
 import { ListChecks, Loader2, Search, ArrowRight, TrendingUp, TrendingDown, Activity, Info, AlertTriangle, ShieldCheck, Zap, Gauge, Flame, Wallet, ChevronDown, ChevronUp, Camera, X, Image as ImageIcon, Eye } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
@@ -130,7 +130,7 @@ export const BatchTimingAnalysis: React.FC<{
               </div>
               <button 
                 onClick={handleAnalyze}
-                disabled={loading || (!input.trim() && !selectedImage)}
+                disabled={loading}
                 className="px-12 h-14 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all flex items-center gap-3 disabled:opacity-50"
               >
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}

@@ -127,7 +127,7 @@ export const LimitUpLadder: React.FC<{
 
           {/* Sector Grids */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {ladderData.sectors.map((sector, idx) => (
+            {ladderData.sectors?.map((sector, idx) => (
               <div key={idx} className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden hover:shadow-xl transition-all flex flex-col">
                 <div className="p-8 pb-4">
                   <div className="flex justify-between items-start mb-6">
@@ -149,27 +149,29 @@ export const LimitUpLadder: React.FC<{
                   </div>
 
                   {/* Main Dragon Leader */}
-                  <div className="bg-slate-900 rounded-3xl p-6 text-white mb-8 relative overflow-hidden shadow-xl border-b-4 border-amber-500">
-                    <div className="absolute right-0 top-0 p-4 opacity-10">
-                      <Crown className="w-16 h-16 text-amber-400" />
+                  {sector.dragon_leader && (
+                    <div className="bg-slate-900 rounded-3xl p-6 text-white mb-8 relative overflow-hidden shadow-xl border-b-4 border-amber-500">
+                      <div className="absolute right-0 top-0 p-4 opacity-10">
+                        <Crown className="w-16 h-16 text-amber-400" />
+                      </div>
+                      <div className="flex justify-between items-center mb-4">
+                         <div className="flex items-center gap-2 text-amber-400 text-xs font-black uppercase tracking-widest">
+                            <Crown className="w-4 h-4" /> 灵魂龙头 (Leader)
+                         </div>
+                         <div className="px-3 py-1 bg-amber-500 text-white text-[10px] font-black rounded-full">强度: {sector.dragon_leader.strength_score}</div>
+                      </div>
+                      <div className="flex justify-between items-end">
+                         <div onClick={() => handleNavigateToStock(sector.dragon_leader.code, sector.dragon_leader.name)} className="cursor-pointer group">
+                            <div className="text-2xl font-black group-hover:text-amber-400 transition-colors">{sector.dragon_leader.name}</div>
+                            <div className="text-xs font-mono text-slate-400">{sector.dragon_leader.code}</div>
+                         </div>
+                         <div className="text-right">
+                            <div className="text-3xl font-black text-rose-500">{sector.dragon_leader.consecutive_days}连板</div>
+                            <div className="text-[10px] font-bold text-slate-500 italic">"{sector.dragon_leader.reason}"</div>
+                         </div>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center mb-4">
-                       <div className="flex items-center gap-2 text-amber-400 text-xs font-black uppercase tracking-widest">
-                          <Crown className="w-4 h-4" /> 灵魂龙头 (Leader)
-                       </div>
-                       <div className="px-3 py-1 bg-amber-500 text-white text-[10px] font-black rounded-full">强度: {sector.dragon_leader.strength_score}</div>
-                    </div>
-                    <div className="flex justify-between items-end">
-                       <div onClick={() => handleNavigateToStock(sector.dragon_leader.code, sector.dragon_leader.name)} className="cursor-pointer group">
-                          <div className="text-2xl font-black group-hover:text-amber-400 transition-colors">{sector.dragon_leader.name}</div>
-                          <div className="text-xs font-mono text-slate-400">{sector.dragon_leader.code}</div>
-                       </div>
-                       <div className="text-right">
-                          <div className="text-3xl font-black text-rose-500">{sector.dragon_leader.consecutive_days}连板</div>
-                          <div className="text-[10px] font-bold text-slate-500 italic">"{sector.dragon_leader.reason}"</div>
-                       </div>
-                    </div>
-                  </div>
+                  )}
 
                   {/* NEW: Dragon Incubation Candidates (龙苗/种子) */}
                   {sector.dragon_seeds && sector.dragon_seeds.length > 0 && (
@@ -224,7 +226,7 @@ export const LimitUpLadder: React.FC<{
                         </div>
                      </div>
                      <div className="grid grid-cols-1 gap-2">
-                        {sector.ladder_matrix.sort((a, b) => b.height - a.height).map((row, rIdx) => (
+                        {sector.ladder_matrix?.sort((a, b) => b.height - a.height).map((row, rIdx) => (
                           <div key={rIdx} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center gap-4 hover:bg-slate-100 transition-all">
                              <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center font-black shadow-sm ${row.height > 1 ? 'bg-rose-500 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}>
                                 <div className="text-lg">{row.height}</div>
@@ -232,7 +234,7 @@ export const LimitUpLadder: React.FC<{
                              </div>
                              <div className="flex-1">
                                 <div className="flex flex-wrap gap-2">
-                                   {row.stocks.map((s, si) => (
+                                   {row.stocks?.map((s, si) => (
                                       <span key={si} className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:border-indigo-400 transition-colors cursor-help" title={s.logic}>
                                         {s.name}
                                       </span>

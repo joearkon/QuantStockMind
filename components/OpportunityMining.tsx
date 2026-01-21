@@ -213,7 +213,7 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
           {/* Mode 1: Chain Matrix (持仓挖潜) - Improved Grid Balance */}
           {mode === 'chain' && result.opportunityData?.supply_chain_matrix && (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                {result.opportunityData.supply_chain_matrix.map((chain, idx) => (
+                {result.opportunityData.supply_chain_matrix?.map((chain, idx) => (
                   <div key={idx} className={`bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-xl transition-all ${result.opportunityData?.supply_chain_matrix?.length === 1 ? 'md:col-span-2 max-w-3xl mx-auto' : ''}`}>
                      <div className="bg-slate-50 px-8 py-5 border-b border-slate-200 flex justify-between items-center">
                         <span className="font-black text-slate-800 flex items-center gap-3 text-lg">
@@ -222,7 +222,7 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
                         <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] border border-slate-200 px-3 py-1 rounded-full">产业链共振点</span>
                      </div>
                      <div className="p-8 space-y-5">
-                        {chain.opportunities.map((opp, oIdx) => (
+                        {chain.opportunities?.map((opp, oIdx) => (
                            <div key={oIdx} className="p-5 bg-slate-50 rounded-2xl border border-slate-100 group hover:border-indigo-400 hover:bg-white transition-all shadow-sm hover:shadow-indigo-100">
                               <div className="flex justify-between items-start mb-3">
                                  <div>
@@ -253,7 +253,7 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-1 space-y-6">
                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] px-4">建议配置板块</h4>
-                   {result.opportunityData.deployment_plan.focus_directions.map((dir, idx) => (
+                   {result.opportunityData.deployment_plan.focus_directions?.map((dir, idx) => (
                       <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm border-l-[10px] border-amber-500 hover:shadow-lg transition-all">
                          <div className="flex justify-between items-center mb-3">
                             <span className="font-black text-slate-800 text-lg">{dir.sector}</span>
@@ -266,7 +266,7 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
                 <div className="lg:col-span-2 space-y-6">
                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] px-4">高匹配核心资产</h4>
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {result.opportunityData.deployment_plan.top_picks.map((stock, idx) => (
+                      {result.opportunityData.deployment_plan.top_picks?.map((stock, idx) => (
                          <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:border-amber-400 hover:shadow-2xl transition-all group flex flex-col h-full">
                             <div className="flex justify-between items-start mb-4">
                                <div>
@@ -298,7 +298,7 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
           {/* Mode 3: Foresight (题材前瞻) - Responsive Grid Balance */}
           {mode === 'foresight' && result.foresightData?.catalysts && (
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {result.foresightData.catalysts.map((cat, idx) => (
+                {result.foresightData.catalysts?.map((cat, idx) => (
                    <div key={idx} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col group hover:shadow-2xl transition-all border-b-8 border-rose-100">
                       <div className="bg-rose-50 px-6 py-4 border-b border-rose-100 flex justify-between items-center">
                          <span className="text-rose-700 font-black text-sm flex items-center gap-2">
@@ -319,7 +319,7 @@ export const OpportunityMining: React.FC<OpportunityMiningProps> = ({
                                <Target className="w-3.5 h-3.5" /> 潜在收益标的
                             </div>
                             <div className="flex flex-wrap gap-2">
-                               {cat.suggested_stocks.map((s, si) => (
+                               {cat.suggested_stocks?.map((s, si) => (
                                   <button key={si} onClick={() => handleNavigateToStock("", s)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-600 hover:border-rose-400 hover:text-rose-600 hover:shadow-md transition-all">
                                      {s}
                                   </button>

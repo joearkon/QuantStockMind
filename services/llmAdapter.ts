@@ -1,28 +1,9 @@
-
-import { AnalysisResult, ModelProvider, UserSettings, MarketType, StockSynergyResponse, PeriodicReviewData, PlanItem } from "../types";
-import { fetchGeminiAnalysis, fetchMarketDashboard, fetchStockSynergy, fetchStockDetailWithImage, fetchPeriodicReview, extractTradingPlan, fetchMarketDashboardWithImage } from "./geminiService";
-import { fetchExternalAI, analyzeDashboardImageWithExternal } from "./externalLlmService";
-
-/**
- * 首席量化官 (CQO) 核心系统指令 - 确保模型一致性
- */
-const getCQOSystemInstruction = (timeContext: string, historyContext?: string) => `
-  你是一名拥有20年实战经验的【顶级量化投资官 (CQO)】。
-  你的任务是提供专业、基于概率的深度分析与复盘。
-  
-  [当前背景]: ${timeContext}
-  [昨日回顾]: ${historyContext || "无历史记录，开始新的分析周期。"}
-
-  [分析原则]:
-  1. 连续性：必须对比昨日计划的达成情况，分析偏差。
-  2. 量化思维：使用风险敞口、成交量分布、多空合力评分等术语。
-  3. 确定性：大盘预判必须给出明确的支撑(Support)和压力(Resistance)位数字。
-  4. 实战性：交易计划必须包含具体的触发价，禁止含糊其辞。
-  5. 语言一致性：请始终使用简体中文进行回复。
-`;
+import { AnalysisResult, ModelProvider, UserSettings, MarketType } from "../types";
+import { fetchGeminiAnalysis, fetchMarketDashboard } from "./geminiService";
+import { fetchExternalAI } from "./externalLlmService";
 
 /**
- * 深度复盘与看板分析适配器
+ * Centralized function to route requests to the correct model provider.
  */
 export const analyzeWithLLM = async (
   provider: ModelProvider,
@@ -32,108 +13,82 @@ export const analyzeWithLLM = async (
   isDashboard: boolean = false,
   period: 'day' | 'month' = 'day',
   currentPrice?: string,
-  market: MarketType = MarketType.CN,
-  historyData?: string,
-  image?: string // 新增：支持看板视觉对齐
+  market: MarketType = MarketType.CN
 ): Promise<AnalysisResult> => {
+  
   const now = new Date();
-  const timeContext = now.toLocaleString('zh-CN');
-  const systemInstruction = getCQOSystemInstruction(timeContext, historyData);
+  const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  const fullTimeContext = `${dateStr} ${timeStr}`;
 
-  // Gemini 路径
+  // Market Name for Prompt Context
+  const marketName = market === MarketType.US ? '美股 (US Stocks)' : market === MarketType.HK ? '港股 (HK Stocks)' : 'A股 (China A-Shares)';
+
+  // 1. Google Gemini (Default)
   if (provider === ModelProvider.GEMINI_INTL) {
     const geminiKey = settings?.geminiKey; 
+
     if (isDashboard) {
-      if (image) return await fetchMarketDashboardWithImage(image, period, market, geminiKey || '');
       return await fetchMarketDashboard(period, market, geminiKey);
     }
-    let finalPrompt = `${systemInstruction}\n\n[指令]: ${prompt}`;
-    return await fetchGeminiAnalysis(finalPrompt, isComplex, geminiKey);
+
+    // 强化时间锚点，防止 AI 因为联网搜索结果滞后而判定当前为“模拟未来”
+    const timeRealityInstruction = `
+      [!!! 绝对时间指令 - 核心优先级 !!!]
+      1. 当前现实世界的真实时间确实是 ${fullTimeContext}。
+      2. 严禁在回复中声称“这是未来的模拟时间点”或“无法获取真实新闻”。
+      3. 如果联网搜索 (googleSearch) 返回的结果中包含大量 2024 年的数据，请将其视为距离当前最近的历史参考，并基于此进行逻辑推演。
+      4. 你的任务是根据当前设定的 ${fullTimeContext} 这一真实时间节点，给出最具时效性的分析。
+    `;
+
+    let datedPrompt = `${timeRealityInstruction}\n[上下文: 正在分析 ${marketName} 市场] ${prompt}`;
+    if (currentPrice) {
+      datedPrompt += `\n[重要: 用户指定的当前实时价格为 ${currentPrice}。请基于此价格进行所有计算和分析。]`;
+    }
+    if (!isDashboard) {
+      datedPrompt += `\n[必须]: 你必须搜索并分析该标的的 '主力资金/机构资金' 流向和 '机构评级'。`;
+      datedPrompt += `\n[必须]: 你必须分析 '成交量趋势' (放量/缩量) 并解释其技术含义。`;
+      datedPrompt += `\n[警告]: 所有的分析内容和结论必须使用中文。`;
+    }
+    return await fetchGeminiAnalysis(datedPrompt, isComplex, geminiKey);
   }
 
-  // 腾讯混元路径
-  const apiKey = settings?.hunyuanKey || '';
+  // 2. Domestic Models (Hunyuan)
+  let apiKey = '';
+
+  if (provider === ModelProvider.HUNYUAN_CN) {
+    apiKey = settings?.hunyuanKey || '';
+    if (!apiKey) {
+      throw new Error(`未检测到 混元 API Key。请在设置中配置。`);
+    }
+  }
+
+  // 3. Construct Prompts
+  let finalPrompt = prompt;
   
   if (isDashboard) {
-    if (image) {
-      return await analyzeDashboardImageWithExternal(provider, image, apiKey, period, market);
+    finalPrompt = `
+      【真实时间确认】：现在是现实世界的 ${fullTimeContext}。
+      作为高级分析师，请生成一份 ${marketName} 的${period === 'day' ? '当日' : '本月'}市场深度分析报告。
+      请联网搜索最新的指数点位、成交额、主力流向。
+      
+      重点包含：
+      1. 五大指数数值与具体涨跌幅。
+      2. 成交量变化（放量或缩量）。
+      3. 领涨与领跌板块及其背后的资金轮动逻辑。
+      4. 宏观政策导向与外部环境影响。
+      
+      请确保数据真实准确。
+    `;
+  } else {
+    finalPrompt = `[确认真实时间: ${fullTimeContext}] [上下文: 正在分析 ${marketName} 市场] ${prompt}`;
+    if (currentPrice) {
+       finalPrompt += `\n[用户输入] 当前实时价为: ${currentPrice}。必须基于此价格。`;
     }
-    
-    const effectivePrompt = `请生成一份 ${market} 市场在 ${period === 'day' ? '今日' : '本月'} 的深度量化分析报告。
-    要求包含：
-    1. 主要指数（上证、深成、创业板等）的估算点位及涨跌幅。
-    2. 市场成交量能（万亿级）及趋势判定。
-    3. 市场情绪水位评分（0-100）。
-    4. 主力资金在热门板块的轮动路径。
-    5. 宏观政策研判结论。
-    注意：由于你无法实时联网，请基于你掌握的最新知识图谱进行逻辑推演。`;
-    
-    let finalPrompt = `${systemInstruction}\n\n[任务指令]: ${effectivePrompt}`;
-    return await fetchExternalAI(provider, apiKey, finalPrompt, isDashboard, period, market, true);
+    finalPrompt += `\n[强制要求] 分析 '主力成本' 和 '机构资金流向'。分析 '成交量趋势'。`;
+    finalPrompt += `\n[语言要求] 所有输出必须为中文。`;
   }
 
-  let finalPrompt = `${systemInstruction}\n\n[任务指令]: ${prompt}`;
-  if (currentPrice) finalPrompt += `\n[参考价: ${currentPrice}]`;
-  
-  return await fetchExternalAI(provider, apiKey, finalPrompt, isDashboard, period, market, false);
-};
-
-/**
- * 计划提取适配器
- */
-export const extractPlanWithLLM = async (
-  provider: ModelProvider,
-  content: string,
-  settings: UserSettings
-): Promise<{ items: PlanItem[], summary: string }> => {
-  const jsonSchemaPrompt = `
-    从以下复盘报告中提取结构化计划。
-    输出必须为严格的 JSON 格式，不得包含任何 Markdown 标记：
-    {
-      "items": [
-        {"symbol": "名称", "action": "buy/sell/hold/monitor/t_trade", "price_target": "具体建议价", "reason": "核心逻辑"}
-      ],
-      "summary": "明日核心操作指导"
-    }
-    
-    文本内容：
-    ${content}
-  `;
-
-  if (provider === ModelProvider.GEMINI_INTL) {
-    return await extractTradingPlan(content, settings.geminiKey);
-  }
-
-  const result = await fetchExternalAI(provider, settings.hunyuanKey || '', jsonSchemaPrompt, false, undefined, MarketType.CN, true);
-  const parsed = result.structuredData as any;
-  
-  return { 
-    items: (parsed?.items || []).map((it: any) => ({ 
-      ...it, 
-      id: Math.random().toString(36).substr(2, 9), 
-      status: 'pending' 
-    })), 
-    summary: parsed?.summary || "" 
-  };
-};
-
-export const stockSynergyWithLLM = async (provider: ModelProvider, query: string, mImg: string | null, hImg: string | null, settings: UserSettings) => {
-  if (provider === ModelProvider.GEMINI_INTL) return await fetchStockSynergy(query, mImg, hImg, settings.geminiKey || '');
-  const prompt = `审计标的 "${query}" 的多空合力及主力成本。请输出 JSON 格式。`;
-  return await fetchExternalAI(provider, settings.hunyuanKey || '', prompt, false, undefined, MarketType.CN, true);
-};
-
-export const stockDiagnosisWithLLM = async (provider: ModelProvider, query: string, market: MarketType, image: string | null, price: string, settings: UserSettings) => {
-  if (image) {
-    const config = { provider, apiKey: settings.hunyuanKey || '', image, prompt: `分析股票 "${query}" 的 K 线走势截图。现价: ${price}` };
-    if (provider === ModelProvider.GEMINI_INTL) return await fetchStockDetailWithImage(image, query, market, settings.geminiKey || '', price);
-    return await analyzeWithLLM(provider, config.prompt, false, settings, false, 'day', price, market);
-  }
-  return await analyzeWithLLM(provider, `对股票 "${query}" 进行深度量化诊断。`, false, settings, false, 'day', price, market);
-};
-
-export const periodicReviewWithLLM = async (provider: ModelProvider, journals: any[], label: string, market: MarketType, settings: UserSettings) => {
-  if (provider === ModelProvider.GEMINI_INTL) return await fetchPeriodicReview(journals, label, market, settings.geminiKey);
-  const prompt = `历史复盘: ${label}。记录: ${JSON.stringify(journals)}。请执行量化周期性回顾分析。`;
-  return await fetchExternalAI(provider, settings.hunyuanKey || '', prompt, false, undefined, market, true);
+  // Pass forceJson = true for Dashboard mode for Hunyuan
+  return await fetchExternalAI(provider, apiKey, finalPrompt, isDashboard, period, market, isDashboard);
 };
