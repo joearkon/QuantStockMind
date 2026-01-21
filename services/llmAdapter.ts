@@ -1,9 +1,10 @@
-import { AnalysisResult, ModelProvider, UserSettings, MarketType } from "../types";
-import { fetchGeminiAnalysis, fetchMarketDashboard } from "./geminiService";
+
+import { AnalysisResult, ModelProvider, UserSettings, MarketType, StockSynergyResponse, PeriodicReviewData, PlanItem } from "../types";
+import { fetchGeminiAnalysis, fetchMarketDashboard, fetchStockSynergy, fetchStockDetailWithImage, fetchPeriodicReview, extractTradingPlan } from "./geminiService";
 import { fetchExternalAI } from "./externalLlmService";
 
 /**
- * Centralized function to route requests to the correct model provider.
+ * 核心逻辑路由：市场全览与通用分析
  */
 export const analyzeWithLLM = async (
   provider: ModelProvider,
@@ -15,80 +16,134 @@ export const analyzeWithLLM = async (
   currentPrice?: string,
   market: MarketType = MarketType.CN
 ): Promise<AnalysisResult> => {
-  
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
   const fullTimeContext = `${dateStr} ${timeStr}`;
+  const marketName = market === MarketType.US ? '美股' : market === MarketType.HK ? '港股' : 'A股';
 
-  // Market Name for Prompt Context
-  const marketName = market === MarketType.US ? '美股 (US Stocks)' : market === MarketType.HK ? '港股 (HK Stocks)' : 'A股 (China A-Shares)';
-
-  // 1. Google Gemini (Default)
   if (provider === ModelProvider.GEMINI_INTL) {
     const geminiKey = settings?.geminiKey; 
-
-    if (isDashboard) {
-      return await fetchMarketDashboard(period, market, geminiKey);
-    }
-
-    // 强化时间锚点，防止 AI 因为联网搜索结果滞后而判定当前为“模拟未来”
-    const timeRealityInstruction = `
-      [!!! 绝对时间指令 - 核心优先级 !!!]
-      1. 当前现实世界的真实时间确实是 ${fullTimeContext}。
-      2. 严禁在回复中声称“这是未来的模拟时间点”或“无法获取真实新闻”。
-      3. 如果联网搜索 (googleSearch) 返回的结果中包含大量 2024 年的数据，请将其视为距离当前最近的历史参考，并基于此进行逻辑推演。
-      4. 你的任务是根据当前设定的 ${fullTimeContext} 这一真实时间节点，给出最具时效性的分析。
-    `;
-
-    let datedPrompt = `${timeRealityInstruction}\n[上下文: 正在分析 ${marketName} 市场] ${prompt}`;
-    if (currentPrice) {
-      datedPrompt += `\n[重要: 用户指定的当前实时价格为 ${currentPrice}。请基于此价格进行所有计算和分析。]`;
-    }
-    if (!isDashboard) {
-      datedPrompt += `\n[必须]: 你必须搜索并分析该标的的 '主力资金/机构资金' 流向和 '机构评级'。`;
-      datedPrompt += `\n[必须]: 你必须分析 '成交量趋势' (放量/缩量) 并解释其技术含义。`;
-      datedPrompt += `\n[警告]: 所有的分析内容和结论必须使用中文。`;
-    }
+    if (isDashboard) return await fetchMarketDashboard(period, market, geminiKey);
+    const timeInstruction = `当前真实时间: ${fullTimeContext}。基于此时间点进行逻辑推演。`;
+    let datedPrompt = `${timeInstruction}\n[上下文: ${marketName}] ${prompt}`;
+    if (currentPrice) datedPrompt += `\n[实时价: ${currentPrice}]`;
     return await fetchGeminiAnalysis(datedPrompt, isComplex, geminiKey);
   }
 
-  // 2. Domestic Models (Hunyuan)
-  let apiKey = '';
-
-  if (provider === ModelProvider.HUNYUAN_CN) {
-    apiKey = settings?.hunyuanKey || '';
-    if (!apiKey) {
-      throw new Error(`未检测到 混元 API Key。请在设置中配置。`);
-    }
-  }
-
-  // 3. Construct Prompts
+  // 混元路径
+  const apiKey = settings?.hunyuanKey || '';
   let finalPrompt = prompt;
-  
   if (isDashboard) {
-    finalPrompt = `
-      【真实时间确认】：现在是现实世界的 ${fullTimeContext}。
-      作为高级分析师，请生成一份 ${marketName} 的${period === 'day' ? '当日' : '本月'}市场深度分析报告。
-      请联网搜索最新的指数点位、成交额、主力流向。
-      
-      重点包含：
-      1. 五大指数数值与具体涨跌幅。
-      2. 成交量变化（放量或缩量）。
-      3. 领涨与领跌板块及其背后的资金轮动逻辑。
-      4. 宏观政策导向与外部环境影响。
-      
-      请确保数据真实准确。
-    `;
+    finalPrompt = `现在是 ${fullTimeContext}。生成一份 ${marketName} 的${period === 'day' ? '当日' : '本月'}市场深度分析报告。需包含指数、成交量、资金流向、宏观逻辑。`;
   } else {
-    finalPrompt = `[确认真实时间: ${fullTimeContext}] [上下文: 正在分析 ${marketName} 市场] ${prompt}`;
-    if (currentPrice) {
-       finalPrompt += `\n[用户输入] 当前实时价为: ${currentPrice}。必须基于此价格。`;
-    }
-    finalPrompt += `\n[强制要求] 分析 '主力成本' 和 '机构资金流向'。分析 '成交量趋势'。`;
-    finalPrompt += `\n[语言要求] 所有输出必须为中文。`;
+    finalPrompt = `[确认时间: ${fullTimeContext}] [市场: ${marketName}] ${prompt}`;
+    if (currentPrice) finalPrompt += `\n[实时现价: ${currentPrice}]`;
+  }
+  return await fetchExternalAI(provider, apiKey, finalPrompt, isDashboard, period, market, isDashboard);
+};
+
+/**
+ * 标的合力审计适配器：对齐 Gemini 与 混元
+ */
+export const stockSynergyWithLLM = async (
+  provider: ModelProvider,
+  query: string,
+  marketImg: string | null,
+  holdingsImg: string | null,
+  settings: UserSettings
+): Promise<AnalysisResult> => {
+  if (provider === ModelProvider.GEMINI_INTL) {
+    return await fetchStockSynergy(query, marketImg, holdingsImg, settings.geminiKey || '');
   }
 
-  // Pass forceJson = true for Dashboard mode for Hunyuan
-  return await fetchExternalAI(provider, apiKey, finalPrompt, isDashboard, period, market, isDashboard);
+  // 混元路径：注入高度结构化的 Prompt 以对齐 Gemini 的 Schema
+  const prompt = `
+    作为顶级游资操盘手，对标的 "${query}" 进行【合力与主力成本深度审计】。
+    必须分析 K 线形态和筹码分布。严格输出 JSON 格式。
+    JSON 需包含：
+    - name, code, used_current_price
+    - synergy_score (0-100), trap_risk_score (0-100), dragon_potential_score (0-100)
+    - market_position (如: 龙头加速、分歧博弈等)
+    - capital_consistency (如: 极高、一般、背离)
+    - main_force_cost_anchor: { estimated_cost, safety_margin_percent, risk_level }
+    - turnover_eval: { current_rate, is_sufficient: boolean, verdict }
+    - main_force_portrait: { lead_type (游资/机构), entry_cost_est, hold_status }
+    - t_plus_1_prediction: { expected_direction, confidence, price_range, opening_strategy, logic }
+    - synergy_factors: [{ label, score, description }]
+    - battle_verdict, action_guide, chase_safety_index (0-10)
+  `;
+  
+  const apiKey = settings.hunyuanKey || '';
+  // 如果有图，混元路径也通过 fetchExternalAI 处理（在提示词中告知有图，或将来扩展多模态）
+  return await fetchExternalAI(provider, apiKey, prompt, false, undefined, MarketType.CN, true);
+};
+
+/**
+ * 个股量化诊断适配器：对齐视觉识别与逻辑深度
+ */
+export const stockDiagnosisWithLLM = async (
+  provider: ModelProvider,
+  query: string,
+  market: MarketType,
+  image: string | null,
+  currentPrice: string,
+  settings: UserSettings
+): Promise<AnalysisResult> => {
+  if (provider === ModelProvider.GEMINI_INTL) {
+    if (image) return await fetchStockDetailWithImage(image, query, market, settings.geminiKey || '', currentPrice);
+    const prompt = `对 ${market} 股票 "${query}" 进行深度量化分析，包括技术位、筹码分布及操作建议。`;
+    return await analyzeWithLLM(provider, prompt, false, settings, false, 'day', currentPrice, market);
+  }
+
+  // 混元路径
+  const apiKey = settings.hunyuanKey || '';
+  const prompt = `
+    对 ${market} 股票 "${query}" 进行深度量化诊断。
+    [!!! 绝对优先级 !!!]: 优先识别截图中的【最新价】和【K线/量能形态】。
+    输出应包含：1.基础指标与视觉校准 2.压力/支撑位 3.量化择时打分 4.操作指令 (加仓/减仓/持有/观望) 5.核心研判。
+  `;
+  
+  // 混元目前暂通过文本+视觉描述处理，或直接调用 vision 接口
+  return await fetchExternalAI(provider, apiKey, prompt, false, undefined, market, false);
+};
+
+/**
+ * 阶段性复盘适配器
+ */
+export const periodicReviewWithLLM = async (
+  provider: ModelProvider,
+  journals: any[],
+  label: string,
+  market: MarketType,
+  settings: UserSettings
+): Promise<AnalysisResult> => {
+  if (provider === ModelProvider.GEMINI_INTL) {
+    return await fetchPeriodicReview(journals, label, market, settings.geminiKey);
+  }
+
+  const prompt = `对以下历史交易记录进行【${label}】阶段性复盘：${JSON.stringify(journals)}。请严格按 JSON 格式输出复盘报告，包含 score, market_trend, summary, highlight, lowlight, execution, stock_diagnostics, improvement_advice。`;
+  return await fetchExternalAI(provider, settings.hunyuanKey || '', prompt, false, undefined, market, true);
+};
+
+/**
+ * 计划提取适配器
+ */
+export const extractPlanWithLLM = async (
+  provider: ModelProvider,
+  content: string,
+  settings: UserSettings
+): Promise<{ items: PlanItem[], summary: string }> => {
+  if (provider === ModelProvider.GEMINI_INTL) {
+    return await extractTradingPlan(content, settings.geminiKey);
+  }
+
+  const prompt = `从以下分析文本中提取具体的交易计划项（JSON 格式，包含 items[{symbol, action, price_target, reason}], summary）：\n\n${content}`;
+  const result = await fetchExternalAI(provider, settings.hunyuanKey || '', prompt, false, undefined, MarketType.CN, true);
+  
+  const parsed = result.structuredData as any;
+  return { 
+    items: (parsed?.items || []).map((it: any) => ({ ...it, id: Math.random().toString(36).substr(2, 9), status: 'pending' })), 
+    summary: parsed?.summary || "" 
+  };
 };
