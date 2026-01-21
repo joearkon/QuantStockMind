@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ModelProvider, MarketType, AnalysisResult, DualBoardScanItem } from '../types';
@@ -52,7 +51,7 @@ export const KLineMaster: React.FC<{
 
   const scanData = result?.dualBoardScanData;
 
-  const sortedStocks = scanData?.stocks?.slice().sort((a, b) => {
+  const sortedStocks = scanData?.stocks?.sort((a, b) => {
     const valA = a[sortKey];
     const valB = b[sortKey];
     if (typeof valA === 'number' && typeof valB === 'number') {
@@ -135,12 +134,12 @@ export const KLineMaster: React.FC<{
              <div className="flex flex-col md:flex-row justify-between items-center gap-6 relative z-10">
                 <div className="flex-1">
                    <div className="flex items-center gap-2 text-[10px] font-black text-rose-400 uppercase tracking-[0.3em] mb-3">
-                      <Calendar className="w-3 h-3" /> 双创涨停审计汇总 ({scanData.scan_time || 'N/A'})
+                      <Calendar className="w-3 h-3" /> 双创涨停审计汇总 (${scanData.scan_time})
                    </div>
                    <p className="text-xl font-black italic leading-relaxed text-slate-200">"{scanData.market_mood}"</p>
                 </div>
                 <div className="flex gap-4">
-                   {scanData.hot_sectors?.map((sector: any, idx: number) => (
+                   {scanData.hot_sectors?.map((sector, idx) => (
                       <span key={idx} className="px-4 py-2 bg-white/10 backdrop-blur-md rounded-xl text-xs font-black border border-white/10">{sector}</span>
                    ))}
                 </div>
@@ -186,7 +185,7 @@ export const KLineMaster: React.FC<{
                                </div>
                             </td>
                             <td className="px-6 py-6">
-                               {(stock.consecutive_days || 0) > 1 ? (
+                               {stock.consecutive_days > 1 ? (
                                  <div className="inline-flex flex-col items-center">
                                    <span className="px-3 py-1 bg-rose-600 text-white text-xs font-black rounded-lg shadow-sm animate-pulse border border-rose-700">
                                       {stock.consecutive_days} 连板
@@ -203,21 +202,21 @@ export const KLineMaster: React.FC<{
                                )}
                             </td>
                             <td className="px-6 py-6 text-center">
-                               <div className={`inline-flex items-center justify-center w-14 h-14 rounded-2xl border-2 text-xl shadow-sm ${getScoreColor(stock.control_score || 0)}`}>
-                                  {stock.control_score || 0}
+                               <div className={`inline-flex items-center justify-center w-14 h-14 rounded-2xl border-2 text-xl shadow-sm ${getScoreColor(stock.control_score)}`}>
+                                  {stock.control_score}
                                </div>
                             </td>
                             <td className="px-6 py-6">
                                <div className="text-sm font-black text-rose-600 flex items-center gap-1.5">
-                                 <Coins className="w-3.5 h-3.5" /> 净买: {stock.capital_detail?.net_buy_amount || 'N/A'}
+                                 <Coins className="w-3.5 h-3.5" /> 净买: {stock.capital_detail.net_buy_amount}
                                </div>
                                <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-tight">
-                                 大单占比: {stock.capital_detail?.large_order_ratio || 'N/A'}
+                                 大单占比: {stock.capital_detail.large_order_ratio}
                                </div>
                             </td>
                             <td className="px-6 py-6">
                                <div className="flex flex-wrap gap-1 mb-2">
-                                 {stock.capital_detail?.seats?.slice(0, 2).map((seat: any, si: number) => (
+                                 {stock.capital_detail.seats.slice(0, 2).map((seat, si) => (
                                    <span key={si} className="text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">{seat}</span>
                                  ))}
                                </div>
@@ -225,7 +224,7 @@ export const KLineMaster: React.FC<{
                                   stock.rating === '起爆' ? 'bg-rose-600 text-white border-rose-700' :
                                   stock.rating === '锁筹' ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-blue-100 text-blue-700 border-blue-200'
                                }`}>
-                                  {getRatingIcon(stock.rating || '')}
+                                  {getRatingIcon(stock.rating)}
                                   {stock.rating}
                                </div>
                             </td>

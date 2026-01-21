@@ -1,6 +1,6 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { ModelProvider, MarketType, AnalysisResult, BatchStockScore } from '../types';
+// Fixed: Removed missing BatchStockScore export from the import list
+import { ModelProvider, MarketType, AnalysisResult } from '../types';
 import { fetchBatchTimingAnalysis } from '../services/timingService';
 import { ListChecks, Loader2, Search, ArrowRight, TrendingUp, TrendingDown, Activity, Info, AlertTriangle, ShieldCheck, Zap, Gauge, Flame, Wallet, ChevronDown, ChevronUp, Camera, X, Image as ImageIcon, Eye } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
@@ -130,7 +130,7 @@ export const BatchTimingAnalysis: React.FC<{
               </div>
               <button 
                 onClick={handleAnalyze}
-                disabled={loading || (!input.trim() && !selectedImage)}
+                disabled={loading}
                 className="px-12 h-14 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all flex items-center gap-3 disabled:opacity-50"
               >
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
@@ -163,14 +163,14 @@ export const BatchTimingAnalysis: React.FC<{
                 <p className="text-xl font-black italic leading-relaxed text-slate-200">"{data.market_context}"</p>
              </div>
              <div className="text-center bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/10 w-48">
-                <div className="text-4xl font-black mb-1">{data.overall_risk_score || 0}</div>
+                <div className="text-4xl font-black mb-1">{data.overall_risk_score}</div>
                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">总体持仓风险</div>
              </div>
           </div>
 
           {/* Ranking List */}
           <div className="grid grid-cols-1 gap-4">
-             {data.stocks?.slice().sort((a: any, b: any) => (b.win_rate || 0) - (a.win_rate || 0)).map((stock: any, idx: number) => (
+             {data.stocks.sort((a, b) => b.win_rate - a.win_rate).map((stock, idx) => (
                 <div key={idx} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-xl transition-all group">
                    <div className="p-6 md:p-8 flex flex-col md:flex-row items-center gap-8">
                       {/* Score Gauge */}
@@ -180,15 +180,15 @@ export const BatchTimingAnalysis: React.FC<{
                             <circle 
                               cx="48" cy="48" r="40" 
                               fill="none" 
-                              stroke={(stock.win_rate || 0) > 70 ? '#ef4444' : (stock.win_rate || 0) > 40 ? '#f59e0b' : '#64748b'} 
+                              stroke={stock.win_rate > 70 ? '#ef4444' : stock.win_rate > 40 ? '#f59e0b' : '#64748b'} 
                               strokeWidth="8" 
                               strokeDasharray="251.2" 
-                              strokeDashoffset={251.2 * (1 - (stock.win_rate || 0) / 100)} 
+                              strokeDashoffset={251.2 * (1 - stock.win_rate / 100)} 
                               className="transition-all duration-1000"
                             />
                          </svg>
                          <div className="absolute flex flex-col items-center">
-                            <span className="text-xl font-black text-slate-800">{stock.win_rate || 0}%</span>
+                            <span className="text-xl font-black text-slate-800">{stock.win_rate}%</span>
                             <span className="text-[8px] font-black text-slate-400 uppercase">胜率</span>
                          </div>
                       </div>
@@ -198,7 +198,7 @@ export const BatchTimingAnalysis: React.FC<{
                          <div className="flex flex-col md:flex-row items-center gap-3 mb-2">
                             <h3 className="text-2xl font-black text-slate-800">{stock.name}</h3>
                             <span className="text-xs font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">{stock.code}</span>
-                            <div className={`px-4 py-1 rounded-full text-[11px] font-black uppercase tracking-widest border-2 ${getVerdictStyle(stock.verdict || '')}`}>
+                            <div className={`px-4 py-1 rounded-full text-[11px] font-black uppercase tracking-widest border-2 ${getVerdictStyle(stock.verdict)}`}>
                                {stock.verdict_label}
                             </div>
                          </div>
