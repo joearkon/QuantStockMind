@@ -4,19 +4,24 @@ import { fetchGeminiAnalysis, fetchMarketDashboard, fetchStockSynergy, fetchStoc
 import { fetchExternalAI } from "./externalLlmService";
 
 /**
- * 统一的专业量化专家系统指令
+ * 首席量化官 (CQO) 核心系统指令 - 确保模型一致性
  */
-const QUANT_SYSTEM_INSTRUCTION = (timeContext: string) => `
-  你是一名拥有15年资深经验的【首席量化投资官 (CQO)】。
-  你的分析必须摒弃感性修辞，基于以下原则：
-  1. 数据逻辑优先：重点关注量价关系、Beta回归、风险敞口。
-  2. 概率推演：所有走势预判必须包含概率分布思维。
-  3. 实战导向：给出的计划必须包含具体的触发价位和防守位。
-  当前市场时间背景: ${timeContext}。
+const getCQOSystemInstruction = (timeContext: string, historyContext?: string) => `
+  你是一名拥有20年实战经验的【顶级量化投资官 (CQO)】。
+  你的任务是提供专业、刻薄、基于概率的深度复盘。
+  
+  [当前背景]: ${timeContext}
+  [昨日回顾]: ${historyContext || "无历史记录，开始新的分析周期。"}
+
+  [分析原则]:
+  1. 连续性：必须对比昨日计划的达成情况，分析偏差。
+  2. 量化思维：使用风险敞口、成交量分布、多空合力评分等术语。
+  3. 确定性：大盘预判必须给出明确的支撑(Support)和压力(Resistance)位数字。
+  4. 实战性：交易计划必须包含具体的触发价，禁止含糊其辞。
 `;
 
 /**
- * 核心逻辑路由：支持通用量化分析与复盘
+ * 深度复盘适配器
  */
 export const analyzeWithLLM = async (
   provider: ModelProvider,
@@ -26,49 +31,47 @@ export const analyzeWithLLM = async (
   isDashboard: boolean = false,
   period: 'day' | 'month' = 'day',
   currentPrice?: string,
-  market: MarketType = MarketType.CN
+  market: MarketType = MarketType.CN,
+  historyData?: string // 传入历史日志内容
 ): Promise<AnalysisResult> => {
   const now = new Date();
-  const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-  const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-  const fullTimeContext = `${dateStr} ${timeStr}`;
-  const systemInstruction = QUANT_SYSTEM_INSTRUCTION(fullTimeContext);
+  const timeContext = now.toLocaleString('zh-CN');
+  const systemInstruction = getCQOSystemInstruction(timeContext, historyData);
 
   if (provider === ModelProvider.GEMINI_INTL) {
     const geminiKey = settings?.geminiKey; 
     if (isDashboard) return await fetchMarketDashboard(period, market, geminiKey);
-    let finalPrompt = `${systemInstruction}\n${prompt}`;
-    if (currentPrice) finalPrompt += `\n[实时现价: ${currentPrice}]`;
+    let finalPrompt = `${systemInstruction}\n\n[指令]: ${prompt}`;
     return await fetchGeminiAnalysis(finalPrompt, isComplex, geminiKey);
   }
 
-  // 混元路径：通过提示词注入系统身份
+  // 腾讯混元路径
   const apiKey = settings?.hunyuanKey || '';
-  let finalPrompt = `${systemInstruction}\n\n[任务请求]: ${prompt}`;
-  if (currentPrice) finalPrompt += `\n[实时现价: ${currentPrice}]`;
+  let finalPrompt = `${systemInstruction}\n\n[指令]: ${prompt}`;
+  if (currentPrice) finalPrompt += `\n[参考价: ${currentPrice}]`;
   
   return await fetchExternalAI(provider, apiKey, finalPrompt, isDashboard, period, market, isDashboard);
 };
 
 /**
- * 计划提取适配器：确保混元输出的 JSON 与 Gemini 完美兼容
+ * 计划提取适配器 - 强制 JSON 格式对齐
  */
 export const extractPlanWithLLM = async (
   provider: ModelProvider,
   content: string,
   settings: UserSettings
 ): Promise<{ items: PlanItem[], summary: string }> => {
-  const prompt = `
-    作为资深交易员，请从以下复盘文本中提取明日的【结构化交易计划】。
-    要求严格输出 JSON，格式必须为：
+  const jsonSchemaPrompt = `
+    从复盘报告中提取结构化计划。
+    输出 JSON 格式：
     {
       "items": [
-        {"symbol": "标的代码/名称", "action": "buy/sell/hold/monitor/t_trade", "price_target": "建议触发价", "reason": "核心逻辑"}
+        {"symbol": "名称", "action": "buy/sell/hold/monitor/t_trade", "price_target": "价位", "reason": "逻辑"}
       ],
-      "summary": "明日整体操作策略一句话总结"
+      "summary": "明日核心思想"
     }
     
-    复盘文本：
+    文本内容：
     ${content}
   `;
 
@@ -76,8 +79,8 @@ export const extractPlanWithLLM = async (
     return await extractTradingPlan(content, settings.geminiKey);
   }
 
-  // 混元路径：强制要求 JSON 输出
-  const result = await fetchExternalAI(provider, settings.hunyuanKey || '', prompt, false, undefined, MarketType.CN, true);
+  // 混元路径提取计划
+  const result = await fetchExternalAI(provider, settings.hunyuanKey || '', jsonSchemaPrompt, false, undefined, MarketType.CN, true);
   const parsed = result.structuredData as any;
   
   return { 
@@ -90,25 +93,18 @@ export const extractPlanWithLLM = async (
   };
 };
 
-/**
- * 其余适配器逻辑保持...
- */
 export const stockSynergyWithLLM = async (provider: ModelProvider, query: string, mImg: string | null, hImg: string | null, settings: UserSettings) => {
   if (provider === ModelProvider.GEMINI_INTL) return await fetchStockSynergy(query, mImg, hImg, settings.geminiKey || '');
-  const prompt = `审计标的 "${query}" 的合力与主力成本。输出 JSON。`;
+  const prompt = `审计标单 "${query}" 的合力。`;
   return await fetchExternalAI(provider, settings.hunyuanKey || '', prompt, false, undefined, MarketType.CN, true);
 };
 
 export const stockDiagnosisWithLLM = async (provider: ModelProvider, query: string, market: MarketType, image: string | null, price: string, settings: UserSettings) => {
-  if (provider === ModelProvider.GEMINI_INTL) {
-    if (image) return await fetchStockDetailWithImage(image, query, market, settings.geminiKey || '', price);
-    return await analyzeWithLLM(provider, `对股票 "${query}" 进行深度量化分析。`, false, settings, false, 'day', price, market);
-  }
-  return await analyzeWithLLM(provider, `对股票 "${query}" 进行视觉诊断分析。`, false, settings, false, 'day', price, market);
+  return await analyzeWithLLM(provider, `对股票 "${query}" 进行深度量化诊断。`, false, settings, false, 'day', price, market);
 };
 
 export const periodicReviewWithLLM = async (provider: ModelProvider, journals: any[], label: string, market: MarketType, settings: UserSettings) => {
   if (provider === ModelProvider.GEMINI_INTL) return await fetchPeriodicReview(journals, label, market, settings.geminiKey);
-  const prompt = `历史复盘: ${label}。记录: ${JSON.stringify(journals)}。输出 JSON。`;
+  const prompt = `历史复盘: ${label}。记录: ${JSON.stringify(journals)}。`;
   return await fetchExternalAI(provider, settings.hunyuanKey || '', prompt, false, undefined, market, true);
 };
