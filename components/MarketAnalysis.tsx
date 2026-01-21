@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
-import { Loader2, BarChart2, Zap, Search, Cpu, Activity, Shuffle, Gauge, TrendingUp, TrendingDown, ShieldAlert, Globe, Landmark, Target } from 'lucide-react';
+import { Loader2, BarChart2, Zap, Search, Cpu, Activity, Shuffle, Gauge, TrendingUp, TrendingDown, ShieldAlert, Globe, Landmark, Target, Camera, X, Image as ImageIcon } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 
 interface MarketAnalysisProps {
@@ -29,17 +29,30 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAnalysis = async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await analyzeWithLLM(currentModel, "", true, settings, true, savedPeriod, undefined, currentMarket);
+      const data = await analyzeWithLLM(currentModel, "", true, settings, true, savedPeriod, undefined, currentMarket, undefined, selectedImage || undefined);
       onResultUpdate(data);
     } catch (err: any) {
       setError(err.message || "看板同步失败。请检查 API Key 配置。");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage((reader.result as string).split(',')[1]);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -76,7 +89,7 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
   return (
     <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-20">
       
-      {/* 1. 控制中心 (原第二排) - 提升至第一排，方便操作 */}
+      {/* 1. 控制中心 */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="bg-indigo-600 p-2.5 rounded-xl text-white">
@@ -96,6 +109,16 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
             <button onClick={() => onPeriodUpdate('day')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${savedPeriod === 'day' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>日度快照</button>
             <button onClick={() => onPeriodUpdate('month')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${savedPeriod === 'month' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>月度趋势</button>
           </div>
+          
+          <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleImageSelect} />
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${selectedImage ? 'bg-indigo-50 border-indigo-200 text-indigo-600 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-400'}`}
+          >
+            <Camera className="w-4 h-4" />
+            {selectedImage ? '已上传行情图' : '视觉对齐'}
+          </button>
+
           <button 
             onClick={handleAnalysis} 
             disabled={loading} 
@@ -107,7 +130,24 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
         </div>
       </div>
 
-      {/* 2. 指数卡片栏 (原第一排) - 下移至第二排，作为操作反馈显示 */}
+      {selectedImage && !loading && (
+        <div className="bg-indigo-50 p-4 border border-indigo-100 rounded-2xl flex items-center justify-between gap-4 animate-fade-in shadow-sm">
+           <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-lg overflow-hidden border border-indigo-200 shadow-inner">
+                 <img src={`data:image/jpeg;base64,${selectedImage}`} className="w-full h-full object-cover" />
+              </div>
+              <div>
+                 <p className="text-xs font-black text-indigo-900 flex items-center gap-1.5"><ImageIcon className="w-3.5 h-3.5" /> 已启用视觉数据校准</p>
+                 <p className="text-[10px] text-indigo-600 font-bold">点击“刷新数据”后，AI 将根据该图识别真实的指数、成交量与市场情绪。</p>
+              </div>
+           </div>
+           <button onClick={() => setSelectedImage(null)} className="p-2 text-indigo-300 hover:text-rose-500 transition-colors">
+              <X className="w-5 h-5" />
+           </button>
+        </div>
+      )}
+
+      {/* 2. 指数卡片栏 */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {d?.market_indices && d.market_indices.length > 0 ? (
           d.market_indices.map((idx, i) => (
@@ -241,12 +281,12 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
             <>
               <Search className="w-16 h-16 text-slate-200 mb-6" />
               <p className="text-slate-400 font-black text-xl tracking-tight">等待同步行情数据</p>
-              <p className="text-slate-300 text-sm mt-3 font-medium">请确保在设置中已配置 API Key，然后点击上方 “刷新数据” 按钮</p>
+              <p className="text-slate-300 text-sm mt-3 font-medium">提示：如果使用混元模型，建议点击“视觉对齐”上传一张行情 App 的首页截图，AI 将从中自动提取最新点位，避免数据错误。</p>
             </>
           ) : (
             <div className="flex flex-col items-center">
               <Cpu className="w-20 h-20 text-indigo-600 animate-spin-slow mb-6" />
-              <p className="text-slate-500 font-black text-lg tracking-tight">正在实时实测全网盘面数据，请稍候...</p>
+              <p className="text-slate-500 font-black text-lg tracking-tight">正在实时实测全网盘面数据{selectedImage ? " (视觉校准已开启)" : ""}，请稍候...</p>
             </div>
           )}
         </div>

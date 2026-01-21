@@ -179,7 +179,7 @@ const holdingsSnapshotSchema = {
           name: { type: Type.STRING }, 
           code: { type: Type.STRING }, 
           volume: { type: Type.NUMBER }, 
-          availableVolume: { type: Type.NUMBER }, // 新增
+          availableVolume: { type: Type.NUMBER },
           costPrice: { type: Type.NUMBER }, 
           currentPrice: { type: Type.NUMBER }, 
           profit: { type: Type.NUMBER }, 
@@ -317,6 +317,29 @@ export const fetchMarketDashboard = async (period: 'day' | 'month', market: Mark
   return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, structuredData: parsed, market };
 };
 
+export const fetchMarketDashboardWithImage = async (base64Image: string, period: 'day' | 'month', market: MarketType, apiKey: string): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey });
+  const prompt = `
+    你面前有一张 ${market} 市场的行情快览截图。
+    请通过视觉分析提取：
+    1. 各主要指数（如上证、深成、创业板）的精确视觉点位及涨跌幅。
+    2. 实时成交量数据及缩放状态。
+    3. 根据盘面红绿分布判断情绪水位。
+    请生成结构化分析报告。
+  `;
+  const parts = [
+    { text: prompt },
+    { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
+  ];
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL_PRIMARY,
+    contents: { parts },
+    config: { responseMimeType: "application/json", responseSchema: marketDashboardSchema }
+  });
+  const parsed = robustParse(response.text || "{}");
+  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, structuredData: parsed, market };
+};
+
 export const fetchStockDetailWithImage = async (base64Image: string, query: string, market: MarketType, apiKey: string, currentPrice?: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey });
   const now = new Date();
@@ -338,11 +361,7 @@ export const fetchStockDetailWithImage = async (base64Image: string, query: stri
     
     参考盘面时间: ${timeContext}
     
-    请输出详细诊断报告，包含：
-    - 视觉提取指标 (现价、量能评分、K线位置)
-    - 关键压力与支撑位 (结合图中形态提取)
-    - 量化择时指令 (加仓/减仓/持有/观望)
-    - 核心研判逻辑 (必须详细说明图中形态对判断的支撑作用)
+    请输出详细诊断报告。
   `;
   
   const parts = [
