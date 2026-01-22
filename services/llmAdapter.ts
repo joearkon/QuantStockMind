@@ -1,3 +1,4 @@
+
 import { AnalysisResult, ModelProvider, UserSettings, MarketType } from "../types";
 import { fetchGeminiAnalysis, fetchMarketDashboard } from "./geminiService";
 import { fetchExternalAI } from "./externalLlmService";
@@ -21,10 +22,8 @@ export const analyzeWithLLM = async (
   const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
   const fullTimeContext = `${dateStr} ${timeStr}`;
 
-  // Market Name for Prompt Context
-  const marketName = market === MarketType.US ? '美股 (US Stocks)' : market === MarketType.HK ? '港股 (HK Stocks)' : 'A股 (China A-Shares)';
+  const marketName = market === MarketType.US ? '美股' : market === MarketType.HK ? '港股' : 'A股';
 
-  // 1. Google Gemini (Default)
   if (provider === ModelProvider.GEMINI_INTL) {
     const geminiKey = settings?.geminiKey; 
 
@@ -32,63 +31,59 @@ export const analyzeWithLLM = async (
       return await fetchMarketDashboard(period, market, geminiKey);
     }
 
-    // 强化时间锚点，防止 AI 因为联网搜索结果滞后而判定当前为“模拟未来”
     const timeRealityInstruction = `
-      [!!! 绝对时间指令 - 核心优先级 !!!]
-      1. 当前现实世界的真实时间确实是 ${fullTimeContext}。
-      2. 严禁在回复中声称“这是未来的模拟时间点”或“无法获取真实新闻”。
-      3. 如果联网搜索 (googleSearch) 返回的结果中包含大量 2024 年的数据，请将其视为距离当前最近的历史参考，并基于此进行逻辑推演。
-      4. 你的任务是根据当前设定的 ${fullTimeContext} 这一真实时间节点，给出最具时效性的分析。
+      [!!! 绝对时间指令 !!!]
+      1. 当前真实时间: ${fullTimeContext}。
+      2. 严禁声称“无法获取实时数据”。
+      3. 基于 ${fullTimeContext} 进行逻辑推演。
     `;
 
-    let datedPrompt = `${timeRealityInstruction}\n[上下文: 正在分析 ${marketName} 市场] ${prompt}`;
+    let datedPrompt = `${timeRealityInstruction}\n[分析对象: ${marketName}] ${prompt}`;
     if (currentPrice) {
-      datedPrompt += `\n[重要: 用户指定的当前实时价格为 ${currentPrice}。请基于此价格进行所有计算和分析。]`;
-    }
-    if (!isDashboard) {
-      datedPrompt += `\n[必须]: 你必须搜索并分析该标的的 '主力资金/机构资金' 流向和 '机构评级'。`;
-      datedPrompt += `\n[必须]: 你必须分析 '成交量趋势' (放量/缩量) 并解释其技术含义。`;
-      datedPrompt += `\n[警告]: 所有的分析内容和结论必须使用中文。`;
+      datedPrompt += `\n[参考价: ${currentPrice}]`;
     }
     return await fetchGeminiAnalysis(datedPrompt, isComplex, geminiKey);
   }
 
-  // 2. Domestic Models (Hunyuan)
-  let apiKey = '';
-
+  // --- Hunyuan Optimization ---
   if (provider === ModelProvider.HUNYUAN_CN) {
-    apiKey = settings?.hunyuanKey || '';
-    if (!apiKey) {
-      throw new Error(`未检测到 混元 API Key。请在设置中配置。`);
+    const apiKey = settings?.hunyuanKey || '';
+    if (!apiKey) throw new Error(`未检测到 混元 API Key。`);
+
+    let finalPrompt = "";
+    
+    if (isDashboard) {
+      // 显式注入 JSON 模板，确保 Key 与 MarketAnalysis.tsx 严格对齐
+      finalPrompt = `
+        [时间锚点: ${fullTimeContext}] [市场: ${marketName}]
+        任务：生成 ${period === 'day' ? '当日' : '本月'} 市场量化看板。
+        要求：
+        1. 严禁使用 "XXX" 占位符。
+        2. 必须且仅输出严格的 JSON 格式，包含以下字段：
+        {
+          "data_date": "当前日期时间",
+          "market_indices": [{"name": "指数名称", "value": "数值", "percent": "涨跌幅%", "direction": "up/down"}],
+          "market_volume": {"total_volume": "成交额", "volume_delta": "增减额", "volume_trend": "expansion/contraction", "capital_mood": "简述"},
+          "market_sentiment": {"score": 0-100, "summary": "一句话总结", "trend": "bullish/bearish/neutral", "warning_level": "Normal/Overheated"},
+          "capital_composition": [{"type": "Foreign/Institutional/HotMoney/Retail", "label": "标签", "percentage": 数字, "trend": "increasing/decreasing/stable", "description": "描述"}],
+          "capital_rotation": {"inflow_sectors": ["板块"], "outflow_sectors": ["板块"], "rotation_logic": "逻辑"},
+          "macro_logic": {"policy_focus": "重点", "external_impact": "外部", "core_verdict": "核心结论"}
+        }
+      `;
+    } else {
+      finalPrompt = `
+        [时间锚点: ${fullTimeContext}] [市场: ${marketName}]
+        任务：对 ${prompt} 进行核心量化研判。
+        要求：
+        1. 严禁使用 "XXX" 等占位符。
+        2. 结构清晰，包含：指标分析、关键价位(支撑/压力)、操作指令。
+        3. 回复务必精炼，直接给干货。
+      `;
     }
+
+    // 看板请求 max_tokens 设置为 2500，提升生成速度
+    return await fetchExternalAI(provider, apiKey, finalPrompt, isDashboard, period, market, isDashboard, isDashboard ? 2500 : 2000);
   }
 
-  // 3. Construct Prompts
-  let finalPrompt = prompt;
-  
-  if (isDashboard) {
-    finalPrompt = `
-      【真实时间确认】：现在是现实世界的 ${fullTimeContext}。
-      作为高级分析师，请生成一份 ${marketName} 的${period === 'day' ? '当日' : '本月'}市场深度分析报告。
-      请联网搜索最新的指数点位、成交额、主力流向。
-      
-      重点包含：
-      1. 五大指数数值与具体涨跌幅。
-      2. 成交量变化（放量或缩量）。
-      3. 领涨与领跌板块及其背后的资金轮动逻辑。
-      4. 宏观政策导向与外部环境影响。
-      
-      请确保数据真实准确。
-    `;
-  } else {
-    finalPrompt = `[确认真实时间: ${fullTimeContext}] [上下文: 正在分析 ${marketName} 市场] ${prompt}`;
-    if (currentPrice) {
-       finalPrompt += `\n[用户输入] 当前实时价为: ${currentPrice}。必须基于此价格。`;
-    }
-    finalPrompt += `\n[强制要求] 分析 '主力成本' 和 '机构资金流向'。分析 '成交量趋势'。`;
-    finalPrompt += `\n[语言要求] 所有输出必须为中文。`;
-  }
-
-  // Pass forceJson = true for Dashboard mode for Hunyuan
-  return await fetchExternalAI(provider, apiKey, finalPrompt, isDashboard, period, market, isDashboard);
+  throw new Error("Unsupported provider");
 };
