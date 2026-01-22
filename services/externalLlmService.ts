@@ -81,6 +81,54 @@ export const fetchExternalAIStream = async (
 };
 
 /**
+ * Specifically for Stock Analysis with Image Correction (Hunyuan)
+ */
+export const fetchHunyuanStockVision = async (
+  apiKey: string,
+  prompt: string,
+  base64Image: string,
+  market: MarketType = MarketType.CN
+): Promise<AnalysisResult> => {
+  const config = PROVIDER_CONFIG[ModelProvider.HUNYUAN_CN];
+  
+  const response = await fetch(`${config.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: config.visionModel,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
+          ]
+        }
+      ],
+      max_tokens: 3000,
+      temperature: 0.1
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Hunyuan Vision API Error: ${response.status} - ${err}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices[0]?.message?.content || "";
+  return { 
+    content, 
+    timestamp: Date.now(), 
+    modelUsed: ModelProvider.HUNYUAN_CN, 
+    market 
+  };
+};
+
+/**
  * Robust JSON parsing that extracts object/array from noisy text
  */
 function robustJsonParse(text: string): any {
@@ -104,7 +152,7 @@ function robustJsonParse(text: string): any {
     return JSON.parse(clean); 
   } catch (e) { 
     console.error("JSON Parse Error:", e, "Source:", clean);
-    throw new Error(`数据解析失败: 混元模型返回格式异常。建议切换 Gemini 再次尝试。`); 
+    throw new Error(`数据解析失败: 模型返回格式异常。建议切换 Gemini 再次尝试。`); 
   }
 }
 

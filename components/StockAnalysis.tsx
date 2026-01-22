@@ -3,9 +3,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
-import { fetchExternalAIStream } from '../services/externalLlmService';
+import { fetchExternalAIStream, fetchHunyuanStockVision } from '../services/externalLlmService';
 import { fetchStockDetailWithImage } from '../services/geminiService';
-import { Search, Loader2, Target, Activity, DollarSign, Camera, X, Compass, ShieldCheck, Zap, Info, ArrowUpCircle, ArrowDownCircle, TrendingUp, AlertCircle, FileText } from 'lucide-react';
+import { Search, Loader2, Target, Activity, DollarSign, Camera, X, Compass, ShieldCheck, Zap, Info, ArrowUpCircle, ArrowDownCircle, TrendingUp, AlertCircle, FileText, Image as ImageIcon, Eye, Sparkles } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 
 interface StockAnalysisProps {
@@ -35,6 +35,7 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [currentPrice, setCurrentPrice] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-scroll for streaming
@@ -50,13 +51,40 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
     setLoading(true);
     setError(null);
     onResultUpdate(null);
-    setLoadingPhase("正在唤醒 AI 投研大脑...");
+    setLoadingPhase("正在激活投研智算大脑...");
 
     const marketLabel = MARKET_OPTIONS.find(m => m.value === currentMarket)?.label || currentMarket;
 
+    const visualPrompt = `
+      作为资深 A 股量化交易专家，请对标的 "${query}" (市场: ${marketLabel}) 进行深度量化研判。
+      
+      【关键指令：视觉纠偏 (Visual Grounding)】
+      上传的图片是该标的的实时行情截图。
+      1. 必须优先识别图中的【最新现价】、【涨跌幅】、【K线位置】和【分时量比】。
+      2. 视觉优先：若图中数据与你检索到的数据有出入，以图片视觉信息为准。
+      3. 重点分析图中显示的支撑压力位与成交量分布。
+      4. 参考价格: ${currentPrice || '见图片'}。
+      
+      请输出详细 Markdown 诊断报告。
+    `;
+
     try {
-      if (currentModel === ModelProvider.HUNYUAN_CN) {
-        // --- Hunyuan Streaming Path ---
+      if (selectedImage) {
+         setLoadingPhase("视觉模型正在多维度扫描截图，修正行情偏差...");
+         
+         let data: AnalysisResult;
+         if (currentModel === ModelProvider.GEMINI_INTL) {
+            data = await fetchStockDetailWithImage(selectedImage, query, currentMarket, settings.geminiKey!, currentPrice);
+         } else if (currentModel === ModelProvider.HUNYUAN_CN) {
+            const apiKey = settings.hunyuanKey;
+            if (!apiKey) throw new Error("未检测到 混元 API Key");
+            data = await fetchHunyuanStockVision(apiKey, visualPrompt, selectedImage, currentMarket);
+         } else {
+            throw new Error("当前模型不支持视觉分析功能");
+         }
+         onResultUpdate(data);
+      } else if (currentModel === ModelProvider.HUNYUAN_CN) {
+        // --- Hunyuan Streaming Path (Text only) ---
         const apiKey = settings.hunyuanKey;
         if (!apiKey) throw new Error("未检测到 混元 API Key");
         
@@ -72,18 +100,13 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
         });
 
       } else {
-        // --- Gemini Standard/Image Path ---
-        let data: AnalysisResult;
-        if (selectedImage && currentModel === ModelProvider.GEMINI_INTL) {
-           data = await fetchStockDetailWithImage(selectedImage, query, currentMarket, settings.geminiKey!, currentPrice);
-        } else {
-           const prompt = `请对 ${marketLabel} 的股票 "${query}" 进行多维量化分析，包含：1.均线与乖离率；2.支撑与压力位；3.板块协同性；4.操作建议。`;
-           data = await analyzeWithLLM(currentModel, prompt, false, settings, false, 'day', currentPrice, currentMarket);
-        }
+        // --- Gemini Standard Path ---
+        const prompt = `请对 ${marketLabel} 的股票 "${query}" 进行多维量化分析，包含：1.均线与乖离率；2.支撑与压力位；3.板块协同性；4.操作建议。`;
+        const data = await analyzeWithLLM(currentModel, prompt, true, settings, false, 'day', currentPrice, currentMarket);
         onResultUpdate(data);
       }
     } catch (err: any) {
-      setError(err.message || "分析中断，请重试");
+      setError(err.message || "分析中断，请检查 API 配置或重试");
     } finally {
       setLoading(false);
       setLoadingPhase("");
@@ -99,9 +122,19 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => setSelectedImage((reader.result as string).split(',')[1]);
+      reader.onloadend = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        setSelectedImage(base64);
+        setImagePreviewUrl(reader.result as string);
+      };
       reader.readAsDataURL(file);
     }
+  };
+
+  const clearImage = () => {
+    setSelectedImage(null);
+    setImagePreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const extractMetrics = (text: string) => {
@@ -121,12 +154,12 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
   const formatText = (text: string) => {
     return text
       .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 font-bold">$1</strong>')
-      .replace(/(卖出|止损|压力|风险|减仓|跌破)/g, '<span class="text-rose-600 font-bold">$1</span>')
-      .replace(/(买入|止盈|支撑|机遇|加仓|金叉)/g, '<span class="text-emerald-600 font-bold">$1</span>');
+      .replace(/(卖出|止损|压力|风险|减仓|跌破|压力位|阻力)/g, '<span class="text-rose-600 font-bold">$1</span>')
+      .replace(/(买入|止盈|支撑|机遇|加仓|金叉|支撑位|买点)/g, '<span class="text-emerald-600 font-bold">$1</span>');
   };
 
   const renderSectionContent = (title: string, body: string) => {
-    if (title.includes("基础") || title.includes("指标") || title.includes("1.")) {
+    if (title.includes("基础") || title.includes("指标") || title.includes("1.") || title.includes("视觉")) {
        const { metrics, others } = extractMetrics(body);
        return (
          <div className="space-y-6">
@@ -152,7 +185,7 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto pb-20">
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 p-8 md:p-12 relative overflow-hidden">
         <h2 className="text-3xl font-black text-slate-800 mb-8 flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl text-white shadow-xl shadow-blue-100"><TrendingUp className="w-8 h-8"/></div>
@@ -166,7 +199,7 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
                 type="text"
                 value={savedQuery}
                 onChange={(e) => onQueryUpdate(e.target.value)}
-                placeholder="代码/名称..."
+                placeholder="代码/名称 (如: 000001)..."
                 className="w-full h-16 pl-14 pr-6 bg-slate-50 border border-slate-200 rounded-[1.5rem] focus:ring-4 focus:ring-blue-50 outline-none transition-all text-xl font-black text-slate-800"
               />
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 w-6 h-6" />
@@ -182,10 +215,34 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
               <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
             </div>
             <div className="flex gap-2">
-               <input type="file" ref={fileInputRef} className="hidden" onChange={handleImageSelect} />
-               <button type="button" onClick={() => fileInputRef.current?.click()} className={`h-16 w-16 flex items-center justify-center rounded-[1.5rem] border transition-all ${selectedImage ? 'text-indigo-600 bg-indigo-50 border-indigo-200' : 'text-slate-400 border-slate-200'}`}><Camera className="w-8 h-8" /></button>
+               <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageSelect} />
+               <button 
+                 type="button" 
+                 onClick={() => fileInputRef.current?.click()} 
+                 className={`h-16 w-16 flex items-center justify-center rounded-[1.5rem] border transition-all ${imagePreviewUrl ? 'text-indigo-600 bg-indigo-50 border-indigo-200 ring-4 ring-indigo-50' : 'text-slate-400 border-slate-200 hover:border-indigo-300'}`}
+                 title="上传 K 线或分时图纠偏价格"
+               >
+                 <Camera className="w-8 h-8" />
+               </button>
             </div>
           </div>
+
+          {imagePreviewUrl && (
+            <div className="flex items-center gap-4 p-4 bg-indigo-50/50 border border-indigo-100 rounded-2xl animate-fade-in relative">
+               <div className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-indigo-200 shadow-sm shrink-0">
+                  <img src={imagePreviewUrl} className="w-full h-full object-cover" />
+                  <button onClick={clearImage} className="absolute top-0 right-0 p-1 bg-rose-600 text-white rounded-bl-lg">
+                    <X className="w-3 h-3" />
+                  </button>
+               </div>
+               <div className="flex-1">
+                  <div className="flex items-center gap-2 text-indigo-700 font-black text-sm mb-1 uppercase tracking-wider">
+                     <Eye className="w-4 h-4" /> 视觉纠偏模式已激活
+                  </div>
+                  <p className="text-xs text-indigo-600 font-medium">AI 将通过截图对齐最新股价与 K 线形态，修正联网数据的滞后性。</p>
+               </div>
+            </div>
+          )}
           
           <button 
             type="submit" 
@@ -213,7 +270,10 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
       {savedResult && (
         <div className="animate-slide-up space-y-8 pb-20">
           <div className="flex justify-between items-center px-8">
-             <h3 className="text-2xl font-black text-slate-900">{savedQuery} 诊断报告</h3>
+             <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+               {savedQuery} 诊断报告
+               {selectedImage && <span className="px-3 py-1 bg-amber-100 text-amber-700 text-[10px] font-black rounded-full border border-amber-200">视觉已校准</span>}
+             </h3>
              <div className="px-4 py-1.5 bg-amber-50 text-amber-700 text-xs font-black rounded-full border border-amber-100 flex items-center gap-2">
                 <ShieldCheck className="w-3.5 h-3.5" /> {loading ? '分析生成中...' : '研判已就绪'}
              </div>
@@ -226,10 +286,13 @@ export const StockAnalysis: React.FC<StockAnalysisProps> = ({
                 const title = lines[0].trim();
                 const body = lines.slice(1).join('\n').trim();
                 return (
-                  <div key={index} className="rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden bg-white">
-                    <div className="px-8 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-indigo-500" />
-                      <h3 className="font-black text-lg text-slate-800">{title}</h3>
+                  <div key={index} className="rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden bg-white group hover:shadow-xl transition-all">
+                    <div className="px-8 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-50 rounded-lg"><FileText className="w-5 h-5 text-indigo-500" /></div>
+                        <h3 className="font-black text-lg text-slate-800">{title}</h3>
+                      </div>
+                      {title.includes("视觉") && <Sparkles className="w-5 h-5 text-amber-500 animate-pulse" />}
                     </div>
                     <div className="p-8">{renderSectionContent(title, body)}</div>
                   </div>
