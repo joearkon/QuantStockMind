@@ -24,6 +24,8 @@ const marketDashboardSchema = {
   type: Type.OBJECT, 
   properties: { 
     data_date: { type: Type.STRING }, 
+    market_status: { type: Type.STRING },
+    closing_commentary: { type: Type.STRING },
     market_indices: { 
       type: Type.ARRAY, 
       items: { 
@@ -91,7 +93,7 @@ const marketDashboardSchema = {
       required: ["policy_focus", "core_verdict"]
     } 
   },
-  required: ["data_date", "market_indices", "market_volume", "market_sentiment", "capital_composition", "capital_rotation", "macro_logic"]
+  required: ["data_date", "market_status", "market_indices", "market_volume", "market_sentiment", "capital_composition", "capital_rotation", "macro_logic"]
 };
 
 const hotMoneyAmbushSchema = {
@@ -189,25 +191,32 @@ export const fetchMarketDashboard = async (period: 'day' | 'month', market: Mark
   const now = new Date();
   const timeContext = now.toLocaleString('zh-CN');
   
+  // Logic to detect if market is closed (A-share 15:00)
+  const isPostMarket = now.getHours() >= 15;
+  const closingFocus = isPostMarket ? "重点检索今日【最终收盘数据】及【收盘点评/全貌】。" : "重点检索【当前实时/午盘】数据。";
+
   let indexNames = "";
   if (market === MarketType.CN) indexNames = "上证指数, 深证成指, 创业板指, 科创50, 沪深300";
   else if (market === MarketType.HK) indexNames = "恒生指数, 恒生科技指数";
   else if (market === MarketType.US) indexNames = "标普500, 纳斯达克, 道琼斯";
 
   const prompt = `
-    【绝对任务：全量资金成分审计】
-    当前时间: ${timeContext}。作为首席量化分析师，利用 googleSearch 检索 ${market} 的实时盘面数据。
+    【绝对任务：盘面全量数据审计与收盘核对】
+    当前时间: ${timeContext}。作为首席量化分析师，利用 googleSearch 检索 ${market} 的盘面数据。
+    
+    ${closingFocus}
     
     [重点探测逻辑]：
-    1. **沪指连阳状态确认**：确认当前是否处于极长的连阳周期（如 15-17 连阳），并搜索市场对“连阳终结”的共识。
-    2. **四路资金拆解**：
-       - **外资**：检索北向资金今日净流入/流出金额及主要介入行业。
-       - **国内机构**：检索主流基金、社保、险资的加仓动向或分歧信号。
-       - **顶级游资**：审计龙虎榜中知名席位（呼家楼、章盟主等）的净买入额。
-       - **散户热度**：重点检索“拉萨天团”活跃度、开户数变动、社交媒体（东方财富股吧、雪球）的人气排名。
-    3. **过热预警评分**：如果散户大量进场且融资余额飙升，请在 warning_level 中标记为 Overheated 或 Extreme。
+    1. **指数真值核对**：必须获取今日最新的 ${indexNames} 的数值、涨跌幅。如果已收盘，必须确保数值为收盘真值。
+    2. **收盘点评 (closing_commentary)**：总结今日盘面特征（如：V型反转、缩量阴跌、光头阳线等）。
+    3. **四路资金拆解**：
+       - **外资**：北向资金今日全天净流入/流出总额及主要方向。
+       - **国内机构**：主流公募、社保等的大宗交易或关键调仓信号。
+       - **顶级游资**：审计今日收盘后公布的龙虎榜数据。
+       - **散户热度**：检索“拉萨天团”活跃度及社交平台人气排名。
+    4. **市场状态 (market_status)**：识别为 "已收盘"、"盘后复盘" 或 "交易中"。
     
-    目标指数: ${indexNames}。输出 JSON。
+    输出 JSON。
   `;
 
   const response = await ai.models.generateContent({
@@ -307,7 +316,7 @@ export const fetchStockDetailWithImage = async (base64Image: string, query: stri
     【核心任务：视觉至上与数据纠偏 (Visual-First Grounding)】
     你面前有一张该标的的实时行情截图。
     1. **强制识别视觉真值**: 请从图中提取最新的【现价】、【涨跌幅】、【K线形态】、【MACD/RSI/均线位置】。
-    2. **IMAGE IS TRUTH**: 如果联网搜索 (googleSearch) 的价格或形态与图中不符，**必须以截图中的视觉数据为最高优先级**。搜索数据仅用于补充公司背景和长期业绩。
+    2. **IMAGE IS TRUTH**: 如果联网搜索 (googleSearch) 的价格或形态与图中不符，**必须以截图中的视觉数据为最高优先级**。搜索数据仅用于补充公司背景 and 长期业绩。
     3. **形态审计**: 观察图中成交量柱状图，判断是“放量攻击”、“缩量回调”还是“高位分歧”。
     4. **基准校准**: 如果用户手动指定了现价 (${currentPrice || '未手动指定'})，以手动为准；否则必须提取图中视觉价格。
     

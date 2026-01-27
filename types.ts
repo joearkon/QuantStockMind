@@ -168,6 +168,8 @@ export interface BatchStockScore {
 
 export interface MarketDashboardData {
   data_date?: string; 
+  market_status?: string; // e.g., "已收盘" or "交易中"
+  closing_commentary?: string; // Summary of the day's close
   market_indices?: MarketIndex[];
   market_volume?: MarketVolumeData;
   market_sentiment: {

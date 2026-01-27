@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ModelProvider, AnalysisResult, UserSettings, MarketType, CapitalTypeData } from '../types';
 import { analyzeWithLLM } from '../services/llmAdapter';
-import { Loader2, BarChart2, Zap, Search, Cpu, Activity, Shuffle, Gauge, TrendingUp, TrendingDown, ShieldAlert, Globe, Landmark, Target, RefreshCw, Users, AlertTriangle, Info, ArrowUpRight, ArrowDownRight, Minus, Radar } from 'lucide-react';
+import { Loader2, BarChart2, Zap, Search, Cpu, Activity, Shuffle, Gauge, TrendingUp, TrendingDown, ShieldAlert, Globe, Landmark, Target, RefreshCw, Users, AlertTriangle, Info, ArrowUpRight, ArrowDownRight, Minus, Radar, MessageSquareText } from 'lucide-react';
 import { MARKET_OPTIONS } from '../constants';
 
 interface MarketAnalysisProps {
@@ -125,7 +125,13 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
           <div>
             <div className="flex items-center gap-2">
                <h2 className="text-base font-black text-slate-800">{marketLabel} 盘面深度透析</h2>
-               {d?.data_date && <span className="text-[10px] px-2 py-0.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-full flex items-center gap-1 font-bold animate-pulse"><RefreshCw className="w-3 h-3"/> 实时监控中</span>}
+               {d?.market_status && (
+                 <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-bold ${
+                   d.market_status.includes('收盘') ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-rose-50 text-rose-600 border border-rose-100 animate-pulse'
+                 }`}>
+                   <RefreshCw className="w-3 h-3"/> {d.market_status}
+                 </span>
+               )}
             </div>
             {d?.data_date && !loading && <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">基准时间: {d.data_date}</span>}
           </div>
@@ -154,7 +160,20 @@ export const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
         </div>
       )}
 
-      {/* 2. 指数卡片栏 */}
+      {/* 2. 收盘点评 (新板块 - 对应同花顺UI) */}
+      {d?.closing_commentary && (
+        <div className="bg-white border-l-4 border-indigo-600 rounded-xl p-5 shadow-sm animate-fade-in">
+           <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-indigo-600 font-black text-sm uppercase tracking-widest">
+                 <MessageSquareText className="w-4 h-4" /> 收盘点评
+              </div>
+              <span className="text-[10px] text-slate-400 font-bold">{d.data_date}</span>
+           </div>
+           <p className="text-slate-800 font-bold text-lg leading-relaxed">{d.closing_commentary}</p>
+        </div>
+      )}
+
+      {/* 3. 指数卡片栏 */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {d?.market_indices && d.market_indices.length > 0 ? (
           d.market_indices.map((idx, i) => (
