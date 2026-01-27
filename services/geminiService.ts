@@ -266,7 +266,15 @@ export const fetchDualBoardScanning = async (apiKey: string): Promise<AnalysisRe
   const ai = new GoogleGenAI({ apiKey }); 
   const now = new Date(); 
   const dateStr = now.toLocaleDateString('zh-CN'); 
-  const prompt = `【指令：双创 20% 涨停标的全量深度审计】今日现实日期: ${dateStr}。请利用 googleSearch 扫描今日创业板和科创板的所有【真实收盘】涨停标的。[!!! 数量扩容指令 !!!]：1. **杜绝敷衍**：如果今日双创有超过 10 家涨停，你必须全部列出，目标返回 15-20 只左右的高关注度标的。2. **时间对齐**：必须寻找标题或内容中明确注明是 "${dateStr}" 或 "今日盘后" 的实时行情。3. **20% 涨停过滤**：仅抓取涨幅在 19.8% 以上且收盘依然保持封板状态的标的。`; 
+  const prompt = `【指令：双创 20% 涨停标的全量深度审计】
+今日现实日期: ${dateStr}。请利用 googleSearch 扫描今日创业板和科创板的所有【真实收盘】涨停标的。
+
+[!!! 严苛真实性校验 !!!]：
+1. **涨幅阈值**：仅抓取收盘涨幅 >= 19.8% 的标的。
+2. **拒绝陈旧数据**：必须检索明确标注为 "${dateStr}" 或 "今日收盘" 的快讯。如果搜索结果中的股价不是今日最新值，**严禁将其列入名单**。
+3. **炸板过滤**：通过搜索关键词 "炸板"、"回落" 排除今日曾经涨停但收盘未封板的股票。
+4. **杜绝敷衍**：目标返回今日双创板块最核心的 10-20 只真实涨停标的。`; 
+
   const response = await ai.models.generateContent({ 
     model: GEMINI_MODEL_PRIMARY, 
     contents: prompt, 
@@ -284,7 +292,17 @@ export const fetchMainBoardScanning = async (apiKey: string): Promise<AnalysisRe
   const ai = new GoogleGenAI({ apiKey }); 
   const now = new Date(); 
   const dateStr = now.toLocaleDateString('zh-CN'); 
-  const prompt = `【核心指令：全量沪深主板涨停标的扫描 - 杜绝截断】当前现实日期: ${dateStr}。请利用 googleSearch 检索【今日即 ${dateStr}】沪深主板真实封死涨停的标的。[!!! 绝对任务清单 !!!]：1. **数量要求**：严禁只返回 5-6 只。主板行情好的时候通常有几十只涨停，请务必返回今日最核心、最具题材代表性的 **20-30 只** 标的。2. **强制校验**：万科A (000002)、中国联通等大盘股，如果今日只是“异动”而非“涨停”，绝对不允许出现在名单中。AI 必须核实其今日收盘价对应的真实涨幅是否 > 9.8%。3. **真实性锚定**：搜索词应使用 "A股${dateStr}涨停全貌"、"${dateStr} 沪深京涨停股一览"。如果没有检索到今日的完整表格，请结合多个搜索结果进行拼凑还原，确保覆盖面最广。`; 
+  const prompt = `【核心指令：今日主板真实涨停全量扫描 - 杜绝幻觉】
+当前现实日期: ${dateStr}。请利用 googleSearch 检索【今日即 ${dateStr}】沪深主板真实封死涨停的标的。
+
+[!!! 零容忍纠偏清单 !!!]：
+1. **强制百分比核验**：AI 必须确信标的今日收盘涨幅在 9.8% - 10.1% 之间。严禁将今日“异动”但未涨停、或昨日涨停今日大跌的股票混入。
+2. **排除旧闻**：如果搜索结果中提到的是“昨日涨停”、“前几日连板”，但今日未封板，**绝对不允许出现在名单中**。
+3. **数量要求**：返回今日最核心、最具题材代表性的 20-30 只标的。若今日行情火爆（百股涨停），请优先返回高连板标的。
+4. **真实性校验**：通过检索 "今日 A 股涨停一览表"、"今日龙虎榜" 等实时新闻进行多重印证。
+
+输出格式：严格 JSON。`; 
+
   const response = await ai.models.generateContent({ 
     model: GEMINI_MODEL_PRIMARY, 
     contents: prompt, 
@@ -316,7 +334,7 @@ export const fetchStockDetailWithImage = async (base64Image: string, query: stri
     【核心任务：视觉至上与数据纠偏 (Visual-First Grounding)】
     你面前有一张该标的的实时行情截图。
     1. **强制识别视觉真值**: 请从图中提取最新的【现价】、【涨跌幅】、【K线形态】、【MACD/RSI/均线位置】。
-    2. **IMAGE IS TRUTH**: 如果联网搜索 (googleSearch) 的价格或形态与图中不符，**必须以截图中的视觉数据为最高优先级**。搜索数据仅用于补充公司背景 and 长期业绩。
+    2. **IMAGE IS TRUTH**: 如果联网搜索 (googleSearch) 的价格 or 形态与图中不符，**必须以截图中的视觉数据为最高优先级**。搜索数据仅用于补充公司背景 and 长期业绩。
     3. **形态审计**: 观察图中成交量柱状图，判断是“放量攻击”、“缩量回调”还是“高位分歧”。
     4. **基准校准**: 如果用户手动指定了现价 (${currentPrice || '未手动指定'})，以手动为准；否则必须提取图中视觉价格。
     

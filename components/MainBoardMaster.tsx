@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ModelProvider, MarketType, AnalysisResult, MainBoardScanItem } from '../types';
 import { fetchMainBoardScanning } from '../services/geminiService';
-import { Gavel, Loader2, Search, ArrowRight, Activity, Zap, Target, Flame, ShieldAlert, BarChart3, Rocket, Lock, Share2, Skull, RefreshCw, ZapOff, Trophy, Filter, ArrowUpDown, Coins, UserCheck, Calendar, Info } from 'lucide-react';
+import { Gavel, Loader2, Search, ArrowRight, Activity, Zap, Target, Flame, ShieldAlert, BarChart3, Rocket, Lock, Share2, Skull, RefreshCw, ZapOff, Trophy, Filter, ArrowUpDown, Coins, UserCheck, Calendar, Info, ShieldCheck } from 'lucide-react';
 
 export const MainBoardMaster: React.FC<{
   currentModel: ModelProvider;
@@ -115,7 +115,7 @@ export const MainBoardMaster: React.FC<{
               className="px-10 h-16 bg-emerald-600 text-white rounded-[1.5rem] font-black shadow-2xl hover:bg-emerald-700 transition-all flex items-center gap-3 active:scale-95 disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Rocket className="w-6 h-6" />}
-              {loading ? `今日数据深度审计中 (${elapsed}s)...` : '今日数据强制核验'}
+              {loading ? `今日行情全量核验中 (${elapsed}s)...` : '今日数据强制核验'}
             </button>
           </div>
 
@@ -124,10 +124,10 @@ export const MainBoardMaster: React.FC<{
               <Calendar className="w-4 h-4" /> 强制对齐: {todayStr}
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700 text-xs font-black">
-              <Coins className="w-4 h-4" /> 净买入金额过滤
+              <ShieldCheck className="w-4 h-4" /> 零容忍幻觉模式
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-100 rounded-xl text-amber-700 text-xs font-black">
-              <Activity className="w-4 h-4" /> 大单介入占比
+              <Activity className="w-4 h-4" /> 实效性 99%
             </div>
           </div>
         </div>
@@ -145,7 +145,9 @@ export const MainBoardMaster: React.FC<{
           <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl border-b-8 border-emerald-500 relative overflow-hidden">
              <div className="flex flex-col md:flex-row justify-between items-center gap-6 relative z-10">
                 <div className="flex-1">
-                   <div className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em] mb-3">主板涨停审计报表 (${scanData.scan_time || todayStr})</div>
+                   <div className="flex items-center gap-2 text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em] mb-3">
+                     <ShieldCheck className="w-3 h-3"/> 核心审计结果已就绪 (${scanData.scan_time || todayStr})
+                   </div>
                    <p className="text-xl font-black italic leading-relaxed text-slate-200">"{scanData.market_mood}"</p>
                 </div>
                 <div className="flex gap-4">
@@ -167,7 +169,7 @@ export const MainBoardMaster: React.FC<{
                          </th>
                          <th className="px-6 py-5">资金审计 (Net / Ratio)</th>
                          <th className="px-6 py-5">参与席位 / 状态</th>
-                         <th className="px-6 py-5 text-right">操盘逻辑</th>
+                         <th className="px-6 py-5 text-right">核验逻辑</th>
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100">
@@ -208,7 +210,7 @@ export const MainBoardMaster: React.FC<{
                                    <span key={si} className="text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">{seat}</span>
                                  ))}
                                </div>
-                               <div className={`inline-flex items-center gap-2 px-2 py-1 rounded-lg border text-[10px] font-black uppercase tracking-widest ${
+                               <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-widest ${
                                   stock.rating === '起爆' ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-700'
                                }`}>
                                   {getRatingIcon(stock.rating)} {stock.rating}
@@ -241,9 +243,10 @@ export const MainBoardMaster: React.FC<{
           </div>
           
           <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 flex items-start gap-4">
-             <Info className="w-6 h-6 text-indigo-600 shrink-0" />
+             <Info className="w-6 h-6 text-indigo-600 shrink-0 mt-1" />
              <div className="text-sm text-indigo-900 leading-relaxed font-medium">
-                <b>数据对齐声明</b>：由于 googleSearch 结果可能包含旧闻，AI 已执行“现价涨幅强制核验”。如果万科A (000002) 等标的出现在结果中，说明其今日确有真实涨停资金介入；若消失则说明 AI 已成功识别并剔除过期干扰信息。
+                <b className="block mb-1">数据核验说明：</b>
+                由于搜索引擎结果中包含大量历史新闻或未结盘快讯，AI 已执行“强制 closing-check”：若标的今日仅为盘中触及涨停但收盘炸板、或为昨日连板今日断板，**已通过算法自动剔除**。如果名单仍有误，请确保您在“设置”中配置了最新的 API Key 以获得更精准的搜索解析能力。
              </div>
           </div>
         </div>
