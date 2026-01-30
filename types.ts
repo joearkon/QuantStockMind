@@ -5,12 +5,90 @@ export enum ModelProvider {
 }
 
 export enum MarketType {
-  CN = 'CN', // A-Share
-  HK = 'HK', // Hong Kong
-  US = 'US', // US Stocks
+  CN = 'CN', 
+  HK = 'HK', 
+  US = 'US', 
 }
 
-// --- Capital Composition Sub-interface ---
+// --- NEW: Main-Wave Replicator ---
+export interface MainWaveTarget {
+  name: string;
+  code: string;
+  replicate_score: number; // 战术复刻契合度 0-100
+  institutional_backing: string; // 机构调研/研报支撑点
+  trend_stage: 'Start' | 'Middle' | 'Peak'; // 处于主升浪哪个位置
+  wave_gain_so_far: string; // 已涨幅
+  two_thirty_verdict: string; // 2:30 分时的决策建议
+  t_trading_plan: {
+    high_sell: string;
+    low_buy: string;
+    volatility: string;
+  };
+  copy_logic: string; // 为什么它像“金海通”
+}
+
+export interface MainWaveReplicationResponse {
+  scan_time: string;
+  market_momentum: string;
+  top_clones: MainWaveTarget[];
+  tactical_advice: string;
+}
+
+// --- Quant Synergy Discovery ---
+export interface QuantDiscoveryTarget {
+  name: string;
+  code: string;
+  synergy_score: number;
+  quant_intensity: 'Extreme' | 'High' | 'Normal';
+  algo_tag: string; 
+  battle_logic: string;
+  entry_point: string;
+  potential_gain: string;
+  risk_level: 'Low' | 'Medium' | 'High';
+  sector_cohesion_level: number; 
+  is_sector_leader: boolean; 
+  peer_count: number; 
+}
+
+export interface QuantDiscoveryResponse {
+  scan_time: string;
+  market_quant_mood: string; 
+  top_targets: QuantDiscoveryTarget[];
+  quant_cluster_sectors: {
+    name: string;
+    attack_intensity: number; 
+    description: string;
+    hot_peers: string[]; 
+  }[]; 
+}
+
+export interface QuantAlgoPattern {
+  name: string;
+  probability: number;
+  description: string;
+}
+
+export interface QuantSynergyResponse {
+  scan_time: string;
+  stock_name: string;
+  stock_code: string;
+  synergy_score: number;
+  quant_intensity: 'Extreme' | 'High' | 'Normal' | 'Low';
+  algo_signatures: QuantAlgoPattern[];
+  execution_model: {
+    action: 'Follow_Buy' | 'Hold_Monitor' | 'Follow_Sell' | 'Avoid';
+    entry_anchor: string;
+    exit_anchor: string;
+    stop_loss: string;
+    strategy_logic: string;
+  };
+  market_cohesion: {
+    sector_sync: number;
+    index_correlation: string;
+    verdict: string;
+  };
+}
+
 export interface CapitalTypeData {
   type: 'Foreign' | 'Institutional' | 'HotMoney' | 'Retail';
   label: string;
@@ -88,7 +166,6 @@ export interface InstitutionalInsightData {
   }[];
 }
 
-// --- NEW: Hot Money Ambush Interface ---
 export interface HotMoneyAmbushStock {
   name: string;
   code: string;
@@ -168,8 +245,8 @@ export interface BatchStockScore {
 
 export interface MarketDashboardData {
   data_date?: string; 
-  market_status?: string; // e.g., "已收盘" or "交易中"
-  closing_commentary?: string; // Summary of the day's close
+  market_status?: string; 
+  closing_commentary?: string; 
   market_indices?: MarketIndex[];
   market_volume?: MarketVolumeData;
   market_sentiment: {
@@ -401,7 +478,10 @@ export interface AnalysisResult {
   opportunityData?: OpportunityResponse;
   foresightData?: ForesightReport;
   institutionalData?: InstitutionalInsightData;
-  hotMoneyAmbushData?: HotMoneyAmbushResponse; // NEW
+  hotMoneyAmbushData?: HotMoneyAmbushResponse;
+  quantSynergyData?: QuantSynergyResponse;
+  quantDiscoveryData?: QuantDiscoveryResponse;
+  mainWaveData?: MainWaveReplicationResponse; // NEW
 }
 
 export interface UserSettings {

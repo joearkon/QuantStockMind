@@ -13,7 +13,9 @@ import { KLineMaster } from './components/KLineMaster';
 import { MainBoardMaster } from './components/MainBoardMaster';
 import { LimitUpLadder } from './components/LimitUpLadder';
 import { SynergyAudit } from './components/SynergyAudit';
-import { HotMoneyAmbush } from './components/HotMoneyAmbush'; // NEW
+import { HotMoneyAmbush } from './components/HotMoneyAmbush';
+import { QuantSynergyTracker } from './components/QuantSynergyTracker'; 
+import { MainWaveReplicator } from './components/MainWaveReplicator'; // NEW
 import { SettingsModal } from './components/SettingsModal';
 import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS, APP_VERSION } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
@@ -128,6 +130,9 @@ const App: React.FC = () => {
               <Routes>
                 <Route path="/" element={<Navigate to="/market" replace />} />
                 <Route path="/market" element={<MarketAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} savedResult={marketResult} onResultUpdate={setMarketResult} savedPeriod={marketPeriod} onPeriodUpdate={setMarketPeriod} />} />
+                <Route path="/main-wave" element={<MainWaveReplicator currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
+                {/* Fixed: Removed duplicate currentModel attribute */}
+                <Route path="/quant-synergy" element={<QuantSynergyTracker currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/hot-ambush" element={<HotMoneyAmbush currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/synergy" element={<SynergyAudit currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/holdings" element={<HoldingsReview currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
