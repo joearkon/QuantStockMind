@@ -5,67 +5,12 @@ export enum ModelProvider {
 }
 
 export enum MarketType {
-  CN = 'CN', 
-  HK = 'HK', 
-  US = 'US', 
+  CN = 'CN', // A-Share
+  HK = 'HK', // Hong Kong
+  US = 'US', // US Stocks
 }
 
-// --- NEW: Quant Synergy Discovery ---
-export interface QuantDiscoveryTarget {
-  name: string;
-  code: string;
-  synergy_score: number;
-  quant_intensity: 'Extreme' | 'High' | 'Normal';
-  algo_tag: string; 
-  battle_logic: string;
-  entry_point: string;
-  potential_gain: string;
-  risk_level: 'Low' | 'Medium' | 'High';
-  // 新增：板块共振指标
-  sector_cohesion_level: number; // 0-100，板块涨跌一致性
-  is_sector_leader: boolean; // 是否是板块算法点火者
-  peer_count: number; // 正在同步异动的同板块个股数量
-}
-
-export interface QuantDiscoveryResponse {
-  scan_time: string;
-  market_quant_mood: string; 
-  top_targets: QuantDiscoveryTarget[];
-  quant_cluster_sectors: {
-    name: string;
-    attack_intensity: number; // 进攻强度 0-100
-    description: string;
-    hot_peers: string[]; // 该板块内同步异动的其他标的
-  }[]; 
-}
-
-export interface QuantAlgoPattern {
-  name: string;
-  probability: number;
-  description: string;
-}
-
-export interface QuantSynergyResponse {
-  scan_time: string;
-  stock_name: string;
-  stock_code: string;
-  synergy_score: number;
-  quant_intensity: 'Extreme' | 'High' | 'Normal' | 'Low';
-  algo_signatures: QuantAlgoPattern[];
-  execution_model: {
-    action: 'Follow_Buy' | 'Hold_Monitor' | 'Follow_Sell' | 'Avoid';
-    entry_anchor: string;
-    exit_anchor: string;
-    stop_loss: string;
-    strategy_logic: string;
-  };
-  market_cohesion: {
-    sector_sync: number;
-    index_correlation: string;
-    verdict: string;
-  };
-}
-
+// --- Capital Composition Sub-interface ---
 export interface CapitalTypeData {
   type: 'Foreign' | 'Institutional' | 'HotMoney' | 'Retail';
   label: string;
@@ -143,6 +88,7 @@ export interface InstitutionalInsightData {
   }[];
 }
 
+// --- NEW: Hot Money Ambush Interface ---
 export interface HotMoneyAmbushStock {
   name: string;
   code: string;
@@ -222,8 +168,8 @@ export interface BatchStockScore {
 
 export interface MarketDashboardData {
   data_date?: string; 
-  market_status?: string; 
-  closing_commentary?: string; 
+  market_status?: string; // e.g., "已收盘" or "交易中"
+  closing_commentary?: string; // Summary of the day's close
   market_indices?: MarketIndex[];
   market_volume?: MarketVolumeData;
   market_sentiment: {
@@ -455,9 +401,7 @@ export interface AnalysisResult {
   opportunityData?: OpportunityResponse;
   foresightData?: ForesightReport;
   institutionalData?: InstitutionalInsightData;
-  hotMoneyAmbushData?: HotMoneyAmbushResponse;
-  quantSynergyData?: QuantSynergyResponse;
-  quantDiscoveryData?: QuantDiscoveryResponse; 
+  hotMoneyAmbushData?: HotMoneyAmbushResponse; // NEW
 }
 
 export interface UserSettings {
