@@ -10,31 +10,7 @@ export enum MarketType {
   US = 'US', 
 }
 
-// --- NEW: Main-Wave Replicator ---
-export interface MainWaveTarget {
-  name: string;
-  code: string;
-  replicate_score: number; // 战术复刻契合度 0-100
-  institutional_backing: string; // 机构调研/研报支撑点
-  trend_stage: 'Start' | 'Middle' | 'Peak'; // 处于主升浪哪个位置
-  wave_gain_so_far: string; // 已涨幅
-  two_thirty_verdict: string; // 2:30 分时的决策建议
-  t_trading_plan: {
-    high_sell: string;
-    low_buy: string;
-    volatility: string;
-  };
-  copy_logic: string; // 为什么它像“金海通”
-}
-
-export interface MainWaveReplicationResponse {
-  scan_time: string;
-  market_momentum: string;
-  top_clones: MainWaveTarget[];
-  tactical_advice: string;
-}
-
-// --- Quant Synergy Discovery ---
+// --- NEW: Quant Synergy Discovery ---
 export interface QuantDiscoveryTarget {
   name: string;
   code: string;
@@ -45,9 +21,10 @@ export interface QuantDiscoveryTarget {
   entry_point: string;
   potential_gain: string;
   risk_level: 'Low' | 'Medium' | 'High';
-  sector_cohesion_level: number; 
-  is_sector_leader: boolean; 
-  peer_count: number; 
+  // 新增：板块共振指标
+  sector_cohesion_level: number; // 0-100，板块涨跌一致性
+  is_sector_leader: boolean; // 是否是板块算法点火者
+  peer_count: number; // 正在同步异动的同板块个股数量
 }
 
 export interface QuantDiscoveryResponse {
@@ -56,9 +33,9 @@ export interface QuantDiscoveryResponse {
   top_targets: QuantDiscoveryTarget[];
   quant_cluster_sectors: {
     name: string;
-    attack_intensity: number; 
+    attack_intensity: number; // 进攻强度 0-100
     description: string;
-    hot_peers: string[]; 
+    hot_peers: string[]; // 该板块内同步异动的其他标的
   }[]; 
 }
 
@@ -480,8 +457,7 @@ export interface AnalysisResult {
   institutionalData?: InstitutionalInsightData;
   hotMoneyAmbushData?: HotMoneyAmbushResponse;
   quantSynergyData?: QuantSynergyResponse;
-  quantDiscoveryData?: QuantDiscoveryResponse;
-  mainWaveData?: MainWaveReplicationResponse; // NEW
+  quantDiscoveryData?: QuantDiscoveryResponse; 
 }
 
 export interface UserSettings {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { HashRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { Disclaimer } from './components/Disclaimer';
-import { TradingRulesBanner } from './components/TradingRulesBanner'; // 新引入
+import { TradingRulesHeader } from './components/TradingRulesHeader'; // 引入新组件
 import { MarketAnalysis } from './components/MarketAnalysis';
 import { StockAnalysis } from './components/StockAnalysis';
 import { InstitutionalHotlist } from './components/InstitutionalHotlist';
@@ -15,7 +15,6 @@ import { LimitUpLadder } from './components/LimitUpLadder';
 import { SynergyAudit } from './components/SynergyAudit';
 import { HotMoneyAmbush } from './components/HotMoneyAmbush';
 import { QuantSynergyTracker } from './components/QuantSynergyTracker'; 
-import { MainWaveReplicator } from './components/MainWaveReplicator';
 import { SettingsModal } from './components/SettingsModal';
 import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS, APP_VERSION } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
@@ -126,14 +125,13 @@ const App: React.FC = () => {
             </aside>
 
             <div className="lg:col-span-9">
-              {/* 全局交易律令看板 置于最顶部 */}
-              <TradingRulesBanner />
+              {/* 全局交易律令看板 - 置于最上方 */}
+              <TradingRulesHeader />
               
               <Disclaimer />
               <Routes>
                 <Route path="/" element={<Navigate to="/market" replace />} />
                 <Route path="/market" element={<MarketAnalysis currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} savedResult={marketResult} onResultUpdate={setMarketResult} savedPeriod={marketPeriod} onPeriodUpdate={setMarketPeriod} />} />
-                <Route path="/main-wave" element={<MainWaveReplicator currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/quant-synergy" element={<QuantSynergyTracker currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/hot-ambush" element={<HotMoneyAmbush currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
                 <Route path="/synergy" element={<SynergyAudit currentModel={selectedModel} currentMarket={selectedMarket} settings={userSettings} onOpenSettings={() => setIsSettingsOpen(true)} />} />
