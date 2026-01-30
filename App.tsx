@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { HashRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { Disclaimer } from './components/Disclaimer';
+import { TradingDiscipline } from './components/TradingDiscipline';
 import { MarketAnalysis } from './components/MarketAnalysis';
 import { StockAnalysis } from './components/StockAnalysis';
 import { InstitutionalHotlist } from './components/InstitutionalHotlist';
@@ -13,7 +14,7 @@ import { KLineMaster } from './components/KLineMaster';
 import { MainBoardMaster } from './components/MainBoardMaster';
 import { LimitUpLadder } from './components/LimitUpLadder';
 import { SynergyAudit } from './components/SynergyAudit';
-import { HotMoneyAmbush } from './components/HotMoneyAmbush'; // NEW
+import { HotMoneyAmbush } from './components/HotMoneyAmbush';
 import { SettingsModal } from './components/SettingsModal';
 import { APP_NAME, MODEL_OPTIONS, NAV_ITEMS, MARKET_OPTIONS, APP_VERSION } from './constants';
 import { ModelProvider, UserSettings, AnalysisResult, MarketType } from './types';
@@ -124,6 +125,7 @@ const App: React.FC = () => {
             </aside>
 
             <div className="lg:col-span-9">
+              <TradingDiscipline />
               <Disclaimer />
               <Routes>
                 <Route path="/" element={<Navigate to="/market" replace />} />
