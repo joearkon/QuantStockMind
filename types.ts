@@ -10,6 +10,27 @@ export enum MarketType {
   US = 'US', // US Stocks
 }
 
+// --- UPDATED: Quant Vane Interface with Top Synergy Pool ---
+export interface QuantVaneStock {
+  name: string;
+  code: string;
+  net_amount: string; // e.g. "9059.9万"
+  direction: 'Buy' | 'Sell';
+  category?: '量化打板' | '量化抢筹' | '量化波段';
+  intensity_score?: number; // 0-100
+  logic?: string;
+}
+
+export interface QuantVaneResponse {
+  scan_time: string;
+  overall_mood: string;
+  top_synergy_pool: QuantVaneStock[]; // 新增：全市场合力标的池
+  quant_boarding_list: QuantVaneStock[]; // 对应“量化打板”
+  quant_grabbing_list: QuantVaneStock[]; // 对应“量化抢筹”
+  quant_swing_list?: QuantVaneStock[];    // 对应一般“量化基金”
+  risk_warning: string;
+}
+
 // --- Capital Composition Sub-interface ---
 export interface CapitalTypeData {
   type: 'Foreign' | 'Institutional' | 'HotMoney' | 'Retail';
@@ -88,7 +109,6 @@ export interface InstitutionalInsightData {
   }[];
 }
 
-// --- NEW: Hot Money Ambush Interface ---
 export interface HotMoneyAmbushStock {
   name: string;
   code: string;
@@ -168,8 +188,8 @@ export interface BatchStockScore {
 
 export interface MarketDashboardData {
   data_date?: string; 
-  market_status?: string; // e.g., "已收盘" or "交易中"
-  closing_commentary?: string; // Summary of the day's close
+  market_status?: string; 
+  closing_commentary?: string; 
   market_indices?: MarketIndex[];
   market_volume?: MarketVolumeData;
   market_sentiment: {
@@ -401,7 +421,8 @@ export interface AnalysisResult {
   opportunityData?: OpportunityResponse;
   foresightData?: ForesightReport;
   institutionalData?: InstitutionalInsightData;
-  hotMoneyAmbushData?: HotMoneyAmbushResponse; // NEW
+  hotMoneyAmbushData?: HotMoneyAmbushResponse;
+  quantVaneData?: QuantVaneResponse; // UPDATED
 }
 
 export interface UserSettings {

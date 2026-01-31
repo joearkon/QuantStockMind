@@ -160,19 +160,16 @@ export const fetchHotMoneyAmbush = async (apiKey: string): Promise<AnalysisResul
   const dateStr = now.toLocaleDateString('zh-CN');
   
   const prompt = `
-    【指令：全量龙虎榜顶级席位潜伏审计】
-    今日日期: ${dateStr}。作为顶级 A 股席位研究专家，利用 googleSearch 检索 A 股最近 10 个交易日内的【龙虎榜 (Dragon-Tiger List)】数据。
+    【指令：2个交易日顶级席位潜伏审计】
+    今日日期: ${dateStr}。作为顶级 A 股席位专家，利用 googleSearch 检索 A 股【最近 2 个交易日】内的【龙虎榜 (Dragon-Tiger List)】数据。
     
     [重点审计清单]：
-    1. **识别标的**：寻找那些在近 10 天内多次（>=2次）上榜，且买入席位包含以下顶级席位的标的：
+    1. **极速对比**：寻找在昨日买入、今日依然活跃或今日强势介入的顶级席位标的。
+    2. **识别席位**：
        - 陈小群 (大连黄河路/世纪大道)
        - 呼家楼 (中信总部/京城分公司)
        - 机构专用席位 (Institutional Seats)
-       - 拉萨天团 (虽然散户集中，但要分析其承接力度)
-    2. **潜伏逻辑挖掘**：
-       - 分析这些标的是否处于“回踩支撑位”、“连板后的分歧震荡期”或“二波启动前夕”。
-       - 特别留意“华胜天成”这类标的的后续共振模式。
-    3. **多维评分**：如果顶级席位净买入额巨大且股价并未处于历史高点，标记为 "Strong" (绝佳潜伏)。
+    3. **逻辑挖掘**：分析标的是否处于首板后的回踩或二波加速。
     
     输出必须为严格 JSON 格式。
   `;
@@ -191,7 +188,6 @@ export const fetchMarketDashboard = async (period: 'day' | 'month', market: Mark
   const now = new Date();
   const timeContext = now.toLocaleString('zh-CN');
   
-  // Logic to detect if market is closed (A-share 15:00)
   const isPostMarket = now.getHours() >= 15;
   const closingFocus = isPostMarket ? "重点检索今日【最终收盘数据】及【收盘点评/全貌】。" : "重点检索【当前实时/午盘】数据。";
 
@@ -216,7 +212,7 @@ export const fetchMarketDashboard = async (period: 'day' | 'month', market: Mark
        - **散户热度**：检索“拉萨天团”活跃度及社交平台人气排名。
     4. **市场状态 (market_status)**：识别为 "已收盘"、"盘后复盘" 或 "交易中"。
     
-    输出 JSON。
+    输出 JSON表单。
   `;
 
   const response = await ai.models.generateContent({
@@ -234,7 +230,7 @@ export const fetchStockSynergy = async (query: string, base64MarketImage: string
   const parts: any[] = [{ text: prompt }]; 
   if (base64MarketImage) parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64MarketImage } }); 
   if (base64HoldingsImage) parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64HoldingsImage } }); 
-  const response = await ai.models.generateContent({ 
+  const response: GenerateContentResponse = await ai.models.generateContent({ 
     model: GEMINI_MODEL_COMPLEX, 
     contents: { parts }, 
     config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json", responseSchema: stockSynergySchema } 
