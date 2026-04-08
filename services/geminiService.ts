@@ -17,8 +17,8 @@ import {
   JournalEntry
 } from "../types";
 
-const GEMINI_MODEL_PRIMARY = "gemini-3-flash-preview"; 
-const GEMINI_MODEL_COMPLEX = "gemini-3-pro-preview";
+const GEMINI_MODEL_PRIMARY = "gemini-3.1-flash-preview"; 
+const GEMINI_MODEL_COMPLEX = "gemini-3.1-pro-preview";
 
 const marketDashboardSchema = { 
   type: Type.OBJECT, 
@@ -186,39 +186,74 @@ export const fetchHotMoneyAmbush = async (apiKey: string): Promise<AnalysisResul
 export const fetchMarketDashboard = async (period: 'day' | 'month', market: MarketType, apiKey?: string): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY });
   const now = new Date();
-  const timeContext = now.toLocaleString('zh-CN');
+  const timeContext = now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+  const dateOnly = now.toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' });
   
   const isPostMarket = now.getHours() >= 15;
-  const closingFocus = isPostMarket ? "重点检索今日【最终收盘数据】及【收盘点评/全貌】。" : "重点检索【当前实时/午盘】数据。";
+  const closingFocus = isPostMarket 
+    ? `【收盘审计】现在是收盘后。必须检索今日（${dateOnly}）的最终收盘真值。严禁返回昨日或更早的数据。` 
+    : `【盘中审计】现在是交易时段。必须检索今日（${dateOnly}）的实时/午盘最新数据。`;
 
   let indexNames = "";
-  if (market === MarketType.CN) indexNames = "上证指数, 深证成指, 创业板指, 科创50, 沪深300";
-  else if (market === MarketType.HK) indexNames = "恒生指数, 恒生科技指数";
-  else if (market === MarketType.US) indexNames = "标普500, 纳斯达克, 道琼斯";
+  let searchQueries: string[] = [];
+  
+  if (market === MarketType.CN) {
+    indexNames = "上证指数, 深证成指, 创业板指, 科创50, 沪深300";
+    searchQueries = [
+      `A股今日收盘行情 ${dateOnly}`,
+      `上证指数今日实时行情 ${dateOnly}`,
+      `沪深300指数今日涨跌幅 ${dateOnly}`,
+      `今日北向资金流向 ${dateOnly}`,
+      `今日A股成交额及放缩量情况 ${dateOnly}`
+    ];
+  } else if (market === MarketType.HK) {
+    indexNames = "恒生指数, 恒生科技指数";
+    searchQueries = [
+      `恒生指数今日行情 ${dateOnly}`,
+      `恒生科技指数今日涨跌 ${dateOnly}`,
+      `港股今日收盘点评 ${dateOnly}`
+    ];
+  } else if (market === MarketType.US) {
+    indexNames = "标普500, 纳斯达克, 道琼斯";
+    searchQueries = [
+      `US Market today performance ${dateOnly}`,
+      `S&P 500 real time ${dateOnly}`,
+      `Nasdaq today close ${dateOnly}`
+    ];
+  }
 
   const prompt = `
     【绝对任务：盘面全量数据审计与收盘核对】
-    当前时间: ${timeContext}。作为首席量化分析师，利用 googleSearch 检索 ${market} 的盘面数据。
+    当前现实时间: ${timeContext} (北京时间)。
     
     ${closingFocus}
     
     [重点探测逻辑]：
-    1. **指数真值核对**：必须获取今日最新的 ${indexNames} 的数值、涨跌幅。如果已收盘，必须确保数值为收盘真值。
-    2. **收盘点评 (closing_commentary)**：总结今日盘面特征（如：V型反转、缩量阴跌、光头阳线等）。
-    3. **四路资金拆解**：
-       - **外资**：北向资金今日全天净流入/流出总额及主要方向。
-       - **国内机构**：主流公募、社保等的大宗交易或关键调仓信号。
-       - **顶级游资**：审计今日收盘后公布的龙虎榜数据。
-       - **散户热度**：检索“拉萨天团”活跃度及社交平台人气排名。
-    4. **市场状态 (market_status)**：识别为 "已收盘"、"盘后复盘" 或 "交易中"。
+    1. **指数真值核对**：必须获取今日（${dateOnly}）最新的 ${indexNames} 的数值、涨跌幅。
+    2. **拒绝陈旧数据**：如果搜索结果中没有标注为 "${dateOnly}" 的数据，请明确说明“数据同步延迟”而不要编造历史数据。
+    3. **收盘点评 (closing_commentary)**：总结今日（${dateOnly}）盘面核心特征。
+    4. **资金拆解**：
+       - **外资/北向**：今日全天净流入/流出总额。
+       - **主力资金**：今日大单流入流出情况。
+       - **成交量**：今日全天成交额，对比昨日是放量还是缩量。
     
-    输出 JSON表单。
+    输出必须为严格 JSON。
   `;
 
   const response = await ai.models.generateContent({
-    model: GEMINI_MODEL_PRIMARY,
+    model: GEMINI_MODEL_COMPLEX, // 使用更强的模型进行数据审计
     contents: prompt,
-    config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json", responseSchema: marketDashboardSchema }
+    config: { 
+      tools: [{ 
+        googleSearch: {
+          searchTypes: {
+            webSearch: {}
+          }
+        } 
+      }], 
+      responseMimeType: "application/json", 
+      responseSchema: marketDashboardSchema 
+    }
   });
   const parsed = robustParse(response.text || "{}");
   return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, structuredData: parsed, market };
