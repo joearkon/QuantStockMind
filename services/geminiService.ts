@@ -17,7 +17,7 @@ import {
   JournalEntry
 } from "../types";
 
-const GEMINI_MODEL_PRIMARY = "gemini-3.1-flash-preview"; 
+const GEMINI_MODEL_PRIMARY = "gemini-3-flash-preview"; 
 const GEMINI_MODEL_COMPLEX = "gemini-3.1-pro-preview";
 
 const marketDashboardSchema = { 
