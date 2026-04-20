@@ -288,7 +288,19 @@ export const fetchLimitUpLadder = async (apiKey: string): Promise<AnalysisResult
   const ai = new GoogleGenAI({ apiKey }); 
   const now = new Date(); 
   const dateStr = now.toLocaleDateString('zh-CN'); 
-  const prompt = `【指令：全量真实涨停梯队深度扫描】今日现实日期: ${dateStr}。作为顶级 A 股短线量化专家，请利用 googleSearch 扫描今日全市场【真实且正在封板】的涨停标的。[重点要求：全量扫描与扩容] 1. 严禁只抓取排名前几位的股票。必须返回今日全市场分布在各板块的 20-30 只真实涨停标的。2. 检索最新的行情分级榜单，涵盖 5 板、3 板、2 板及首板全梯队。3. 仅返回涨幅等于或超过 9.8%（主板）或 19.8%（双创）的标的。`; 
+  const prompt = `【中央指令：今日全市场涨停梯队真实性深度审计 - 零容忍幻觉】
+当前现实日期: ${dateStr}。
+
+作为 A 股顶级短线审计专家，你必须利用 googleSearch 检索【今日即 ${dateStr}】全市场真实的涨停标的。
+
+[!!! 核心纠偏准则 !!!]：
+1. **时效性绝对优先**：你必须检索明确带有 "${dateStr}" 标识的实时盘面总结（如：同花顺、财联社、东方财富今日快讯）。严禁将历史行情（昨日或数天前）混入。
+2. **强制收盘核验**：如果当前已收盘，必须核查收盘价是否封死涨停（涨幅主板>=9.8%，双创>=19.8%）。严禁将“曾涨停但收盘炸板”的标的列为龙头。
+3. **连板数精准合规**：对于龙头标的（如：浪潮软件、万丰奥威等），必须核查其【连续涨停】的确切天数。绝对不允许凭记忆给出一个大于实际的天数。如果搜索结果不确定连板数，请保守估计或剔除。
+4. **全梯队覆盖**：从 10 连板、5 连板到首板，必须涵盖各个高度。
+5. **龙苗种子挖掘**：通过龙虎榜检索今日是否有顶级游资（章盟主、呼家楼等）的买入动作。
+
+输出必须为严格 JSON。`; 
   const response = await ai.models.generateContent({ 
     model: GEMINI_MODEL_PRIMARY, 
     contents: prompt, 
@@ -304,15 +316,18 @@ export const fetchDualBoardScanning = async (apiKey: string): Promise<AnalysisRe
   const ai = new GoogleGenAI({ apiKey }); 
   const now = new Date(); 
   const dateStr = now.toLocaleDateString('zh-CN'); 
-  const prompt = `【指令：双创 20% 涨停标的全量深度审计】
-今日现实日期: ${dateStr}。请利用 googleSearch 扫描今日创业板和科创板的所有【真实收盘】涨停标的。
+  const prompt = `【指令：双创 (创业板/科创板) 20% 涨停全量真实性审计】
+当前现实日期: ${dateStr}。
 
-[!!! 严苛真实性校验 !!!]：
-1. **涨幅阈值**：仅抓取收盘涨幅 >= 19.8% 的标的。
-2. **拒绝陈旧数据**：必须检索明确标注为 "${dateStr}" 或 "今日收盘" 的快讯。如果搜索结果中的股价不是今日最新值，**严禁将其列入名单**。
-3. **炸板过滤**：通过搜索关键词 "炸板"、"回落" 排除今日曾经涨停但收盘未封板的股票。
-4. **杜绝敷衍**：目标返回今日双创板块最核心的 10-20 只真实涨停标的。`; 
+请利用 googleSearch 检索今日【即 ${dateStr}】创业板和科创板的所有真实收盘涨停标的。
 
+[!!! 强制性核验清单 !!!]：
+1. **百分比硬门槛**：标的今日收盘涨幅必须 >= 19.8%。严禁将 10% 或涨幅不足的股票列入。
+2. **拒绝幻觉修正**：绝对不允许包含昨日涨停但今日下跌/平盘的股票。必须明确其在 "${dateStr}" 这一天是封死涨停的。
+3. **数据交叉比对**：通过检索 "20cm 涨停一览"、"今日双创异动" 等快讯进行多重印证。
+4. **炸板必剔除**：如果搜索结果提到“午后跳水”、“炸板回落”，该股票必须剔除。
+
+输出必须为严格 JSON。`; 
   const response = await ai.models.generateContent({ 
     model: GEMINI_MODEL_PRIMARY, 
     contents: prompt, 
