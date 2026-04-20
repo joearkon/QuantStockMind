@@ -118,6 +118,8 @@ export interface HotMoneyAmbushStock {
   institutional_participation: boolean;
   ambush_rating: 'Strong' | 'Normal' | 'Avoid';
   ambush_logic: string;
+  evolution_stage: 'LowLatent' | 'RightBreakout' | 'HighAccelerate';
+  pattern_type: string;
   target_entry_price: string;
   stop_loss_price: string;
 }

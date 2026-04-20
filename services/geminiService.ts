@@ -114,10 +114,12 @@ const hotMoneyAmbushSchema = {
           institutional_participation: { type: Type.BOOLEAN },
           ambush_rating: { type: Type.STRING, enum: ['Strong', 'Normal', 'Avoid'] },
           ambush_logic: { type: Type.STRING },
+          evolution_stage: { type: Type.STRING, enum: ['LowLatent', 'RightBreakout', 'HighAccelerate'] },
+          pattern_type: { type: Type.STRING },
           target_entry_price: { type: Type.STRING },
           stop_loss_price: { type: Type.STRING }
         },
-        required: ["name", "code", "recent_lh_count", "top_seats", "ambush_rating", "ambush_logic"]
+        required: ["name", "code", "recent_lh_count", "top_seats", "ambush_rating", "ambush_logic", "evolution_stage", "pattern_type"]
       }
     },
     seat_focus: {
@@ -160,17 +162,20 @@ export const fetchHotMoneyAmbush = async (apiKey: string): Promise<AnalysisResul
   const dateStr = now.toLocaleDateString('zh-CN');
   
   const prompt = `
-    【指令：2个交易日顶级席位潜伏审计】
-    今日日期: ${dateStr}。作为顶级 A 股席位专家，利用 googleSearch 检索 A 股【最近 2 个交易日】内的【龙虎榜 (Dragon-Tiger List)】数据。
+    【中央指令：龙虎席位 + K 线形态双重潜伏回归审计】
+    今日现实日期: ${dateStr}。
     
-    [重点审计清单]：
-    1. **极速对比**：寻找在昨日买入、今日依然活跃或今日强势介入的顶级席位标的。
-    2. **识别席位**：
-       - 陈小群 (大连黄河路/世纪大道)
-       - 呼家楼 (中信总部/京城分公司)
-       - 机构专用席位 (Institutional Seats)
-    3. **逻辑挖掘**：分析标的是否处于首板后的回踩或二波加速。
-    
+    作为顶级 A 股操盘专家，你必须结合 googleSearch 检索【龙虎榜席位动向】与【K 线技术形态】的双向共鸣标的。
+    特别针对类似“博云新材(002297)”、“沃格光电(603773)”这种【长期横盘后均线多头排列、量能倍增起爆】或“英维克(002837)”这种【波动收敛后的右侧突破】模式进行定向审计。
+
+    [深度审计准则]：
+    1. **形态定位 (Technical Filter)**：
+       - **LowLatent (低位潜伏)**：寻找底部均线（5/10/20/60/120/240）刚刚由纠缠转向多头散开，K 线呈现“圆弧底”或“缓步攀升”的标的。
+       - **RightBreakout (右侧突破)**：寻找放量突破长期压力位、箱体上沿，或在历史高位附近缩量整理后再次放量拉升的标的。
+    2. **席位共鸣 (LH Synergy)**：核查在这些形态的关键节点（如突破日、回踩日）是否有顶级席位（陈小群、呼家楼、苏南帮等）或机构专用席位的大手笔买入。
+    3. **逻辑穿透**：必须指出标的身后的产业催化剂（如：低空经济、AI 算力、液冷等）是否与顶级游资的审美吻合。
+    4. **进场博弈**：针对不同形态给出明确的【低位潜伏位】或【右侧建仓位】。
+
     输出必须为严格 JSON 格式。
   `;
 

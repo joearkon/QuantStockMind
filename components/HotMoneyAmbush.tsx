@@ -134,7 +134,16 @@ export const HotMoneyAmbush: React.FC<{
                       <div className="flex justify-between items-start mb-6">
                          <div>
                             <h4 className="text-2xl font-black text-slate-800">{stock.name}</h4>
-                            <span className="text-xs font-mono text-slate-400 mt-1 block">{stock.code}</span>
+                            <div className="flex items-center gap-2 mt-1">
+                               <span className="text-xs font-mono text-slate-400">{stock.code}</span>
+                               <span className={`px-1.5 py-0.5 rounded text-[8px] font-black text-white ${
+                                 stock.evolution_stage === 'LowLatent' ? 'bg-emerald-500' : 
+                                 stock.evolution_stage === 'RightBreakout' ? 'bg-indigo-500' : 'bg-rose-500'
+                               }`}>
+                                 {stock.evolution_stage === 'LowLatent' ? '低位潜伏' : 
+                                  stock.evolution_stage === 'RightBreakout' ? '右侧突破' : '高位加速'}
+                               </span>
+                            </div>
                          </div>
                          <div className="text-right">
                             <div className="text-sm font-black text-rose-600">入场位: {stock.target_entry_price}</div>
@@ -143,6 +152,9 @@ export const HotMoneyAmbush: React.FC<{
                       </div>
 
                       <div className="flex flex-wrap gap-1.5 mb-6">
+                         <span className="px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-black rounded-lg border border-slate-200">
+                           形态: {stock.pattern_type}
+                         </span>
                          {stock.top_seats.map((seat, si) => (
                             <span key={si} className="px-2 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black rounded-lg border border-indigo-100 flex items-center gap-1">
                                <UserCheck className="w-3 h-3" /> {seat}
