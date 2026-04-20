@@ -1,6 +1,6 @@
 
 import { ModelProvider, MarketType } from './types';
-import { LayoutDashboard, TrendingUp, NotebookPen, Radar, UserCheck, Layers, ListChecks, ScanEye, Gavel, Network, ShieldCheck, Binoculars, Radio } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, NotebookPen, Radar, UserCheck, Layers, ListChecks, ScanEye, Gavel, Network, ShieldCheck, Binoculars, Radio, CalendarDays } from 'lucide-react';
 
 export const APP_NAME = "QuantMind A-Share Assistant";
 export const APP_VERSION = "v1.16.1";
@@ -18,7 +18,8 @@ export const MARKET_OPTIONS = [
 
 export const NAV_ITEMS = [
   { id: 'market', label: '市场全览', icon: LayoutDashboard },
-  { id: 'quant-vane', label: '量化抱团雷达', icon: Radio }, // NEW
+  { id: 'policy-calendar', label: '政策催化日历', icon: CalendarDays },
+  { id: 'quant-vane', label: '量化抱团雷达', icon: Radio },
   { id: 'hot-ambush', label: '龙虎潜伏哨', icon: Binoculars },
   { id: 'synergy', label: '标的合力审计', icon: ShieldCheck },
   { id: 'holdings', label: '持仓复盘', icon: NotebookPen },

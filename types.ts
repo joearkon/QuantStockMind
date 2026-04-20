@@ -400,6 +400,23 @@ export interface PeriodicReviewData {
   improvement_advice: string[];
 }
 
+export interface CatalystEvent {
+  date_window: string;
+  event_name: string;
+  theme_label: string;
+  logic_chain: string;
+  opportunity_level: 'S' | 'A' | 'B';
+  suggested_stocks: { name: string; code: string; logic: string }[];
+  impact_sectors: string[];
+  type: 'Policy' | 'Event' | 'Financial';
+}
+
+export interface PolicyCalendarResponse {
+  month: string;
+  overall_strategy: string;
+  events: CatalystEvent[];
+}
+
 export interface AnalysisResult {
   content: string; 
   groundingSource?: GroundingSource[];
@@ -425,6 +442,7 @@ export interface AnalysisResult {
   institutionalData?: InstitutionalInsightData;
   hotMoneyAmbushData?: HotMoneyAmbushResponse;
   quantVaneData?: QuantVaneResponse; // UPDATED
+  policyCalendarData?: PolicyCalendarResponse;
 }
 
 export interface UserSettings {

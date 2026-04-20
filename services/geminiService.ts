@@ -14,7 +14,8 @@ import {
   LimitUpLadderResponse,
   StockSynergyResponse,
   SectorLadderData,
-  JournalEntry
+  JournalEntry,
+  PolicyCalendarResponse
 } from "../types";
 
 const GEMINI_MODEL_PRIMARY = "gemini-3-flash-preview"; 
@@ -138,6 +139,42 @@ const hotMoneyAmbushSchema = {
   required: ["scan_time", "market_summary", "candidates"]
 };
 
+const policyCalendarSchema = {
+  type: Type.OBJECT,
+  properties: {
+    month: { type: Type.STRING },
+    overall_strategy: { type: Type.STRING },
+    events: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          date_window: { type: Type.STRING },
+          event_name: { type: Type.STRING },
+          theme_label: { type: Type.STRING },
+          logic_chain: { type: Type.STRING },
+          opportunity_level: { type: Type.STRING, enum: ['S', 'A', 'B'] },
+          suggested_stocks: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                code: { type: Type.STRING },
+                logic: { type: Type.STRING }
+              }
+            }
+          },
+          impact_sectors: { type: Type.ARRAY, items: { type: Type.STRING } },
+          type: { type: Type.STRING, enum: ['Policy', 'Event', 'Financial'] }
+        },
+        required: ["date_window", "event_name", "logic_chain", "opportunity_level", "suggested_stocks", "type"]
+      }
+    }
+  },
+  required: ["month", "overall_strategy", "events"]
+};
+
 const robustParse = (text: string): any => {
   if (!text) return null;
   let clean = text.trim();
@@ -186,6 +223,39 @@ export const fetchHotMoneyAmbush = async (apiKey: string): Promise<AnalysisResul
   });
   const parsed = robustParse(response.text || "{}");
   return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, hotMoneyAmbushData: parsed, market: MarketType.CN };
+};
+
+export const fetchPolicyCalendar = async (apiKey: string, targetMonth?: string): Promise<AnalysisResult> => {
+  const ai = new GoogleGenAI({ apiKey });
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('zh-CN');
+  const monthToScan = targetMonth || "2026年4月";
+  
+  const prompt = `
+    【中央指令：针对性政策催化与重磅事件审计】
+    今日现实日期是 ${dateStr}。
+    请利用 googleSearch 全量检索中国 A 股市场在【${monthToScan}】月份的【政策、产业、及财报】催化日历。
+    
+    [!!! 极其重要 !!!]：
+    1. 你必须仅关注 ${monthToScan} 这个时间窗口内的事件。
+    2. 如果是 4 月份，重点审计：4/24 中国航天日、4/21 宁德时代科技日、4/22 算力大会、4/25 亨通光电财报等。
+    3. 如果是 5 月及以后，重点审计：5 月份的“中特估”政策预期、MSCI 季度调整、重要的行业展会（如电子、半导体等）、以及 5 月末各行业的政策落地节点。
+
+    [要求]：
+    - 识别每个事件的【核心利好逻辑】和【直接利好标的】。
+    - 给出博弈级别（S/A/B）。
+    - 语言必须为简体中文，严禁使用英文简称。
+
+    输出必须为严格 JSON。
+  `;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL_PRIMARY,
+    contents: prompt,
+    config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json", responseSchema: policyCalendarSchema }
+  });
+  const parsed = robustParse(response.text || "{}");
+  return { content: response.text || "", timestamp: Date.now(), modelUsed: ModelProvider.GEMINI_INTL, isStructured: true, policyCalendarData: parsed, market: MarketType.CN };
 };
 
 export const fetchMarketDashboard = async (period: 'day' | 'month', market: MarketType, apiKey?: string): Promise<AnalysisResult> => {
