@@ -84,6 +84,35 @@ export const PolicyCalendar: React.FC<{
     }
   };
 
+  const [activeEvent, setActiveEvent] = useState<CatalystEvent | null>(null);
+
+  const getDaysInMonth = (monthStr: string) => {
+    const match = monthStr.match(/(\d+)年(\d+)月/);
+    if (!match) return { days: [], startDay: 0 };
+    const year = parseInt(match[1]);
+    const month = parseInt(match[2]) - 1;
+    const date = new Date(year, month, 1);
+    const days = [];
+    const startDay = date.getDay(); // 0 is Sunday
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    
+    for (let i = 1; i <= lastDay; i++) {
+      days.push(i);
+    }
+    return { days, startDay };
+  };
+
+  const { days, startDay } = getDaysInMonth(selectedMonth);
+  const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+
+  const getEventsForDay = (day: number) => {
+    if (!data) return [];
+    return data.events.filter(e => {
+      const match = e.date_window.match(/(\d+)/);
+      return match && parseInt(match[0]) === day;
+    });
+  };
+
   return (
     <div className="space-y-8 animate-fade-in max-w-7xl mx-auto pb-24">
       {/* Search Header */}
@@ -95,36 +124,35 @@ export const PolicyCalendar: React.FC<{
               <div className="p-4 bg-rose-500 rounded-3xl text-white shadow-2xl shadow-rose-100">
                 <Calendar className="w-10 h-10" />
               </div>
-              政策与产业催化日历
+              政策与产业催化总表
             </h2>
             <p className="text-slate-500 text-lg font-medium leading-relaxed max-w-3xl mb-8">
-              深度审计全市场重磅政策、财报截止、及产业峰会。为您识别具有“确定性爆发”潜力的时间窗口，辅助左侧埋伏与龙头卡位。
+              深度审计全市场重磅政策、财报截止、及产业峰会。为您识别具有“确定性爆发”潜力的时间窗口。
             </p>
             <div className="flex flex-wrap gap-4 mb-8">
               <span className="px-4 py-2 bg-slate-900 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2">
                 <Timer className="w-4 h-4 text-rose-500" /> {selectedMonth} 重点期
               </span>
               <span className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                <Target className="w-4 h-4 text-indigo-500" /> 亨通光电等核心标的监控
+                <Target className="w-4 h-4 text-indigo-500" /> 全市场核心龙头集群监控
               </span>
             </div>
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-2">
-              <span className="text-slate-400 font-black text-[10px] uppercase tracking-widest">选择审计月份 (Future Months):</span>
-              <div className="flex flex-wrap gap-2">
-                 {months.map(m => (
-                   <button
-                     key={m}
-                     onClick={() => setSelectedMonth(m)}
-                     className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
-                       selectedMonth === m 
-                       ? 'bg-rose-500 text-white shadow-lg shadow-rose-200 scale-105' 
-                       : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                     }`}
-                   >
-                     {m}
-                   </button>
-                 ))}
+              <span className="text-slate-400 font-black text-[10px] uppercase tracking-widest">选择审计月份 (Select Month):</span>
+              <div className="relative w-full sm:w-64">
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="w-full h-12 pl-5 pr-10 bg-slate-100 border-none rounded-2xl text-sm font-black text-slate-700 outline-none appearance-none cursor-pointer hover:bg-slate-200 transition-all focus:ring-2 focus:ring-rose-500/20"
+                >
+                  {months.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  <CalendarDays className="w-4 h-4" />
+                </div>
               </div>
             </div>
           </div>
@@ -147,7 +175,7 @@ export const PolicyCalendar: React.FC<{
       )}
 
       {data && (
-        <div className="space-y-12 animate-slide-up">
+        <div className="space-y-8 animate-slide-up">
           {/* Strategy View */}
           <div className="bg-slate-900 rounded-[3rem] p-10 text-white shadow-2xl border border-slate-800 relative z-10 overflow-hidden">
              <div className="absolute top-0 right-0 w-1/2 h-full bg-[radial-gradient(circle_at_top_right,rgba(244,63,94,0.15),transparent_70%)]"></div>
@@ -168,90 +196,110 @@ export const PolicyCalendar: React.FC<{
              </div>
           </div>
 
-          {/* Timeline View */}
-          <div className="relative">
-             {/* Middle Rail */}
-             <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-slate-100 hidden lg:block -translate-x-1/2"></div>
-             
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-20 gap-y-12">
-                {data.events.map((event, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`relative ${idx % 2 === 0 ? 'lg:pr-4' : 'lg:pl-4 lg:mt-12'}`}
-                  >
-                    {/* Dot on Rail */}
-                    <div className="absolute left-1/2 top-10 w-6 h-6 bg-white border-4 border-rose-500 rounded-full hidden lg:block -translate-x-1/2 z-20 shadow-xl"></div>
-                    
-                    <div className="bg-white rounded-[2.5rem] border border-slate-200 p-8 shadow-sm hover:shadow-2xl transition-all hover:-translate-y-2 group">
-                      <div className="flex justify-between items-start mb-6">
-                        <div className="flex items-center gap-4">
-                          <div className={`p-3 rounded-2xl ${getTypeStyle(event.type)} border flex items-center justify-center`}>
-                            {getEventIcon(event.type, event.event_name)}
-                          </div>
-                          <div>
-                            <div className="text-2xl font-black text-slate-800 group-hover:text-rose-500 transition-colors uppercase tabular-nums">
-                              {event.date_window}
-                            </div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              级别: <span className={`px-2 py-0.5 rounded-full ml-1 ${getLevelStyle(event.opportunity_level)} text-[8px]`}>{event.opportunity_level}</span>
-                            </span>
-                          </div>
+          {/* Calendar Grid */}
+          <div className="bg-white rounded-[3rem] border border-slate-200 p-8 shadow-sm overflow-hidden">
+            <div className="grid grid-cols-7 gap-2">
+              {weekDays.map(wd => (
+                <div key={wd} className="py-4 text-center text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                  {wd}
+                </div>
+              ))}
+              
+              {/* Padding for start of month */}
+              {Array.from({ length: startDay }).map((_, i) => (
+                <div key={`pad-${i}`} className="h-32 bg-slate-50 opacity-30 rounded-2xl"></div>
+              ))}
+              
+              {days.map(day => {
+                const dayEvents = getEventsForDay(day);
+                return (
+                  <div key={day} className={`h-32 p-3 rounded-2xl border ${dayEvents.length > 0 ? 'bg-white border-rose-100 shadow-sm' : 'bg-slate-50 border-slate-100'} transition-all flex flex-col`}>
+                    <span className={`text-sm font-black ${dayEvents.length > 0 ? 'text-rose-500' : 'text-slate-300'}`}>
+                      {day < 10 ? `0${day}` : day}
+                    </span>
+                    <div className="flex-1 mt-2 overflow-y-auto space-y-1 custom-scrollbar">
+                      {dayEvents.map((e, ei) => (
+                        <div 
+                          key={ei}
+                          onClick={() => setActiveEvent(e)}
+                          className={`px-2 py-1 rounded-lg text-[9px] font-black truncate cursor-pointer transition-all hover:scale-105 active:scale-95 ${getTypeStyle(e.type)}`}
+                        >
+                          {e.event_name}
                         </div>
-                        {event.type === 'Policy' && (
-                          <div className="px-3 py-1 bg-indigo-500 text-white rounded-lg text-[10px] font-black flex items-center gap-1">
-                            <Layers className="w-3 h-3" /> 重磅政策
-                          </div>
-                        )}
-                      </div>
-
-                      <h4 className="text-2xl font-black text-slate-800 mb-4 leading-tight">
-                        {event.event_name}
-                      </h4>
-                      
-                      <div className="px-4 py-2 bg-rose-50 text-rose-600 inline-block rounded-xl font-black text-xs mb-6 border border-rose-100">
-                        主题: {event.theme_label}
-                      </div>
-
-                      <div className="space-y-4 mb-8">
-                         <div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 block">核心逻辑 (Logic)</span>
-                            <p className="text-sm text-slate-600 font-bold leading-relaxed">{event.logic_chain}</p>
-                         </div>
-                         <div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 block">影响领域 (Impact)</span>
-                            <div className="flex flex-wrap gap-2">
-                              {event.impact_sectors.map((s, i) => (
-                                <span key={i} className="px-2 py-1 bg-slate-100 text-slate-500 text-[10px] font-black rounded-lg border border-slate-200">{s}</span>
-                              ))}
-                            </div>
-                         </div>
-                      </div>
-
-                      <div className="border-t border-slate-100 pt-6">
-                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 block">直接利好标的 (Alpha)</span>
-                         <div className="grid grid-cols-1 gap-3">
-                           {event.suggested_stocks.map((stock, si) => (
-                             <div 
-                               key={si}
-                               onClick={() => handleNavigateToStock(stock.code, stock.name)}
-                               className="bg-slate-50 p-4 rounded-2xl border border-slate-100 hover:border-rose-400 hover:bg-rose-50 transition-all cursor-pointer flex items-center justify-between group/stock"
-                             >
-                               <div>
-                                  <div className="font-black text-slate-800 flex items-center gap-2">
-                                     {stock.name} <span className="text-[10px] font-mono opacity-40">{stock.code}</span>
-                                  </div>
-                                  <div className="text-[10px] text-slate-400 font-medium mt-1 italic">{stock.logic}</div>
-                               </div>
-                               <ArrowUpRight className="w-5 h-5 text-slate-300 group-hover/stock:text-rose-500 transition-colors" />
-                             </div>
-                           ))}
-                         </div>
-                      </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-             </div>
+                );
+              })}
+            </div>
           </div>
+
+          {/* Event Detail Modal/Overlay if active */}
+          {activeEvent && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-fade-in" onClick={() => setActiveEvent(null)}>
+              <div 
+                className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-slide-up"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className={`p-8 ${getTypeStyle(activeEvent.type)} flex justify-between items-center border-b`}>
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-white rounded-2xl shadow-sm text-slate-800">
+                      {getEventIcon(activeEvent.type, activeEvent.event_name)}
+                    </div>
+                    <div>
+                      <h4 className="text-xl font-black text-slate-900">{activeEvent.event_name}</h4>
+                      <p className="text-xs font-bold opacity-70 uppercase tracking-widest">{activeEvent.date_window}</p>
+                    </div>
+                  </div>
+                  <div className={`px-4 py-1 rounded-full ${getLevelStyle(activeEvent.opportunity_level)} text-xs font-black`}>
+                    级别: {activeEvent.opportunity_level}
+                  </div>
+                </div>
+                
+                <div className="p-10 space-y-8">
+                  <div>
+                    <div className="px-4 py-2 bg-rose-50 text-rose-600 inline-block rounded-xl font-black text-xs mb-4 border border-rose-100">
+                      主题: {activeEvent.theme_label}
+                    </div>
+                    <p className="text-slate-600 font-bold leading-relaxed italic text-lg">
+                      "{activeEvent.logic_chain}"
+                    </p>
+                  </div>
+
+                  <div>
+                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 block">直接利好标的 (Direct Alpha)</span>
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                       {activeEvent.suggested_stocks.map((stock, si) => (
+                         <div 
+                           key={si}
+                           onClick={() => {
+                             handleNavigateToStock(stock.code, stock.name);
+                             setActiveEvent(null);
+                           }}
+                           className="bg-slate-50 p-5 rounded-3xl border border-slate-100 hover:border-rose-400 hover:bg-rose-50 transition-all cursor-pointer flex items-center justify-between group/stock"
+                         >
+                           <div>
+                              <div className="font-black text-slate-800 flex items-center gap-2">
+                                 {stock.name} <span className="text-xs font-mono opacity-40">{stock.code}</span>
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-medium mt-1 italic leading-tight">{stock.logic}</div>
+                           </div>
+                           <ArrowUpRight className="w-5 h-5 text-slate-300 group-hover/stock:text-rose-500 transition-colors" />
+                         </div>
+                       ))}
+                     </div>
+                  </div>
+
+                  <button 
+                    onClick={() => setActiveEvent(null)}
+                    className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-black text-lg hover:bg-rose-500 transition-all shadow-xl"
+                  >
+                    返回日历
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Warning Banner */}
           <div className="bg-amber-50 border border-amber-100 rounded-[2.5rem] p-10 flex items-start gap-8 shadow-xl shadow-amber-500/5">
@@ -261,7 +309,7 @@ export const PolicyCalendar: React.FC<{
              <div className="flex-1">
                 <h4 className="text-xl font-black text-amber-900 mb-3">操盘提醒：财报季末端效应</h4>
                 <p className="text-amber-800/80 leading-relaxed font-medium">
-                  4月25日至4月30日是财报强制披露的最后窗口期，全市场“优生”通常已交卷，剩下的标的虽然不乏惊喜，但“爆雷”概率显著增加。建议重点盯紧已披露业绩远超预期的【光模块/AI/航天】核心龙头，若出现政策利好叠加业绩兑现的回调，往往是极佳的右侧进场点。
+                  4月25日至4月30日是财报强制披露的最后窗口期。全市场“最后交卷”的往往是风险高发地带，请务必关注日历中标注的披露时点。对于已经走出右侧突破趋势的标的，若业绩超预期，配合政策催化，往往是二次主升浪的起点。
                 </p>
              </div>
           </div>
